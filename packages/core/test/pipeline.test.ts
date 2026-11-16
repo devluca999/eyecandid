@@ -86,3 +86,17 @@ describe("teleprompter retakes", () => {
     expect(changes[0]!.ops.map((o) => o.path)).toEqual(["/beads/@b1/struck"]);
   });
 });
+
+describe("pauses between sentences", () => {
+  it("are kept inside the bead before them, so a struck pause is recorded and restorable", () => {
+    let doc = applyChange(emptyEditDoc("p"), addClipChange({ id: "c1", mediaId: "m1", source: "upload", w: 640, h: 360, durationMs: 9000, fps: 15 }))!.doc;
+    const gapCut = {
+      strikes: [{ startMs: 1920, endMs: 3180, kind: "silence" as const, reason: "trimmed pause · 1.5s" }],
+      beads: [{ inMs: 0, outMs: 1800 }, { inMs: 3300, outMs: 4700 }],
+    };
+    doc = run(doc, beadChanges(doc, "c1", transcript, gapCut));
+    expect(doc.beads[0]!.outMs).toBe(3300); // tiles up to the next sentence
+    expect(doc.beads[0]!.cuts).toHaveLength(1);
+    expect(doc.beads[0]!.cuts[0]).toMatchObject({ startMs: 1920, endMs: 3180, struck: true });
+  });
+});
