@@ -93,9 +93,9 @@ jobs:
           curl -sf $EYELORE_CONVEX_SITE_URL/worker/hello || (cat convex.log; exit 1)
       - name: start a cpu-stub worker
         run: |
-          cd services/engine && uv venv --python 3.12 && uv pip install -e .
           TOKEN=$(npx convex run workers:register '{"name":"ci","provider":"cpu-stub"}' | python3 -c 'import sys,json;print(json.load(sys.stdin)["token"])')
           echo "::add-mask::$TOKEN"
+          cd services/engine && uv venv --python 3.12 && uv pip install -e .
           (EYELORE_WORKER_TOKEN=$TOKEN EYELORE_PROVIDER=cpu-stub EYELORE_WORKER_NAME=ci EYELORE_HELLO_STEP_S=0.4 .venv/bin/eyelore-worker > ../../worker.log 2>&1 &)
       - run: pnpm --filter @eyelore/web build
       - run: pnpm --filter @eyelore/web exec playwright install --with-deps chromium
