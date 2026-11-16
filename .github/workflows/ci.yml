@@ -206,6 +206,7 @@ jobs:
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: 17 }
       - uses: gradle/actions/setup-gradle@v4
+        with: { cache-read-only: false } # PR branches save the Gradle cache too: a cold native build is ~29 min
       - uses: astral-sh/setup-uv@v6
       - run: pnpm install --frozen-lockfile
       - name: release apk for the emulator (x86_64 only, signed with the debug key)
