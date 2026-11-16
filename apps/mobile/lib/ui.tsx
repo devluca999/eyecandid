@@ -29,9 +29,9 @@ export function StatusDot({ status, label, theme, testID }: { status: "ready" | 
   const { c } = useTheme(theme);
   const color = status === "ready" ? c["status-ready"] : status === "working" ? c["status-working"] : c["status-attention"];
   return (
-    <View style={s.row} accessible accessibilityRole="text" accessibilityLabel={label} accessibilityLiveRegion="polite">
+    <View testID={testID} style={s.row} accessible accessibilityRole="text" accessibilityLabel={label} accessibilityLiveRegion="polite">
       <View style={{ width: layout.statusDot, height: layout.statusDot, borderRadius: 99, backgroundColor: color }} />
-      <Text testID={testID} style={[T.meta, { color: c["ink-secondary"], flexShrink: 1 }]}>
+      <Text style={[T.meta, { color: c["ink-secondary"], flexShrink: 1 }]}>
         {label}
       </Text>
     </View>

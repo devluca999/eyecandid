@@ -227,7 +227,7 @@ Where work runs (decided 2026-11-16): one worker codebase behind `GpuProvider`. 
 - [x] Light edits: tap a word or pause to cut/restore, cut/keep a line, hold a word to fix its caption spelling (server rejects meaning changes), aspect, undo
 - [x] Export → saved to the camera roll, then the share sheet; funnel events with `platform`
 - [x] Haptics on every action and result; VoiceOver/TalkBack labels, hints, states and live regions; 44pt targets on controls
-- [x] iOS simulator, dev deployment + Modal worker: import → ready → exported 1080×1920 h264 in the camera roll in under 60s
+- [x] iOS simulator, local Convex backend + real CPU worker: clip → ready → exported 1080×1920 h264 in the camera roll in under 60s (started through the dev-only clip route: no touch automation on this machine)
 - [~] Maestro `core-loop.yaml` (import through the real picker → ready → edit → export saved, waits sum to under 3 min) on the Android emulator in CI
 - [ ] Geist fonts in the native app (system font today); Clerk and the paywall on mobile (needs keys and an in-app-purchase decision); Android foreground service for long uploads; Sentry
 **2.4 Around the loop** — idea engine empty state (needs an LLM key), paywall at export (Stripe), "your edit is ready" (SendPulse), Sentry

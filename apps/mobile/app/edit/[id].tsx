@@ -266,12 +266,12 @@ export default function Edit() {
               </Animated.View>
             )}
             {!ready && <View style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, backgroundColor: "rgba(8,8,10,0.45)" }} />}
-            {ready && chunk && doc?.captions.enabled && (
-              <View pointerEvents="none" style={{ position: "absolute", left: "10%", right: "10%", bottom: frame ? "12%" : "18%", alignItems: "center" }}>
-                <Text testID="caption" style={[T.caption, { color: "#FFFFFF", textAlign: "center", textShadowColor: "rgba(0,0,0,0.75)", textShadowRadius: 6, textShadowOffset: { width: 0, height: 1 } }]}>{chunk.text}</Text>
-              </View>
-            )}
           </Pressable>
+          {ready && chunk && doc?.captions.enabled && (
+            <View pointerEvents="none" style={{ position: "absolute", left: "10%", right: "10%", bottom: frame ? "12%" : "18%", alignItems: "center" }}>
+              <Text testID="caption" style={[T.caption, { color: "#FFFFFF", textAlign: "center", textShadowColor: "rgba(0,0,0,0.75)", textShadowRadius: 6, textShadowOffset: { width: 0, height: 1 } }]}>{chunk.text}</Text>
+            </View>
+          )}
         </Animated.View>
       </View>
 
