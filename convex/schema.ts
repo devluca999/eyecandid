@@ -23,17 +23,21 @@ export default defineSchema({
     ownerAnonId: v.optional(v.string()),
     title: v.string(),
     headVersion: v.number(),
+    /** honest pipeline state for the UI: what is happening now, and how far along */
+    stage: v.union(v.literal("empty"), v.literal("uploading"), v.literal("transcribing"), v.literal("cutting"), v.literal("reframing"), v.literal("ready"), v.literal("failed")),
+    stageDetail: v.optional(v.string()),
     createdAt: v.number(),
+    readyAt: v.optional(v.number()),
   })
     .index("by_owner_user", ["ownerUserId"])
     .index("by_owner_anon", ["ownerAnonId"]),
 
-  /** head snapshot (and periodic snapshots) of the edit model — ADR 0002 */
+  /** head snapshot of the edit model (one row per project) — ADR 0002. History is the editOps log. */
   editDocs: defineTable({
     projectId: v.id("projects"),
     version: v.number(),
     doc: v.any(),
-  }).index("by_project_version", ["projectId", "version"]),
+  }).index("by_project", ["projectId"]),
 
   /** append-only change log: every op with its one-line reason */
   editOps: defineTable({
@@ -51,6 +55,21 @@ export default defineSchema({
     storage: v.object({ provider: v.union(v.literal("convex"), v.literal("s3")), key: v.string() }),
     contentType: v.string(),
     bytes: v.optional(v.number()),
+    w: v.optional(v.number()),
+    h: v.optional(v.number()),
+    durationMs: v.optional(v.number()),
+    /** for proxies: the source media this is a low-res copy of */
+    proxyOf: v.optional(v.id("media")),
+    createdAt: v.number(),
+  }).index("by_project", ["projectId"]),
+
+  exports: defineTable({
+    projectId: v.id("projects"),
+    jobId: v.id("jobs"),
+    aspect: v.string(),
+    maxDurationMs: v.optional(v.number()),
+    watermark: v.boolean(),
+    docVersion: v.number(),
     createdAt: v.number(),
   }).index("by_project", ["projectId"]),
 
@@ -69,6 +88,8 @@ export default defineSchema({
     leaseOwner: v.optional(v.id("workers")),
     leaseExpiresAt: v.optional(v.number()),
     projectId: v.optional(v.id("projects")),
+    /** pipeline bookkeeping, e.g. { clipId } — not part of the engine contract */
+    meta: v.optional(v.any()),
     ownerUserId: v.optional(v.id("users")),
     ownerAnonId: v.optional(v.string()),
     error: v.optional(v.string()),

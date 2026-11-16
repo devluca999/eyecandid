@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { Aspect } from "./editModel";
+import { Aspect, EditDoc, ReframeKeyframe } from "./editModel";
 
 /**
  * Engine job contract — the ONLY interface between the app and the GPU (ADR 0003, 0004).
@@ -19,7 +19,7 @@ export const JOB_SPECS = {
   },
   transcribe: {
     version: 1,
-    input: MediaRef.extend({ language: z.string().optional(), model: z.enum(["small", "medium", "large-v3"]).default("small") }),
+    input: MediaRef.extend({ language: z.string().optional(), model: z.enum(["tiny", "base", "small", "medium", "large-v3"]).default("small") }),
     output: z.object({ language: z.string(), words: z.array(WordTiming), durationMs: Ms }),
   },
   autocut: {
@@ -36,10 +36,9 @@ export const JOB_SPECS = {
   },
   reframe: {
     version: 1,
-    input: MediaRef.extend({ aspects: z.array(Aspect).min(1) }),
-    output: z.object({
-      tracks: z.array(z.object({ aspect: Aspect, keyframes: z.array(z.object({ ms: Ms, cx: z.number(), cy: z.number(), scale: z.number() })) })),
-    }),
+    /** face track in normalised source coordinates; the renderer crops it for any aspect */
+    input: MediaRef.extend({ sampleFps: z.number().positive().max(10).default(4) }),
+    output: z.object({ keyframes: z.array(ReframeKeyframe), faces: z.number().int().nonnegative() }),
   },
   still: {
     version: 1,
@@ -78,7 +77,14 @@ export const JOB_SPECS = {
   },
   render: {
     version: 1,
-    input: z.object({ projectId: z.string(), docVersion: z.number().int(), aspect: Aspect, watermark: z.boolean(), maxDurationMs: Ms.optional() }),
+    /** the doc snapshot to render; media resolved by the worker via download-url */
+    input: z.object({
+      doc: EditDoc,
+      aspect: Aspect,
+      watermark: z.boolean(),
+      maxDurationMs: Ms.optional(),
+      loudnessLufs: z.number().default(-14),
+    }),
     output: MediaRef.extend({ durationMs: Ms, qc: z.object({ freezes: z.number().int(), silentAudio: z.boolean(), lufs: z.number() }) }),
   },
 } as const;

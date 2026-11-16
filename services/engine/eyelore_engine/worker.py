@@ -35,6 +35,10 @@ class _Ctx:
     def progress(self, p: float, stage: str) -> None:
         self.client.progress(self.job.id, p, stage)
 
+    def url(self, media_id: str) -> str:
+        """Signed URL for a media item (for tools that stream, like the Remotion renderer)."""
+        return self.client.download_url(media_id)
+
     def download(self, media_id: str) -> str:
         url = self.client.download_url(media_id)
         path = os.path.join(self._tmp, media_id)

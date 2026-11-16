@@ -7,6 +7,11 @@ from __future__ import annotations
 import re
 
 _SENTENCE_END = re.compile(r"[.!?]$")
+# spelling variants ASR produces for the same hesitation: um/umm/ummm, uh/uhh, er/erm, hm/hmm, ah
+_FILLER_SOUND = re.compile(r"^(u+m+|u+h+|e+r+m*|h+m+|a+h+)$")
+SPLIT_PAUSE_MS = 650  # a pause this long starts a new bead even without punctuation
+SOFT_MAX_WORDS = 14  # past this, split at the next comma
+HARD_MAX_WORDS = 24
 
 
 def _norm(t: str) -> str:
@@ -36,7 +41,9 @@ def run(inp: dict, ctx) -> dict:
         if matched:
             continue
         n = _norm(w["text"])
-        if n in fillers and n not in {"so", "like"}:  # 'so'/'like' are fillers only when isolated by pauses
+        if _FILLER_SOUND.match(n):
+            strikes.append({"startMs": w["startMs"], "endMs": w["endMs"], "kind": "filler", "reason": f"trimmed filler · '{n}'"})
+        elif n in fillers and n not in {"so", "like"}:  # 'so'/'like' are fillers only when isolated by pauses
             strikes.append({"startMs": w["startMs"], "endMs": w["endMs"], "kind": "filler", "reason": f"trimmed filler · '{n}'"})
         elif n in {"so", "like"}:
             gap_before = w["startMs"] - words[i - 1]["endMs"] if i else 10_000
@@ -57,9 +64,13 @@ def run(inp: dict, ctx) -> dict:
     ctx.progress(0.8, "splitting beads")
     beads: list[dict] = []
     start = words[0]["startMs"] if words else 0
+    count = 0
     for idx, w in enumerate(words):
         last = idx == len(words) - 1
-        if _SENTENCE_END.search(w["text"].strip()) or last:
+        count += 1
+        pause_after = (words[idx + 1]["startMs"] - w["endMs"]) if not last else 0
+        if _SENTENCE_END.search(w["text"].strip()) or last or pause_after >= SPLIT_PAUSE_MS or (count >= SOFT_MAX_WORDS and w["text"].rstrip().endswith(",")) or count >= HARD_MAX_WORDS:
+            count = 0
             beads.append({"inMs": start, "outMs": w["endMs"]})
             if not last:
                 start = words[idx + 1]["startMs"]

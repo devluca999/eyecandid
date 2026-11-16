@@ -18,8 +18,11 @@ export function toTimeline(doc: EditDoc): { segments: Segment[]; captions: Capti
     if (bead.struck) continue;
     const clip = clips.get(bead.clipId);
     if (!clip) continue;
-    // keep ranges = bead span minus struck words
-    const struck = bead.words.filter((w) => w.struck).map((w) => [Math.max(w.startMs, bead.inMs), Math.min(w.endMs, bead.outMs)] as const);
+    // keep ranges = bead span minus struck words and struck silences
+    const struck = [
+      ...bead.words.filter((w) => w.struck).map((w) => [Math.max(w.startMs, bead.inMs), Math.min(w.endMs, bead.outMs)] as const),
+      ...bead.cuts.filter((c) => c.struck).map((c) => [Math.max(c.startMs, bead.inMs), Math.min(c.endMs, bead.outMs)] as const),
+    ];
     let cursor = bead.inMs;
     const ranges: [number, number][] = [];
     for (const [s, e] of struck.sort((a, b) => a[0] - b[0])) {
