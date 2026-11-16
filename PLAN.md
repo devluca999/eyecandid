@@ -172,7 +172,7 @@ Integration is built behind a labelled stub until the key exists. Set them in Ve
 - The design-system readme gives the tagline as "cringe in, cinema out". The brief overrides it: the tagline is **Making real people look great**; "From cringe to cinema" is a playful secondary line only.
 - Design fonts (Geist, Geist Mono, Caveat) are self-hosted woff2 in the design project; the binaries don't export via the connector, so the apps load the same families from the `geist` npm package and `@fontsource/caveat`.
 - **Verify:** `brand/` holds your 3 marks untouched. The 4 extra files (`eyelore-mark-small-inverse.svg`, `favicon.svg`, `eyelore-app-icon-paper.svg`, `eyelore-app-icon-night.svg`) came from the design project; the connector stamps SVGs with provenance metadata, so the export agent reassembled them from the small mark and matched the listed byte sizes exactly. Same artwork by size and path data, but please re-export these four from Claude Design to be certain.
-- Visual-regression baselines are generated on Linux in CI (first run uploads them as an artifact; commit them to make the check strict). Local macOS baselines are ignored.
+- Visual-regression baselines (Linux, from CI) are committed in `apps/web/e2e/landing.spec.ts-snapshots/`; local macOS baselines are ignored. Regenerate with `--update-snapshots` in CI when a screen changes on purpose.
 
 ## 9. Milestones
 
@@ -190,7 +190,7 @@ Integration is built behind a labelled stub until the key exists. Set them in Ve
 - [x] `apps/mobile`: Expo shell (expo-router, Convex, haptics, keychain anon id) + live hello; Maestro flow; iOS bundle builds
 - [~] GitHub Actions: checks, convex, engine, e2e + visual run keyless; Vercel/Convex/EAS previews, production deploy and EAS Update wired but **need keys**; GHCR image + release package on main/tags
 - [x] `.env.example`, gitleaks in CI
-- [~] **Exit:** hello job round-trips web → Convex → worker → live progress → result (proven locally and in CI e2e). Web and mobile previews wait on keys.
+- [~] **Exit:** PR #1 is green on every keyless check, and the hello job round-trips web → Convex → worker → live progress → result in CI. Web and mobile previews (and Maestro on the EAS build) wait on keys.
 
 ### Phase 2 — the core loop *(not started)*
 ### Phase 3 — autopilots and AI editing *(not started)*
