@@ -218,7 +218,13 @@ Where work runs (decided 2026-11-16): one worker codebase behind `GpuProvider`. 
 - [x] Funnel events: drop_started, upload_done, first_preview (time-to-wow), edit_interaction, export_clicked, export_done
 - [x] Playwright: landing → exported 9:16 in **55–62s** locally (real CPU worker), CI runs it with a real worker
 - [ ] Resumable upload (chunked storage behind MediaStore) and an uploaded proxy for other devices
-**2.2b Web, rest** — theater (Night, circle Lens) and board modes; dials that re-edit live; timeline drawer with the five tracks; "?" shortcut sheet + skippable tour; Clerk signup at export with the anonymous work carried over
+**2.2b Web, rest** — branch `phase-2/web-rest` (PR #9)
+- [~] One Lens across theater (Night, circle, plays the edit, progress ring) / edit / board (a card per bead: still, sentence, moment tick, struck, keep/cut); spring morph; keys 1/2/3
+- [~] Dials re-edit live: `packages/core/src/dials.ts` `dialChanges` (pace strikes/restores pauses on a 1.2s → 0.45s → 0.25s line, 0.5 = autocut; energy punch-ins 1.04–1.12× on hook, best line, call to action, then more beads; b-roll density stored, decides nothing until Weave), `autopilot:dials`, one-line reasons, pins respected, exact round trip; `edits.setDials`; ⌘Z follows
+- [~] Energy punch-ins in the export (Remotion, the same `punchAt` as the preview); no job-contract change
+- [~] Timeline drawer (⌥T or the handle), five tracks in `TRACK_ORDER` on real data; b-roll and music honestly empty
+- [~] "?" shortcut sheet and a 4-step skippable first-run tour
+- [ ] Punch-ins in the mobile preview (the export has them)
 **2.3 Mobile** — branch `phase-2/mobile` (native screens, no webview)
 - [x] Home: record or import, no signup; recent edits (`projects.mine`)
 - [x] Capture with a teleprompter: script one line per row, one continuous recording, the current line under the lens, tap for the next; a line said twice keeps the last take (`retakeChanges`, restorable). Not exercised on a device yet: simulators have no camera
@@ -228,7 +234,13 @@ Where work runs (decided 2026-11-16): one worker codebase behind `GpuProvider`. 
 - [x] Export → saved to the camera roll, then the share sheet; funnel events with `platform`
 - [x] Haptics on every action and result; VoiceOver/TalkBack labels, hints, states and live regions; 44pt targets on controls
 - [x] iOS simulator, local Convex backend + real CPU worker: clip → ready → exported 1080×1920 h264 in the camera roll in under 60s (started through the dev-only clip route: no touch automation on this machine)
-- [~] Maestro `core-loop.yaml` (import through the real picker → ready → edit → export saved, waits sum to under 3 min) on the Android emulator in CI
+- [x] Maestro `core-loop.yaml` on the Android emulator in CI (local Convex + real CPU worker, 2-core runner): import through the real photo picker → ready → restore a word → export → saved, **138s**, with a 1080×1920 export in the gallery (run 43975498070). CI fails the job if the flow takes 180s or more
 - [ ] Geist fonts in the native app (system font today); Clerk and the paywall on mobile (needs keys and an in-app-purchase decision); Android foreground service for long uploads; Sentry
-**2.4 Around the loop** — idea engine empty state (needs an LLM key), paywall at export (Stripe), "your edit is ready" (SendPulse), Sentry
+**2.4 Around the loop**
+- [~] Accounts with the anonymous work claimed on signup, server-side entitlements, paywall at export, "your edit is ready" email, Sentry on web and worker: built as stubs until keys (PR #7, ADR 0009). Flags `accounts`, `billing`, `ready_email`, default off. Paywall rules apply only with the `billing` flag and a Stripe key
+- [~] Funnel dashboard at `/funnel`, gated by `EYELORE_ADMIN_TOKEN` (PR #10)
+- [~] Delete an edit for good, web and mobile (PR #6)
+- [ ] Idea engine empty state (needs an LLM provider and key)
+- [ ] Owner decisions: plan names, prices and limits, soft or hard signup gate, deletion policy on account removal
+- [ ] Run sign-up and checkout end to end once keys exist; Clerk and the paywall on mobile
 ### Phase 3 — autopilots and AI editing *(not started)*
