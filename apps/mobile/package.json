@@ -9,7 +9,7 @@
     "android": "expo run:android",
     "typecheck": "tsc --noEmit",
     "lint": "eslint app lib",
-    "e2e": "maestro test .maestro"
+    "e2e": "mkdir -p .maestro/media && cp ../../services/engine/tests/fixtures/talk.mp4 .maestro/media/talk.mp4 && maestro test .maestro"
   },
   "dependencies": {
     "@expo/metro-runtime": "~58.0.17",

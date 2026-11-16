@@ -15,6 +15,7 @@ videos() { adb shell content query --uri content://media/external/video/media --
 adb reverse tcp:3210 tcp:3210
 adb reverse tcp:3211 tcp:3211
 adb install -r app.apk
+mkdir -p apps/mobile/.maestro/media && cp services/engine/tests/fixtures/talk.mp4 apps/mobile/.maestro/media/talk.mp4
 
 maestro test apps/mobile/.maestro --format junit --output maestro-report.xml --debug-output maestro-debug --flatten-debug-output
 

@@ -3,9 +3,10 @@
 # on a CPU worker and the render. (Simulators have no camera, so the clip is imported.) The waits below add up to 175s, so a pass means the whole loop took less than 3 minutes.
 appId: app.eyelore
 ---
-# the clip a new user would have in their camera roll
+# the clip a new user would have in their camera roll (Maestro only reads media from inside this folder:
+# `pnpm e2e` and run-ci.sh copy services/engine/tests/fixtures/talk.mp4 here first)
 - addMedia:
-    - "../../../services/engine/tests/fixtures/talk.mp4"
+    - "media/talk.mp4"
 - launchApp:
     clearState: true
 - assertVisible: "Making real people look great."
