@@ -41,6 +41,16 @@ export const Clip = z.object({
 });
 export type Clip = z.infer<typeof Clip>;
 
+/** A silence inside a bead: struck (cut) by autocut, restorable. Not a word, so it gets its own range. */
+export const Cut = z.object({
+  id: Id,
+  startMs: z.number().nonnegative(),
+  endMs: z.number().nonnegative(),
+  kind: z.literal("silence"),
+  struck: z.boolean().default(true),
+});
+export type Cut = z.infer<typeof Cut>;
+
 /** A bead is a segment of a clip, split at sentences and scene changes. */
 export const Bead = z.object({
   id: Id,
@@ -48,6 +58,7 @@ export const Bead = z.object({
   inMs: z.number().nonnegative(),
   outMs: z.number().nonnegative(),
   words: z.array(Word).default([]),
+  cuts: z.array(Cut).default([]),
   moment: Moment.optional(),
   struck: z.boolean().default(false),
 });
@@ -106,6 +117,19 @@ export const Style = z.object({
   dials: Dials.default({ pace: 0.5, brollDensity: 0.3, energy: 0.5 }),
 });
 
+export const ReframeKeyframe = z.object({
+  ms: z.number().nonnegative(),
+  /** face centre, normalised 0..1 in source frame */
+  cx: z.number().min(0).max(1),
+  cy: z.number().min(0).max(1),
+  /** extra zoom over "cover" (1 = none) */
+  scale: z.number().min(1).max(3).default(1),
+});
+export type ReframeKeyframe = z.infer<typeof ReframeKeyframe>;
+
+/** Pipeline state shown honestly in the UI (real progress, never a bare spinner). */
+export const PipelineStage = z.enum(["uploading", "transcribing", "cutting", "reframing", "ready", "failed"]);
+
 export const EditDoc = z.object({
   schemaVersion: z.literal(EDIT_SCHEMA_VERSION),
   projectId: z.string(),
@@ -118,6 +142,8 @@ export const EditDoc = z.object({
   captions: Captions.default({ enabled: true, look: "clean", overrides: [] }),
   style: Style.default({ grade: "natural", dials: { pace: 0.5, brollDensity: 0.3, energy: 0.5 } }),
   genre: z.string().optional(),
+  /** per clip id → keyframes keeping the face centred (smart reframe); used for every non-native aspect */
+  reframe: z.record(z.string(), z.array(ReframeKeyframe)).default({}),
   /** JSON-pointer paths the user touched. Autopilots never re-decide them. */
   pins: z.array(z.string()).default([]),
 });

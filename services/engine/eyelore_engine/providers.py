@@ -37,13 +37,28 @@ class LocalCpuProvider(GpuProvider):
 
     def capabilities(self) -> list[str]:
         caps = ["hello", "autocut"]
+        has_ffmpeg = bool(shutil.which("ffmpeg"))
         try:
             import faster_whisper  # noqa: F401
 
-            if shutil.which("ffmpeg"):
+            if has_ffmpeg:
                 caps.append("transcribe")
         except ImportError:
             pass
+        try:
+            import cv2  # noqa: F401
+
+            caps.append("reframe")
+        except ImportError:
+            pass
+        if has_ffmpeg and shutil.which("node"):
+            try:
+                from .handlers.render import _render_dir
+
+                _render_dir()
+                caps.append("render")
+            except RuntimeError:
+                pass
         return caps
 
 

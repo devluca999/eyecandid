@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { internalMutation, mutation, query } from "./_generated/server";
+import { internal } from "./_generated/api";
 import type { MutationCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { JOB_SPECS, JobTypeSchema, DEFAULT_LEASE_MS, DEFAULT_MAX_ATTEMPTS, MAX_LEASE_MS, evaluateFlag } from "@eyelore/core";
@@ -14,6 +15,7 @@ export async function enqueueJob(
     input: unknown;
     idempotencyKey: string;
     projectId?: Id<"projects">;
+    meta?: Record<string, unknown>;
     ownerUserId?: Id<"users">;
     ownerAnonId?: string;
     maxAttempts?: number;
@@ -37,6 +39,7 @@ export async function enqueueJob(
     attempts: 0,
     maxAttempts: args.maxAttempts ?? DEFAULT_MAX_ATTEMPTS,
     projectId: args.projectId,
+    meta: args.meta,
     ownerUserId: args.ownerUserId,
     ownerAnonId: args.ownerAnonId,
     createdAt: Date.now(),
@@ -174,6 +177,7 @@ export const complete = internalMutation({
     const parsed = JOB_SPECS[job.type as JobType].output.safeParse(output);
     if (!parsed.success) {
       await ctx.db.patch(job._id, { status: "failed", error: `output failed contract: ${parsed.error.message.slice(0, 500)}`, finishedAt: Date.now(), leaseOwner: undefined, leaseExpiresAt: undefined });
+      if (job.projectId) await ctx.scheduler.runAfter(0, internal.pipeline.onJobDone, { jobId: job._id });
       return { ok: false as const, error: "output failed contract" };
     }
     await ctx.db.patch(job._id, {
@@ -185,6 +189,7 @@ export const complete = internalMutation({
       leaseOwner: undefined,
       leaseExpiresAt: undefined,
     });
+    if (job.projectId) await ctx.scheduler.runAfter(0, internal.pipeline.onJobDone, { jobId: job._id });
     return { ok: true as const };
   },
 });
@@ -203,6 +208,7 @@ export const fail = internalMutation({
       leaseExpiresAt: undefined,
       finishedAt: retry ? undefined : Date.now(),
     });
+    if (!retry && job.projectId) await ctx.scheduler.runAfter(0, internal.pipeline.onJobDone, { jobId: job._id });
     return true;
   },
 });
@@ -228,6 +234,7 @@ export const requeueExpired = internalMutation({
           leaseExpiresAt: undefined,
           finishedAt: retry ? undefined : now,
         });
+        if (!retry && job.projectId) await ctx.scheduler.runAfter(0, internal.pipeline.onJobDone, { jobId: job._id });
         n++;
       }
     }

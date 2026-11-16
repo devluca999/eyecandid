@@ -4,8 +4,8 @@ import { applyChange, applyOps, emptyEditDoc, invertOps, isPinned, EditDoc, TRAC
 function docWithBeads() {
   const d = emptyEditDoc("p1");
   d.beads = [
-    { id: "b1", clipId: "c1", inMs: 0, outMs: 1000, words: [], struck: false },
-    { id: "b2", clipId: "c1", inMs: 1000, outMs: 2000, words: [], struck: false },
+    { id: "b1", clipId: "c1", inMs: 0, outMs: 1000, words: [], cuts: [], struck: false },
+    { id: "b2", clipId: "c1", inMs: 1000, outMs: 2000, words: [], cuts: [], struck: false },
   ];
   return EditDoc.parse(d);
 }
@@ -25,7 +25,7 @@ describe("ops", () => {
     const d0 = docWithBeads();
     const { doc: d1, applied } = applyOps(d0, [
       { op: "set", path: "/beads/@b2/struck", value: true },
-      { op: "insert", path: "/beads/-", value: { id: "b3", clipId: "c1", inMs: 2000, outMs: 2500, words: [], struck: false } },
+      { op: "insert", path: "/beads/-", value: { id: "b3", clipId: "c1", inMs: 2000, outMs: 2500, words: [], cuts: [], struck: false } },
       { op: "remove", path: "/beads/@b1" },
     ]);
     expect(d1.beads.map((b) => b.id)).toEqual(["b2", "b3"]);

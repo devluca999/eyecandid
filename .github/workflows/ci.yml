@@ -199,4 +199,34 @@ jobs:
           script: adb install app.apk && maestro test apps/mobile/.maestro --format junit --output maestro-report.xml
       - if: always()
         uses: actions/upload-artifact@v4
-        with: { name: maestro, path: "maestro-report.xml\nworker.log" }
+        with:
+          name: maestro
+          path: |
+            maestro-report.xml
+            worker.log
+
+  engine-image:
+    name: engine image builds (no push)
+    runs-on: ubuntu-latest
+    permissions: { contents: read, pull-requests: read }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            engine:
+              - 'services/engine/**'
+              - 'services/render/**'
+              - 'packages/core/**'
+              - 'pnpm-lock.yaml'
+      - if: steps.changes.outputs.engine == 'true'
+        uses: docker/setup-buildx-action@v3
+      - if: steps.changes.outputs.engine == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: services/engine/Dockerfile
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

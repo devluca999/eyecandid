@@ -149,6 +149,8 @@ Primary metric: **time from `drop_started` to `first_preview`** (target ≤ 60 s
 | Convex file storage limits for large video | cost and upload failure | `MediaStore` interface from day one; resumable chunked upload; S3-compatible swap in an ADR when needed |
 | Identity/product drift in generated clips (assessment) | trust | Generation is Phase 3 and flagged; QC gate (reference similarity, motion score) before anything reaches the timeline |
 | Meaning-changing edits | trust, brand | ops are restricted to cut/strike/reorder/polish; no word substitution except own-voice with consent; every change listed |
+| No always-on host for the CPU worker yet | the core loop only runs while a worker is up (today: a laptop) | pick a host (Modal CPU, Fly.io, a small VPS); the same worker runs unchanged |
+| OpenCV 5 dropped the Haar face detector | reframe pinned to OpenCV 4 | move to YuNet (`cv2.FaceDetectorYN`) with a vendored model |
 | Many external accounts not yet connected | can't prove CI exit criterion | stubs + "Needs keys" list; local anonymous Convex for development |
 | Mobile e2e (Maestro on EAS) is slow/expensive | CI time | run on preview builds only when `apps/mobile` or `packages/*` change |
 
@@ -192,5 +194,19 @@ Integration is built behind a labelled stub until the key exists. Set them in Ve
 - [x] `.env.example`, gitleaks in CI
 - [~] **Exit:** PR #1 is green on every keyless check, and the hello job round-trips web → Convex → worker → live progress → result in CI. Web and mobile previews (and Maestro on the EAS build) wait on keys.
 
-### Phase 2 — the core loop *(not started)*
+### Phase 2 — the core loop *(in progress)*
+
+Where work runs (decided 2026-11-16): one worker codebase behind `GpuProvider`. Transcription, autocut, reframe and render run on **CPU** (`EYELORE_PROVIDER=cpu`: faster-whisper, OpenCV, Remotion + ffmpeg); GPU jobs (generation, Phase 3) on serverless GPU (Modal / RunPod) from the same CUDA image. Production needs an always-on CPU worker host — **open decision**, see Risks.
+
+**2.1 Pipeline** — branch `phase-2/pipeline`
+- [x] Edit model: silence cuts (restorable), reframe face tracks; contract: render takes a doc snapshot, reframe returns a face track
+- [x] `packages/core/pipeline.ts`: engine outputs → explained changes (beads at sentences, one change per strike, hook / best line / CTA), cutdowns that keep hook and CTA
+- [x] Convex: projects (anonymous), upload + source registration, proxy registration, live `projects.get`, edit API with optimistic versions + undo + history, pipeline orchestration on job completion, export with server-side watermark/cap
+- [x] Engine: real `transcribe` (faster-whisper, CPU int8), `reframe` (OpenCV face track, smoothed), `render` (Remotion cut → high-pass + denoise + loudnorm −14 LUFS → QC)
+- [x] Renderer: silences dropped, face-centred cover crop for any aspect, watermark
+- [x] Live run on the dev deployment (CPU worker on a laptop, 9s clip): **ready 7.8s after the drop** (upload 1.6s, transcribe ~5.5s warm, autocut <1s); reframe +6s; 9:16 export 1080×1920 captioned and watermarked. Render is slow on CPU (~65s for 7s of output): first target for 2.2
+- [~] Engine image with Node + renderer: Dockerfile updated, built by CI on PRs (no push)
+**2.2 Web core loop** — drop zone on the landing, resumable upload + client proxy, editor (Lens theater/edit/board, bead thread, struck words restorable, inline captions, right-click aspect morph, dials, export pill with ring + cutdowns, timeline drawer), signup at export (Clerk), Playwright under-3-minutes test
+**2.3 Mobile** — capture + teleprompter (line-by-line retakes), camera-roll import + background upload, theater review, light edits, export to camera roll + share sheet, Maestro under-3-minutes test
+**2.4 Around the loop** — idea engine empty state (needs an LLM key), paywall at export (Stripe), "your edit is ready" (SendPulse), Sentry
 ### Phase 3 — autopilots and AI editing *(not started)*

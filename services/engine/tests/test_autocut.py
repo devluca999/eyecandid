@@ -33,3 +33,11 @@ def test_beads_split_at_sentences_with_hook_and_cta():
     out = autocut.run({"words": WORDS, "minSilenceMs": 450, "fillers": []}, Ctx())
     assert [(b["inMs"], b["outMs"]) for b in out["beads"]] == [(0, 1900), (3400, 4400)]
     assert out["beads"][0]["moment"] == "hook" and out["beads"][-1]["moment"] == "cta"
+
+
+def test_filler_spelling_variants_and_pause_splits_without_punctuation():
+    words = [w("UMM,", 0, 300), w("this", 400, 600), w("ring", 650, 900), w("tracks", 950, 1200), w("sleep", 1250, 1600),
+             w("it", 2600, 2700), w("lasts", 2750, 3000), w("a", 3050, 3100), w("week", 3150, 3500)]
+    out = autocut.run({"words": words, "minSilenceMs": 450, "fillers": []}, Ctx())
+    assert ("filler", "trimmed filler · 'umm'") in [(s["kind"], s["reason"]) for s in out["strikes"]]
+    assert [(b["inMs"], b["outMs"]) for b in out["beads"]] == [(0, 1600), (2600, 3500)]

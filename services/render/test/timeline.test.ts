@@ -8,9 +8,9 @@ function doc() {
   const d = emptyEditDoc("p");
   d.clips = [{ id: "c1", mediaId: "m1", source: "camera", w: 1080, h: 1920, durationMs: 5000, fps: 30 }];
   d.beads = [
-    { id: "b1", clipId: "c1", inMs: 0, outMs: 2000, struck: false, words: [w("w1", "um", 0, 300, true), w("w2", "this", 400, 700), w("w3", "ring.", 750, 1100)] },
-    { id: "b2", clipId: "c1", inMs: 2000, outMs: 3000, struck: true, words: [w("w4", "oops", 2100, 2400)] },
-    { id: "b3", clipId: "c1", inMs: 3000, outMs: 4000, struck: false, words: [w("w5", "link", 3100, 3400), w("w6", "below.", 3450, 3800)] },
+    { id: "b1", clipId: "c1", inMs: 0, outMs: 2000, cuts: [], struck: false, words: [w("w1", "um", 0, 300, true), w("w2", "this", 400, 700), w("w3", "ring.", 750, 1100)] },
+    { id: "b2", clipId: "c1", inMs: 2000, outMs: 3000, cuts: [], struck: true, words: [w("w4", "oops", 2100, 2400)] },
+    { id: "b3", clipId: "c1", inMs: 3000, outMs: 4000, cuts: [], struck: false, words: [w("w5", "link", 3100, 3400), w("w6", "below.", 3450, 3800)] },
   ];
   return EditDoc.parse(d);
 }
@@ -29,5 +29,25 @@ describe("toTimeline", () => {
     expect(toTimeline(d).captions[0]!.text).toBe("this Ring.");
     d.captions.enabled = false;
     expect(toTimeline(d).captions).toEqual([]);
+  });
+});
+
+import { coverBox, faceAt } from "../src/reframe";
+
+describe("silences and reframe", () => {
+  it("drops struck silences and keeps restored ones", () => {
+    const d = doc();
+    d.beads[0]!.cuts = [{ id: "s1", startMs: 1100, endMs: 1800, kind: "silence", struck: true }];
+    expect(toTimeline(d).durationMs).toBe(2700 - 700);
+    d.beads[0]!.cuts[0]!.struck = false;
+    expect(toTimeline(d).durationMs).toBe(2700);
+  });
+  it("keeps the face centred in 9:16 from a 16:9 source, clamped to the frame", () => {
+    const box = coverBox(1920, 1080, 1080, 1920, { cx: 0.7, cy: 0.5, scale: 1 });
+    expect(box.height).toBe(1920);
+    expect(box.left + 0.7 * box.width).toBeCloseTo(540, 0); // face at horizontal centre
+    const edge = coverBox(1920, 1080, 1080, 1920, { cx: 0.99, cy: 0.5, scale: 1 });
+    expect(edge.left).toBeCloseTo(1080 - edge.width, 5); // can't show past the source edge
+    expect(faceAt([{ ms: 0, cx: 0.2, cy: 0.5, scale: 1 }, { ms: 1000, cx: 0.6, cy: 0.5, scale: 1 }], 500).cx).toBeCloseTo(0.4);
   });
 });
