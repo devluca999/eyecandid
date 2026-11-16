@@ -24,3 +24,5 @@ apps/mobile/android/
 /tmp-*/
 apps/web/e2e/**/*-darwin.png
 tmp-clips/
+.hyperadvisor/
+apps/mobile/.maestro/media/

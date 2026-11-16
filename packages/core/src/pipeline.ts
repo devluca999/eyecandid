@@ -165,3 +165,43 @@ export function isSpellingFix(from: string, to: string): boolean {
       d[i]![j] = Math.min(d[i - 1]![j]! + 1, d[i]![j - 1]! + 1, d[i - 1]![j - 1]! + (a[i - 1] === b[j - 1] ? 0 : 1));
   return d[a.length]![b.length]! <= Math.max(1, Math.floor(Math.max(a.length, b.length) * 0.34));
 }
+
+const tokens = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}' ]/gu, " ").split(/\s+/).filter(Boolean);
+
+/** How much of a script line a bead says (0..1): share of the line's words present in the bead, in any order. */
+export function lineMatch(line: string, bead: Bead): number {
+  const want = tokens(line);
+  if (!want.length) return 0;
+  const have = new Set(bead.words.filter((w) => !w.struck).flatMap((w) => tokens(w.text)));
+  return want.filter((t) => have.has(t)).length / want.length;
+}
+
+/**
+ * Teleprompter retakes on one continuous recording: when a script line was said more than once, keep the last take
+ * and strike the earlier ones (restorable, with a reason). Beads that match no line are left alone.
+ */
+export function retakeChanges(doc: EditDoc, threshold = 0.6): Change[] {
+  if (!doc.script.length) return [];
+  const byLine = new Map<number, Bead[]>();
+  for (const b of doc.beads) {
+    if (b.struck) continue;
+    let best = -1;
+    let score = threshold;
+    doc.script.forEach((line, i) => {
+      const m = lineMatch(line, b);
+      if (m >= score) [best, score] = [i, m];
+    });
+    if (best >= 0) byLine.set(best, [...(byLine.get(best) ?? []), b]);
+  }
+  const changes: Change[] = [];
+  for (const [line, beads] of [...byLine.entries()].sort((a, b) => a[0] - b[0])) {
+    const earlier = beads.slice(0, -1);
+    if (!earlier.length) continue;
+    changes.push({
+      actor: "autopilot:retakes",
+      reason: `retake · kept your last take of line ${line + 1}`,
+      ops: earlier.map((b) => ({ op: "set" as const, path: `/beads/@${b.id}/struck`, value: true })),
+    });
+  }
+  return changes;
+}
