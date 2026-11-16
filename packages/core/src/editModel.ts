@@ -142,6 +142,8 @@ export const EditDoc = z.object({
   captions: Captions.default({ enabled: true, look: "clean", overrides: [] }),
   style: Style.default({ grade: "natural", dials: { pace: 0.5, brollDensity: 0.3, energy: 0.5 } }),
   genre: z.string().optional(),
+  /** teleprompter script, one line per entry (mobile capture); retakes are matched against it */
+  script: z.array(z.string()).default([]),
   /** per clip id → keyframes keeping the face centred (smart reframe); used for every non-native aspect */
   reframe: z.record(z.string(), z.array(ReframeKeyframe)).default({}),
   /** JSON-pointer paths the user touched. Autopilots never re-decide them. */

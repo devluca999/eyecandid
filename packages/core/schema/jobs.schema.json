@@ -1365,6 +1365,13 @@
               "genre": {
                 "type": "string"
               },
+              "script": {
+                "default": [],
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
               "reframe": {
                 "default": {},
                 "type": "object",

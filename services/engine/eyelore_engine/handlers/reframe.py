@@ -34,7 +34,7 @@ def run(inp: dict, ctx) -> dict:
             ms = int(i / fps * 1000)
             if len(faces):
                 x, y, fw, fh = max(faces, key=lambda f: f[2] * f[3])
-                raw.append((ms, (x + fw / 2) / w, (y + fh / 2.6) / h, True))  # bias up: eyes, not chin
+                raw.append((ms, (x + fw / 2) / w, (y + fh * 0.55) / h, True))  # face centre, nudged to the mouth: they are talking
             else:
                 raw.append((ms, raw[-1][1] if raw else 0.5, raw[-1][2] if raw else 0.5, False))
             if total:

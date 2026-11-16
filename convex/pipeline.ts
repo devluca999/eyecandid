@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { internalMutation, mutation } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
-import { applyChange, beadChanges, cutdownChange, JOB_SPECS, reframeChange } from "@eyelore/core";
+import { applyChange, beadChanges, cutdownChange, JOB_SPECS, reframeChange, retakeChanges } from "@eyelore/core";
 import type { Aspect, EditDoc, JobOutput } from "@eyelore/core";
 import { commitChanges, headDoc } from "./lib/docs";
 import { enqueueJob } from "./jobs";
@@ -50,6 +50,12 @@ export const onJobDone = internalMutation({
       if (!head || !tJob?.output) return;
       const changes = beadChanges(head.doc, clipId, tJob.output as JobOutput<"transcribe">, job.output as JobOutput<"autocut">);
       await commitChanges(ctx, projectId, changes);
+      // teleprompter captures: keep the last take of each script line
+      const after = await headDoc(ctx, projectId);
+      if (after) {
+        const retakes = retakeChanges(after.doc);
+        if (retakes.length) await commitChanges(ctx, projectId, retakes);
+      }
       await ctx.db.patch(projectId, { stage: "ready", stageDetail: undefined, readyAt: Date.now() });
       const clip = head.doc.clips.find((c) => c.id === clipId);
       if (clip) {

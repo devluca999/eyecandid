@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addClipChange, applyChange, beadChanges, cutdownChange, emptyEditDoc, keptMs, type EditDoc } from "../src";
+import { addClipChange, applyChange, beadChanges, cutdownChange, EditDoc, emptyEditDoc, keptMs } from "../src";
 
 const word = (text: string, s: number, e: number, conf = 0.9) => ({ text, startMs: s, endMs: e, conf });
 const transcript = {
@@ -68,6 +68,22 @@ describe("captions keep the speaker's words", () => {
     expect(isSpellingFix("love", "hate")).toBe(false);
     expect(isSpellingFix("week", "month")).toBe(false);
     expect(isSpellingFix("it", "")).toBe(false);
+  });
+});
+
+import { retakeChanges } from "../src";
+describe("teleprompter retakes", () => {
+  it("keeps the last take of each line and strikes earlier ones", () => {
+    const mk = (id: string, text: string) => ({ id, clipId: "c1", inMs: 0, outMs: 1, cuts: [], struck: false, words: text.split(" ").map((t, i) => ({ id: `${id}w${i}`, text: t, startMs: 0, endMs: 1, conf: 1, struck: false })) });
+    const doc = EditDoc.parse({
+      ...emptyEditDoc("p"),
+      script: ["this ring tracks my sleep", "link below"],
+      beads: [mk("b1", "this ring tracks my uh"), mk("b2", "this ring tracks my sleep."), mk("b3", "something else entirely"), mk("b4", "link below.")],
+    });
+    const changes = retakeChanges(doc);
+    expect(changes).toHaveLength(1);
+    expect(changes[0]!.reason).toBe("retake · kept your last take of line 1");
+    expect(changes[0]!.ops.map((o) => o.path)).toEqual(["/beads/@b1/struck"]);
   });
 });
 

@@ -1,4 +1,4 @@
-import { AbsoluteFill, OffthreadVideo, Sequence, useCurrentFrame, useVideoConfig } from "remotion";
+import { AbsoluteFill, OffthreadVideo, Sequence, interpolate, useCurrentFrame, useVideoConfig } from "remotion";
 import type { EditDoc } from "@eyelore/core";
 import { toTimeline, coverBox, faceAt, type Segment } from "@eyelore/core";
 
@@ -17,7 +17,7 @@ export function Cut({ doc, media, watermark }: CutProps) {
         at += frames;
         return (
           <Sequence key={i} from={start} durationInFrames={frames}>
-            <Shot seg={s} doc={doc} src={media[s.mediaId]} />
+            <Shot seg={s} doc={doc} src={media[s.mediaId]} frames={frames} />
           </Sequence>
         );
       })}
@@ -31,7 +31,7 @@ export function Cut({ doc, media, watermark }: CutProps) {
   );
 }
 
-function Shot({ seg, doc, src }: { seg: Segment; doc: EditDoc; src?: string }) {
+function Shot({ seg, doc, src, frames }: { seg: Segment; doc: EditDoc; src?: string; frames: number }) {
   const frame = useCurrentFrame();
   const { fps, width: W, height: H } = useVideoConfig();
   const clip = doc.clips.find((c) => c.id === seg.clipId);
@@ -41,6 +41,8 @@ function Shot({ seg, doc, src }: { seg: Segment; doc: EditDoc; src?: string }) {
     <OffthreadVideo
       src={src}
       startFrom={Math.round((seg.fromMs / 1000) * fps)}
+      // two-frame fades at every cut so joins never click
+      volume={(f) => (frames < 6 ? 1 : interpolate(f, [0, 2, frames - 2, frames], [0, 1, 1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }))}
       style={{ position: "absolute", left: box.left, top: box.top, width: box.width, height: box.height, maxWidth: "none" }}
     />
   );

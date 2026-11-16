@@ -41,3 +41,9 @@ def test_filler_spelling_variants_and_pause_splits_without_punctuation():
     out = autocut.run({"words": words, "minSilenceMs": 450, "fillers": []}, Ctx())
     assert ("filler", "trimmed filler · 'umm'") in [(s["kind"], s["reason"]) for s in out["strikes"]]
     assert [(b["inMs"], b["outMs"]) for b in out["beads"]] == [(0, 1600), (2600, 3500)]
+
+
+def test_repeat_never_crosses_a_sentence():
+    words = [w("take", 0, 200), w("it.", 250, 400), w("It", 900, 1000), w("tracks", 1050, 1300)]
+    out = autocut.run({"words": words, "minSilenceMs": 2000, "fillers": []}, Ctx())
+    assert not [s for s in out["strikes"] if s["kind"] == "repeat"]
