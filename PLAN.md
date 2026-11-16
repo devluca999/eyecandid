@@ -161,11 +161,11 @@ Integration is built behind a labelled stub until the key exists. Set them in Ve
 | Convex | `CONVEX_DEPLOY_KEY` (prod), `CONVEX_PREVIEW_DEPLOY_KEY` | GitHub | project `SQco/eyelore` created (dev `deafening-hedgehog-824`, prod `hushed-heron-814`); **deploy keys needed** |
 | Vercel | `VERCEL_TOKEN` (`VERCEL_ORG_ID`, `VERCEL_PROJECT_ID` set) | GitHub | project `everstock/eyelore` created, root `apps/web`, no git link (CI deploys); **token needed** |
 | Expo / EAS | `EXPO_TOKEN` (`EXPO_PUBLIC_CONVEX_URL[_PREVIEW]` set) | GitHub | project `@devluca999/eyelore` linked; **token needed** |
-| Clerk | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_JWT_ISSUER_DOMAIN`, `CLERK_WEBHOOK_SECRET` | Vercel, Convex, EAS | stub: anonymous-only |
-| Stripe | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Convex, Vercel | stub: free tier only |
-| SendPulse | `SENDPULSE_CLIENT_ID`, `SENDPULSE_CLIENT_SECRET` | Convex | stub: logs the email |
-| Sentry | `SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_DSN`, `EXPO_PUBLIC_SENTRY_DSN`, `SENTRY_AUTH_TOKEN` | all | stub: no-op |
-| Worker | `EYELORE_WORKER_TOKEN`, `EYELORE_CONVEX_SITE_URL` | Colab/Modal/RunPod secrets | generated per worker by `convex run workers:register` |
+| Clerk | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_JWT_ISSUER_DOMAIN`, `CLERK_WEBHOOK_SECRET` | Vercel, Convex, EAS | web: provider wired, switches on with the publishable key; Convex `auth.config.ts` is an empty-provider stub (anonymous-only); mobile Clerk and the anon→account claim are **not built yet** (Phase 2) |
+| Stripe | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Convex, Vercel | **not built yet** (Phase 2: paywall at export, webhooks into Convex, server-side entitlements) |
+| SendPulse | `SENDPULSE_CLIENT_ID`, `SENDPULSE_CLIENT_SECRET` | Convex | **not built yet** (Phase 2: "your edit is ready") |
+| Sentry | `SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_DSN`, `EXPO_PUBLIC_SENTRY_DSN`, `SENTRY_AUTH_TOKEN` | all | **not built yet**: `@sentry/nextjs` installed, no init; mobile and worker not instrumented |
+| Worker | `EYELORE_WORKER_TOKEN`, `EYELORE_CONVEX_SITE_URL` | Colab/Modal/RunPod secrets | generated per worker by `convex run workers:register`; CI's dev worker token is in GitHub secrets as `EYELORE_DEV_WORKER_TOKEN` |
 
 ## 8. Notes and conflicts found
 

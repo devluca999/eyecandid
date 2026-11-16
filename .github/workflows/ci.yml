@@ -84,11 +84,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: start a local convex backend
         run: |
-          # the first push fails until the Clerk issuer env var exists, but the backend stays up; set it, then re-push
           (npx convex dev > convex.log 2>&1 &)
-          curl -s -o /dev/null --retry 60 --retry-connrefused --retry-delay 2 $NEXT_PUBLIC_CONVEX_URL/version
-          npx convex env set CLERK_JWT_ISSUER_DOMAIN https://clerk-not-configured.invalid
-          touch convex/schema.ts
           for i in $(seq 1 60); do curl -sf $EYELORE_CONVEX_SITE_URL/worker/hello && break; sleep 2; done
           curl -sf $EYELORE_CONVEX_SITE_URL/worker/hello || (cat convex.log; exit 1)
       - name: start a cpu-stub worker
@@ -164,16 +160,43 @@ jobs:
     if: github.event_name == 'pull_request' && needs.keys.outputs.expo == 'yes'
     needs: [keys, checks]
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
         with: { version: "${{ env.PNPM_VERSION }}" }
       - uses: actions/setup-node@v4
         with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
+      - uses: astral-sh/setup-uv@v6
       - run: pnpm install --frozen-lockfile
       - uses: expo/expo-github-action@v8
         with: { eas-version: latest, token: "${{ secrets.EXPO_TOKEN }}" }
-      - name: eas preview build (android apk) with maestro on EAS
+      - name: eas preview build (android apk, points at the dev deployment via eas.json)
+        id: build
         working-directory: apps/mobile
-        env: { EXPO_PUBLIC_CONVEX_URL: "${{ secrets.EXPO_PUBLIC_CONVEX_URL_PREVIEW }}" }
-        run: eas build --profile preview --platform android --non-interactive --wait
+        run: |
+          eas build --profile preview --platform android --non-interactive --wait --json > build.json
+          echo "apk=$(python3 -c 'import json;print(json.load(open("build.json"))[0]["artifacts"]["buildUrl"])')" >> $GITHUB_OUTPUT
+      - name: a worker answering on the dev deployment
+        env:
+          EYELORE_CONVEX_SITE_URL: https://deafening-hedgehog-824.convex.site
+          EYELORE_WORKER_TOKEN: ${{ secrets.EYELORE_DEV_WORKER_TOKEN }}
+        run: |
+          cd services/engine && uv venv --python 3.12 && uv pip install -e .
+          (EYELORE_PROVIDER=cpu EYELORE_WORKER_NAME=ci-preview-${{ github.run_id }} .venv/bin/eyelore-worker > ../../worker.log 2>&1 &)
+      - run: curl -Ls "https://get.maestro.mobile.dev" | bash && echo "$HOME/.maestro/bin" >> $GITHUB_PATH
+      - run: curl -L -o app.apk "${{ steps.build.outputs.apk }}"
+      - name: enable kvm
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+      - name: maestro on an android emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          script: adb install app.apk && maestro test apps/mobile/.maestro --format junit --output maestro-report.xml
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with: { name: maestro, path: "maestro-report.xml\nworker.log" }

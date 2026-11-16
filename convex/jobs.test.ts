@@ -100,3 +100,14 @@ describe("job queue", () => {
     expect((await t.query(api.flags.forSubject, { subject: ANON })).hello_job).toBe(false);
   });
 });
+
+describe("analytics", () => {
+  it("never stores the raw anon id", async () => {
+    const t = convexTest(schema, modules);
+    await t.mutation(api.events.track, { anonId: ANON, event: { name: "landing_view", props: { platform: "web", heroLine: "x" } } });
+    const rows = await t.run((ctx) => ctx.db.query("events").collect());
+    expect(rows).toHaveLength(1);
+    expect(JSON.stringify(rows[0])).not.toContain(ANON);
+    expect(rows[0]!.anonHash).toMatch(/^[0-9a-f]{32}$/);
+  });
+});

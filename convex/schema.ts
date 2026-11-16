@@ -93,13 +93,14 @@ export default defineSchema({
 
   events: defineTable({
     name: v.string(),
-    anonId: v.optional(v.string()),
+    /** SHA-256 of the anon id: the raw id is a capability token and is never stored in analytics (ADR 0006) */
+    anonHash: v.optional(v.string()),
     userId: v.optional(v.id("users")),
     props: v.any(),
     ts: v.number(),
   })
     .index("by_name_ts", ["name", "ts"])
-    .index("by_anon", ["anonId"]),
+    .index("by_anon", ["anonHash"]),
 
   flags: defineTable({
     key: v.string(),
