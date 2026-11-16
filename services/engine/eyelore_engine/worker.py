@@ -5,6 +5,7 @@ Env:
   EYELORE_WORKER_TOKEN      from `npx convex run workers:register`
   EYELORE_PROVIDER          cpu-stub | cpu | colab | modal | runpod
   EYELORE_WORKER_NAME       optional, defaults to the hostname
+  SENTRY_DSN                optional; with `pip install 'eyelore-engine[sentry]'` reports unhandled job errors
 """
 from __future__ import annotations
 
@@ -21,7 +22,7 @@ from urllib.parse import urlparse
 import httpx
 from jsonschema import ValidationError
 
-from . import contract
+from . import contract, telemetry
 from .client import ClaimedJob, ConvexWorkerClient, StaleLease
 from .handlers import registry
 from .providers import GpuProvider, from_env
@@ -94,6 +95,7 @@ def run_one(client: ConvexWorkerClient, provider: GpuProvider, worker_name: str,
         client.fail(job.id, f"contract violation: {e.message}", retryable=False)
     except Exception as e:  # noqa: BLE001
         traceback.print_exc()
+        telemetry.capture(e, job_type=job.type, provider=provider.name)
         try:
             client.fail(job.id, f"{type(e).__name__}: {e}", retryable=True)
         except StaleLease:
@@ -109,6 +111,7 @@ def main() -> None:
     if not site or not token:
         raise SystemExit("set EYELORE_CONVEX_SITE_URL and EYELORE_WORKER_TOKEN")
     provider = from_env()
+    telemetry.init_sentry(provider=provider.name)
     host = urlparse(site).hostname or ""
     if provider.name == "cpu-stub" and host not in {"127.0.0.1", "localhost"} and os.environ.get("EYELORE_ALLOW_STUB") != "1":
         raise SystemExit("cpu-stub only runs against a local backend (set EYELORE_ALLOW_STUB=1 to override for previews)")
