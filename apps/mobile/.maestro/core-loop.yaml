@@ -4,7 +4,7 @@
 appId: app.eyelore
 ---
 # the clip a new user would have in their camera roll (Maestro only reads media from inside this folder:
-# `pnpm e2e` and run-ci.sh copy services/engine/tests/fixtures/talk.mp4 here first)
+# run-ci.sh copies services/engine/tests/fixtures/talk.mp4 to media/ first; do the same before a local run)
 - addMedia:
     - "media/talk.mp4"
 - launchApp:
