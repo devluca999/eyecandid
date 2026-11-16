@@ -1,5 +1,8 @@
 import type { EditDoc } from "./editModel";
 
+/** ms of breathing room kept either side of a struck word */
+export const WORD_HANDLE_MS = 40;
+
 export type Segment = { clipId: string; mediaId: string; fromMs: number; toMs: number };
 export type CaptionWord = { id?: string; text: string; startMs: number; endMs: number };
 export type CaptionChunk = { startMs: number; endMs: number; text: string; words: CaptionWord[] };
@@ -21,7 +24,17 @@ export function toTimeline(doc: EditDoc): { segments: Segment[]; captions: Capti
     if (!clip) continue;
     // keep ranges = bead span minus struck words and struck silences
     const struck = [
-      ...bead.words.filter((w) => w.struck).map((w) => [Math.max(w.startMs, bead.inMs), Math.min(w.endMs, bead.outMs)] as const),
+      // a struck word keeps a short handle on a side only where a kept word sits right next to it,
+      // so that neighbour's consonants aren't clipped (no handle at a bead edge or next to another strike)
+      ...bead.words.flatMap((w, i) => {
+        if (!w.struck) return [];
+        const room = w.endMs - w.startMs > 3 * WORD_HANDLE_MS;
+        const prev = bead.words[i - 1];
+        const next = bead.words[i + 1];
+        const hl = room && prev && !prev.struck && w.startMs - prev.endMs < WORD_HANDLE_MS ? WORD_HANDLE_MS : 0;
+        const hr = room && next && !next.struck && next.startMs - w.endMs < WORD_HANDLE_MS ? WORD_HANDLE_MS : 0;
+        return [[Math.max(w.startMs + hl, bead.inMs), Math.min(w.endMs - hr, bead.outMs)] as const];
+      }),
       ...bead.cuts.filter((c) => c.struck).map((c) => [Math.max(c.startMs, bead.inMs), Math.min(c.endMs, bead.outMs)] as const),
     ];
     let cursor = bead.inMs;
