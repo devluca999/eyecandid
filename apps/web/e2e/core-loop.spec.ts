@@ -68,6 +68,19 @@ async function editorFeatures(page: Page) {
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("shortcuts")).toHaveCount(0);
 
+  // the tour can be taken again from the sheet, stepped with the arrow keys, and Escape skips it
+  await page.getByTestId("help").click();
+  await page.getByRole("button", { name: "take the tour" }).click();
+  const tour = page.getByTestId("tour");
+  await expect(tour).toContainText("1 / 4");
+  for (const n of [2, 3, 4]) {
+    await page.locator("body").press("ArrowRight");
+    await expect(tour).toContainText(`${n} / 4`);
+    await shot(page, `tour-${n}`);
+  }
+  await page.locator("body").press("Escape");
+  await expect(tour).toHaveCount(0);
+
   // the timeline drawer: closed by default, ⌥T or the handle opens it, five tracks in the product's order
   const timeline = page.getByTestId("timeline");
   await expect(timeline).not.toHaveClass(/is-open/);
@@ -98,6 +111,29 @@ async function editorFeatures(page: Page) {
   await expect.poll(duration, { timeout: 15_000 }).toBe(before);
   await expect(page.getByTestId("dials").getByRole("status")).toHaveAccessibleName("live", { timeout: 15_000 });
 
+  // b-roll: no clips to weave yet, and the dial says so rather than pretending
+  const broll = page.getByRole("slider", { name: "b-roll" });
+  await expect(broll).toHaveAttribute("aria-valuetext", "no b-roll yet · add clips to weave");
+  await broll.focus();
+  await expect(page.getByTestId("explain")).toHaveText("no b-roll yet · add clips to weave");
+
+  // energy: punch-ins on the hook, visible in the preview (same scale the export applies)
+  await page.getByTestId("thread").getByRole("button", { name: /hook/ }).click(); // jump into the hook bead
+  const footage = page.getByTestId("footage");
+  await expect(footage).toHaveAttribute("data-punch", "1.00");
+  const energy = page.getByRole("slider", { name: "energy" });
+  await energy.focus();
+  await energy.press("End");
+  await expect(footage).toHaveAttribute("data-punch", "1.12");
+  await expect(page.getByTestId("explain")).toContainText("punch-in");
+  await shot(page, "energy");
+  await expect(page.getByTestId("dials").getByRole("status")).toHaveAccessibleName("live", { timeout: 15_000 });
+  await energy.press("Home");
+  for (let i = 0; i < 10; i++) await energy.press("ArrowUp"); // 0 → 0.5: as shot
+  await expect(footage).toHaveAttribute("data-punch", "1.00");
+  await expect(page.getByTestId("dials").getByRole("status")).toHaveAccessibleName("live", { timeout: 15_000 });
+  await page.locator("body").press("Escape"); // drop the bead selection
+
   // views: theater (Night, circle Lens), board (one card per bead), back to edit
   await page.locator("body").press("1");
   await expect(page.locator("html")).toHaveAttribute("data-theme", "night");
@@ -118,6 +154,7 @@ async function editorFeatures(page: Page) {
   const was = (await first.innerText()).trim();
   await first.click();
   await expect(first).toHaveText(was === "cut" ? "keep" : "cut");
+  await shot(page, "board-struck");
   await first.click();
   await expect(first).toHaveText(was);
   await page.getByTestId("mode-edit").click();
@@ -127,6 +164,16 @@ async function editorFeatures(page: Page) {
   await page.getByTestId("theme").click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "night");
   await shot(page, "edit-night");
+  if (process.env.SHOTS) {
+    await page.keyboard.press("Alt+t");
+    await shot(page, "timeline-night");
+    await page.keyboard.press("Escape");
+    await page.getByRole("slider", { name: "pace" }).focus();
+    await shot(page, "dials-night");
+    await page.locator("body").press("?");
+    await shot(page, "shortcuts-night");
+    await page.locator("body").press("Escape");
+  }
   await page.getByTestId("theme").click();
 }
 
