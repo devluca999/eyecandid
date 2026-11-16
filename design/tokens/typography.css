@@ -1,0 +1,28 @@
+:root {
+  --font-sans: 'Geist', ui-sans-serif, system-ui, -apple-system, 'Helvetica Neue', Helvetica, sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  --type-display-size: 56px; --type-display-line: 60px; --type-display-weight: 500; --type-display-tracking: -0.02em;
+  --type-title-size: 28px;   --type-title-line: 34px;   --type-title-weight: 500;
+  --type-heading-size: 20px; --type-heading-line: 26px; --type-heading-weight: 500;
+  --type-body-size: 15px;    --type-body-line: 22px;    --type-body-weight: 400;
+  --type-ui-size: 15px;      --type-ui-line: 20px;      --type-ui-weight: 500;
+  --type-menu-size: 13px;    --type-menu-line: 18px;    --type-menu-weight: 500;
+  --font-hand: 'Caveat', 'Bradley Hand', cursive;
+  --type-meta-size: 12px;    --type-meta-line: 16px;    --type-meta-weight: 400;
+  --type-caption-size: 22px; --type-caption-line: 26px; --type-caption-weight: 700;
+  --type-timecode-size: 12px; --type-timecode-line: 16px;
+
+  --caption-shadow: 0 1px 2px rgba(0,0,0,.45), 0 2px 12px rgba(0,0,0,.35);
+
+  --font-display: var(--type-display-weight) var(--type-display-size)/var(--type-display-line) var(--font-sans);
+  --font-title: var(--type-title-weight) var(--type-title-size)/var(--type-title-line) var(--font-sans);
+  --font-heading: var(--type-heading-weight) var(--type-heading-size)/var(--type-heading-line) var(--font-sans);
+  --font-body: var(--type-body-weight) var(--type-body-size)/var(--type-body-line) var(--font-sans);
+  --font-ui: var(--type-ui-weight) var(--type-ui-size)/var(--type-ui-line) var(--font-sans);
+  --font-menu: var(--type-menu-weight) var(--type-menu-size)/var(--type-menu-line) var(--font-sans);
+  --font-hand-label: 600 22px/1 var(--font-hand);
+  --font-meta: var(--type-meta-weight) var(--type-meta-size)/var(--type-meta-line) var(--font-sans);
+  --font-caption: var(--type-caption-weight) var(--type-caption-size)/var(--type-caption-line) var(--font-sans);
+  --font-timecode: 400 var(--type-timecode-size)/var(--type-timecode-line) var(--font-mono);
+}

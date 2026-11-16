@@ -1,0 +1,15 @@
+{
+ "template": "video_ltx2_5_t2v",
+ "notes": "Text to video. width/height override the ResolutionSelector link. LTX renders at half size then upscales 2x, so width/2 and height/2 must be multiples of 32. frames = duration*fps+1.",
+ "defaults": {"width": 704, "height": 1280, "duration": 5, "fps": 24, "prompt_enhance": false},
+ "params": [
+  {"param": "prompt", "node": "405:376", "input": "value", "required": true},
+  {"param": "prompt_enhance", "node": "405:383", "input": "value"},
+  {"param": "duration", "node": "405:362", "input": "value"},
+  {"param": "fps", "node": "405:361", "input": "value"},
+  {"param": "seed", "node": "405:339", "input": "noise_seed"},
+  {"param": "width", "node": "405:372", "input": "value"},
+  {"param": "height", "node": "405:360", "input": "value"},
+  {"param": "filename_prefix", "node": "75", "input": "filename_prefix"}
+ ]
+}

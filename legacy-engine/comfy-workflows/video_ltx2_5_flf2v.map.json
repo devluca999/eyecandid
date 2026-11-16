@@ -1,0 +1,17 @@
+{
+ "template": "video_ltx2_5_flf2v",
+ "notes": "First and last frame to video: animates between two images. width/2 and height/2 must be multiples of 32. frames = duration*fps+1.",
+ "defaults": {"width": 704, "height": 1280, "duration": 5, "fps": 24, "prompt_enhance": false},
+ "params": [
+  {"param": "prompt", "node": "251:252", "input": "value", "required": true},
+  {"param": "image", "node": "31", "input": "image", "required": true},
+  {"param": "last_image", "node": "39", "input": "image", "required": true},
+  {"param": "prompt_enhance", "node": "251:250", "input": "value"},
+  {"param": "duration", "node": "251:198", "input": "value"},
+  {"param": "fps", "node": "251:205", "input": "value"},
+  {"param": "seed", "node": "251:196", "input": "noise_seed"},
+  {"param": "width", "node": "251:215", "input": "value"},
+  {"param": "height", "node": "251:216", "input": "value"},
+  {"param": "filename_prefix", "node": "68", "input": "filename_prefix"}
+ ]
+}

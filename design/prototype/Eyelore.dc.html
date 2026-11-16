@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&family=Caveat:wght@500;600;700&display=swap">
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#F7F5F0;-webkit-font-smoothing:antialiased}
+a{color:#1A1A1A}a:hover{color:#3D7BF2}
+input::placeholder{color:#8A857C}
+[data-scroll]::-webkit-scrollbar{display:none}
+@keyframes drift{0%{transform:scale(1.06) translate(0,0)}50%{transform:scale(1.18) translate(-3%,-2%)}100%{transform:scale(1.06) translate(0,0)}}
+@keyframes shimmer{0%{background-position:160% 0}100%{background-position:-60% 0}}
+@keyframes beadpop{0%{transform:scale(.3)}55%{transform:scale(1.22)}100%{transform:scale(1)}}
+@keyframes pulse{0%,100%{opacity:.55}50%{opacity:1}}
+@keyframes blink{0%,49%{opacity:1}50%,100%{opacity:0}}
+@keyframes rise{0%{opacity:0;transform:translateY(14px) scale(.97)}100%{opacity:1;transform:none}}
+@keyframes snip{0%{opacity:1;transform:scale(.5)}100%{opacity:0;transform:scale(2.4)}}
+</style>
+</helmet>
+<div ref="{{ rootRef }}" onPointerDown="{{ onRootDown }}" onContextMenu="{{ onRootCtx }}" onDragOver="{{ onDragOver }}" onDragLeave="{{ onDragLeave }}" onDrop="{{ onDrop }}" style="position:fixed;inset:0;overflow:hidden;background:#F7F5F0;font-family:'Geist',-apple-system,sans-serif;color:#1A1A1A;user-select:none;-webkit-user-select:none;touch-action:none;cursor:{{ rootCursor }}">
+<sc-if value="{{ ready }}" hint-placeholder-val="{{ false }}">
+
+<div style="position:absolute;left:0;top:0;width:1px;height:1px;transform-origin:0 0;transform:{{ worldTf }};transition:{{ worldTr }}">
+
+<!-- IDEA -->
+<div style="position:absolute;left:220px;top:40px;width:1160px;height:760px;border-radius:50%;background:radial-gradient(closest-side, rgba(255,196,130,.34), rgba(240,170,165,.2) 45%, rgba(120,150,230,.12) 70%, rgba(120,150,230,0) 100%);filter:blur(40px);pointer-events:none"></div>
+<div data-nopan="1" style="position:absolute;left:340px;top:{{ idea.top }}px;width:880px;padding:30px 30px 24px 34px;box-sizing:border-box;border-radius:30px;display:flex;flex-direction:column;gap:18px;transition:top .9s cubic-bezier(.34,1.25,.5,1);z-index:4;background:linear-gradient(180deg,rgba(255,255,255,.62) 0%,rgba(255,255,255,.28) 40%,rgba(255,255,255,.36) 100%);backdrop-filter:blur(26px) saturate(1.9);-webkit-backdrop-filter:blur(26px) saturate(1.9);border:1px solid rgba(255,255,255,.65);box-shadow:inset 0 1.5px 0 rgba(255,255,255,1),inset 1.5px 0 0 rgba(255,120,150,.16),inset -1.5px 0 0 rgba(90,160,255,.22),0 24px 60px rgba(40,30,20,.14),0 2px 8px rgba(40,30,20,.06)">
+<div style="font-size:30px;font-weight:500;letter-spacing:-.025em">What's the idea?</div>
+<div style="display:flex;align-items:center;gap:12px">
+<input value="{{ idea.text }}" onChange="{{ idea.onChange }}" onKeyDown="{{ idea.onKey }}" onFocus="{{ idea.onFocus }}" placeholder="Type or say a rough idea" style="flex:1;min-width:0;font-family:inherit;font-size:15px;line-height:1.5;border:0;outline:0;background:transparent;color:#1A1A1A">
+<div onClick="{{ idea.onMic }}" style="width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;background:rgba(255,255,255,.6);box-shadow:inset 0 0 0 1px rgba(26,26,26,.08)"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#1A1A1A" stroke-width="1.5" stroke-linecap="round"><rect x="5.5" y="1.5" width="5" height="8.5" rx="2.5"></rect><path d="M3 8a5 5 0 0 0 10 0M8 13v2"></path></svg></div>
+<div onClick="{{ idea.onSubmit }}" style="height:40px;padding:0 18px;border-radius:999px;display:flex;align-items:center;gap:8px;cursor:pointer;background:#1A1A1A;color:#fff;font-size:15px">Answer <span style="font-family:'Geist Mono';font-size:12px;opacity:.7">↵</span></div>
+</div>
+</div>
+<sc-if value="{{ idea.s1 }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;left:374px;top:252px;width:820px;display:flex;gap:22px;align-items:baseline;animation:rise .6s cubic-bezier(.34,1.3,.5,1) both">
+<span style="flex:none;width:70px;font-size:12px;color:#6B6B6B">Hook</span>
+<span style="flex:1;font-size:15px;line-height:1.55;text-wrap:pretty">“Tracks sleep” is a feature, not a hook. Night-shift nurses go to bed at 9am with the blinds down. Open on that moment, then show the ring.</span>
+<span style="flex:none;font-family:'Geist Mono';font-size:12px;color:#6B6B6B">hook 4/10</span>
+</div>
+</sc-if>
+<sc-if value="{{ idea.s2 }}" hint-placeholder-val="{{ false }}">
+<sc-for list="{{ idea.angles }}" as="a" hint-placeholder-count="0">
+<div data-nopan="1" onClick="{{ a.onClick }}" style="position:absolute;left:{{ a.x }}px;top:356px;width:280px;padding:18px 20px;box-sizing:border-box;border-radius:20px;background:#FDFCF9;display:flex;flex-direction:column;gap:8px;cursor:pointer;box-shadow:{{ a.shadow }};transition:box-shadow .25s;animation:rise .6s cubic-bezier(.34,1.3,.5,1) both">
+<span style="font-size:15px;font-weight:500;line-height:1.35">{{ a.t }}</span>
+<span style="font-size:12px;line-height:1.45;color:#6B6B6B">{{ a.r }}</span>
+<span style="font-size:12px;color:#1A1A1A;text-decoration:underline;text-decoration-color:rgba(26,26,26,.3);text-underline-offset:3px">{{ a.pick }}</span>
+</div>
+</sc-for>
+</sc-if>
+<sc-if value="{{ idea.s3 }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;left:80px;top:560px;width:240px;height:350px;padding:22px 20px;box-sizing:border-box;border-radius:22px;background:#FDFCF9;box-shadow:0 1px 2px rgba(26,26,26,.12),0 18px 44px rgba(26,26,26,.12);display:flex;flex-direction:column;gap:14px;animation:rise .6s cubic-bezier(.34,1.3,.5,1) both">
+<div style="position:absolute;left:50%;top:-6px;width:12px;height:12px;margin-left:-6px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff,#9EA3AA 60%,#6b7078);box-shadow:0 2px 4px rgba(0,0,0,.3)"></div>
+<span style="font-size:12px;color:#6B6B6B">Idea · pinned</span>
+<span style="font-size:15px;line-height:1.45;font-weight:500;text-wrap:pretty">{{ idea.ideaText }}</span>
+<div style="display:flex;align-items:center;gap:12px">
+<svg width="58" height="58" viewBox="0 0 58 58"><circle cx="29" cy="29" r="25" fill="none" stroke="rgba(26,26,26,.1)" stroke-width="3"></circle><circle cx="29" cy="29" r="25" fill="none" stroke="#1A1A1A" stroke-width="3" stroke-linecap="round" pathLength="100" stroke-dasharray="100" stroke-dashoffset="{{ idea.scoreOff }}" transform="rotate(-90 29 29)" style="transition:stroke-dashoffset .8s cubic-bezier(.34,1.3,.5,1)"></circle><text x="29" y="34" text-anchor="middle" font-size="15" font-weight="600" fill="#1A1A1A" font-family="Geist">{{ idea.score }}</text></svg>
+<div style="display:flex;flex-direction:column;gap:3px"><span style="font-size:15px">Score</span><span style="font-size:12px;color:#6B6B6B">re-scores as you edit</span></div>
+</div>
+<span style="font-size:12px;color:#6B6B6B">{{ idea.filledLabel }}</span>
+<div style="flex:1"></div>
+<div data-nopan="1" onClick="{{ idea.onGenAll }}" style="align-self:flex-start;padding:9px 16px;border-radius:999px;background:#1A1A1A;color:#fff;font-size:15px;cursor:pointer">Generate all</div>
+</div>
+<sc-for list="{{ idea.beats }}" as="b" hint-placeholder-count="0">
+<div data-drop="{{ b.drop }}" data-nopan="1" onClick="{{ b.onOpen }}" style="position:absolute;left:{{ b.x }}px;top:590px;width:180px;height:320px;border-radius:18px;box-shadow:{{ b.shadow }};transition:box-shadow .25s;animation:rise .6s cubic-bezier(.34,1.3,.5,1) both">
+<sc-if value="{{ b.ghost }}" hint-placeholder-val="{{ true }}">
+<div style="position:absolute;inset:0;border-radius:18px;background:rgba(26,26,26,.03);padding:18px;box-sizing:border-box;display:flex;flex-direction:column;gap:6px">
+<span style="font-size:15px;font-weight:500">{{ b.p }}</span>
+<span style="font-size:12px;line-height:1.4;color:#6B6B6B">{{ b.d }}</span>
+<span style="font-family:'Geist Mono';font-size:12px;color:#6B6B6B">{{ b.len }}</span>
+<div style="flex:1"></div>
+<div onClick="{{ b.onGen }}" style="align-self:flex-start;padding:7px 14px;border-radius:999px;background:#1A1A1A;color:#fff;font-size:15px;cursor:pointer">Generate</div>
+<span style="font-size:12px;color:#6B6B6B">or drop footage</span>
+</div>
+</sc-if>
+<sc-if value="{{ b.busy }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;inset:0;border-radius:18px;overflow:hidden;background:linear-gradient(160deg,#e9e3da,#d8d0c6)"><div style="position:absolute;inset:0;background:linear-gradient(100deg,rgba(255,255,255,0) 30%,rgba(255,255,255,.7) 50%,rgba(255,255,255,0) 70%);background-size:220% 100%;animation:shimmer 1.4s linear infinite"></div><span style="position:absolute;left:16px;bottom:14px;font-size:12px;color:#6B6B6B">Generating {{ b.p }}…</span></div>
+</sc-if>
+<sc-if value="{{ b.filled }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;inset:-16%;border-radius:40%;background:{{ b.bg }};filter:blur(30px);opacity:.5;pointer-events:none"></div>
+<div style="position:absolute;inset:0;border-radius:18px;padding:{{ hair }}px;box-sizing:border-box;background:linear-gradient(160deg,#FFFFFF 0%,#C9CCD1 30%,#F4F5F7 52%,#9EA3AA 78%,#E8EAED 100%);animation:beadpop .6s cubic-bezier(.34,1.6,.5,1)">
+<div style="position:relative;width:100%;height:100%;border-radius:17px;overflow:hidden;background:#2b2723"><div style="position:absolute;inset:0;background:{{ b.bg }};transform:{{ b.tf }}"></div>{{ b.vidEl }}<div style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:{{ b.imgBg }}"></div>
+<span style="position:absolute;left:10px;bottom:10px;padding:4px 9px;border-radius:999px;font-size:12px;background:rgba(255,255,255,.55);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);box-shadow:inset 0 1px 0 rgba(255,255,255,.9)">{{ b.p }} · {{ b.mark }}</span></div>
+</div>
+</sc-if>
+<sc-if value="{{ idea.s4 }}" hint-placeholder-val="{{ false }}"><sc-if value="{{ b.hasRisk }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;left:-8px;top:-40px;display:flex;align-items:center;gap:7px;padding:5px 11px 5px 6px;border-radius:6px;background:#FDFCF9;box-shadow:0 1px 2px rgba(26,26,26,.22),0 6px 14px rgba(26,26,26,.1);transform:rotate(-2.5deg);white-space:nowrap;animation:rise .5s cubic-bezier(.34,1.5,.5,1) both"><span style="width:16px;height:16px;border-radius:50%;background:#1A1A1A;color:#fff;font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center">!</span><span style="font-family:'Caveat';font-size:20px;line-height:1">{{ b.risk }}</span></div>
+</sc-if></sc-if>
+</div>
+</sc-for>
+</sc-if>
+
+<!-- BOARD -->
+<div style="position:absolute;left:60px;top:1300px;display:flex;align-items:baseline;gap:18px">
+<span style="font-size:{{ fs15 }}px;font-weight:500;letter-spacing:-.02em;transform-origin:left bottom">Storyboard</span>
+<span style="font-size:{{ fs12 }}px;color:#6B6B6B">ShopLink · Everstock</span>
+</div>
+<sc-for list="{{ board.rows }}" as="r" hint-placeholder-count="0">
+<div data-drop="{{ r.drop }}" onPointerEnter="{{ r.onEnter }}" onPointerLeave="{{ r.onLeave }}" onContextMenu="{{ r.onCtx }}" style="position:absolute;left:40px;top:{{ r.top }}px;width:{{ r.w }}px;height:{{ r.h }}px;border-radius:30px;box-shadow:{{ r.shadow }};transition:box-shadow .25s,width .5s cubic-bezier(.34,1.3,.5,1);z-index:1">
+<div style="position:absolute;left:20px;top:40px;width:250px;display:flex;flex-direction:column;gap:6px">
+<span style="font-size:{{ fs12 }}px;color:#6B6B6B">{{ r.project }}</span>
+<span style="font-size:{{ fs15 }}px;font-weight:500;line-height:1.25">“{{ r.name }}”</span>
+<span style="font-size:{{ fs12 }}px;line-height:1.4;color:#6B6B6B;text-wrap:pretty">{{ r.meta }}</span>
+</div>
+<sc-if value="{{ r.pill.ring }}" hint-placeholder-val="{{ false }}"><svg width="{{ r.ringW }}" height="{{ r.ringH }}" style="position:absolute;left:-6px;top:-6px;overflow:visible;pointer-events:none"><rect x="1" y="1" width="{{ r.w }}" height="{{ r.h }}" transform="translate(5 5)" rx="32" fill="none" stroke="#1A1A1A" stroke-width="2" vector-effect="non-scaling-stroke" pathLength="100" stroke-dasharray="100" stroke-dashoffset="{{ r.pill.off }}"></rect></svg></sc-if>
+<sc-if value="{{ r.pill.show }}" hint-placeholder-val="{{ false }}">
+<div data-nopan="1" onPointerDown="{{ stop }}" style="position:absolute;left:20px;top:0;padding-bottom:8px;transform:translateY(-100%) scale({{ inv }});transform-origin:left bottom;z-index:6">
+<div style="display:flex;align-items:center;gap:2px;padding:4px;border-radius:999px;white-space:nowrap;font-size:15px;background:linear-gradient(180deg,rgba(255,255,255,.62),rgba(255,255,255,.3));backdrop-filter:blur(22px) saturate(1.8);-webkit-backdrop-filter:blur(22px) saturate(1.8);border:1px solid rgba(255,255,255,.65);box-shadow:inset 0 1.5px 0 #fff,inset 1px 0 0 rgba(255,120,150,.16),inset -1px 0 0 rgba(90,160,255,.22),0 10px 30px rgba(40,30,20,.16);animation:rise .22s ease-out both">
+<span style="padding:6px 10px 6px 12px;font-size:12px;color:#6B6B6B">Full cut</span>
+<sc-if value="{{ r.pill.idle }}" hint-placeholder-val="{{ true }}"><span onClick="{{ r.pill.on916 }}" style="padding:6px 10px;border-radius:999px;cursor:pointer" style-hover="background:rgba(255,255,255,.85)">9:16</span><span onClick="{{ r.pill.on45 }}" style="padding:6px 10px;border-radius:999px;cursor:pointer" style-hover="background:rgba(255,255,255,.85)">4:5</span><span onClick="{{ r.pill.on169 }}" style="padding:6px 10px;border-radius:999px;cursor:pointer" style-hover="background:rgba(255,255,255,.85)">16:9</span><span onClick="{{ r.pill.onDl }}" style="width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#1A1A1A;cursor:pointer"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 2v8M3.5 6.5 7 10l3.5-3.5M2.5 12.5h9"></path></svg></span></sc-if>
+<sc-if value="{{ r.pill.busy }}" hint-placeholder-val="{{ false }}"><span style="padding:6px 12px;font-family:'Geist Mono';font-size:12px">{{ r.pill.label }}</span></sc-if>
+<sc-if value="{{ r.pill.done }}" hint-placeholder-val="{{ false }}"><span onClick="{{ r.pill.onCopy }}" style="padding:6px 10px;border-radius:999px;cursor:pointer">Copied link</span><span style="color:#9A958C">·</span><span onClick="{{ r.pill.onDownload }}" style="padding:6px 12px;border-radius:999px;cursor:pointer;background:#1A1A1A;color:#fff">Download</span></sc-if>
+</div>
+</div>
+</sc-if>
+</div>
+</sc-for>
+<sc-for list="{{ board.arrows }}" as="a" hint-placeholder-count="0">
+<svg width="{{ a.w }}" height="12" style="position:absolute;left:{{ a.x }}px;top:{{ a.y }}px;margin-top:-6px;overflow:visible;z-index:2;pointer-events:none"><line x1="0" y1="6" x2="{{ a.w }}" y2="6" stroke="#1A1A1A" stroke-opacity=".45" stroke-width="1.3" vector-effect="non-scaling-stroke"></line></svg>
+</sc-for>
+<sc-if value="{{ board.ins.show }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;left:{{ board.ins.x }}px;top:{{ board.ins.y }}px;width:3px;height:340px;border-radius:2px;background:#3D7BF2;box-shadow:0 0 24px 6px rgba(61,123,242,.55);z-index:5;pointer-events:none"></div></sc-if>
+<sc-for list="{{ board.cards }}" as="k" hint-placeholder-count="0">
+<div data-drop="{{ k.drop }}" onPointerDown="{{ k.onDown }}" onDoubleClick="{{ k.onDbl }}" onContextMenu="{{ k.onCtx }}" onPointerEnter="{{ k.onEnter }}" onPointerLeave="{{ k.onLeave }}" style="position:absolute;left:{{ k.x }}px;top:{{ k.y }}px;width:180px;height:320px;border-radius:18px;opacity:{{ k.op }};transition:left .55s cubic-bezier(.34,1.4,.5,1),top .55s cubic-bezier(.34,1.4,.5,1),opacity .25s;cursor:grab;z-index:3">
+<sc-if value="{{ k.isClip }}" hint-placeholder-val="{{ true }}">
+<div style="position:absolute;inset:-18%;border-radius:40%;background:{{ k.glowBg }};filter:blur(34px);opacity:{{ k.glowOp }};pointer-events:none"></div>
+<div style="position:absolute;inset:-55%;background:{{ k.toneBg }};opacity:{{ k.toneOp }};pointer-events:none"></div>
+<div style="position:absolute;inset:0;border-radius:18px;padding:{{ hair }}px;box-sizing:border-box;background:linear-gradient(160deg,#FFFFFF 0%,#C9CCD1 30%,#F4F5F7 52%,#9EA3AA 78%,#E8EAED 100%);box-shadow:{{ k.shadow }};transition:box-shadow .25s">
+<div style="position:relative;width:100%;height:100%;border-radius:17px;overflow:hidden;background:#2b2723">
+<div style="position:absolute;inset:0;background:{{ k.bg }};transform:{{ k.tf }}"></div>
+{{ k.vidEl }}
+<div style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:{{ k.imgBg }}"></div>
+<div style="position:absolute;inset:0;background:linear-gradient(135deg,rgba(255,255,255,.22),rgba(255,255,255,0) 35%);pointer-events:none"></div>
+<sc-if value="{{ k.markShow }}" hint-placeholder-val="{{ true }}"><span style="position:absolute;right:10px;top:10px;font-family:'Geist Mono';font-size:12px;padding:2px 7px;border-radius:999px;color:#1A1A1A;background:rgba(255,255,255,.55);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)">{{ k.mark }}</span></sc-if>
+</div>
+</div>
+<div style="position:absolute;left:2px;top:334px;width:260px;font-size:{{ fs12 }}px;color:#6B6B6B;white-space:nowrap">{{ k.name }}</div>
+<div style="position:absolute;left:-12px;top:-14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;z-index:4">
+<sc-for list="{{ k.labels }}" as="l" hint-placeholder-count="0"><span style="padding:1px 10px 2px;border-radius:5px;background:#FDFCF9;font-family:'Caveat';font-size:{{ cav }}px;font-weight:600;line-height:1.15;color:#1A1A1A;box-shadow:0 1px 2px rgba(26,26,26,.25),0 4px 10px rgba(26,26,26,.08);transform:rotate({{ l.rot }})">{{ l.t }}</span></sc-for>
+</div>
+<sc-if value="{{ k.ring }}" hint-placeholder-val="{{ false }}"><svg width="192" height="332" style="position:absolute;left:-6px;top:-6px;overflow:visible;pointer-events:none"><rect x="1" y="1" width="190" height="330" rx="23" fill="none" stroke="#1A1A1A" stroke-width="2" vector-effect="non-scaling-stroke" pathLength="100" stroke-dasharray="100" stroke-dashoffset="{{ k.pill.off }}"></rect></svg></sc-if>
+<sc-if value="{{ k.pill.show }}" hint-placeholder-val="{{ false }}">
+<div data-nopan="1" onPointerDown="{{ stop }}" style="position:absolute;right:0;top:0;padding-bottom:8px;transform:translateY(-100%) scale({{ inv }});transform-origin:right bottom;z-index:6">
+<div style="display:flex;align-items:center;gap:2px;padding:4px;border-radius:999px;white-space:nowrap;font-size:15px;background:linear-gradient(180deg,rgba(255,255,255,.62),rgba(255,255,255,.3));backdrop-filter:blur(22px) saturate(1.8);-webkit-backdrop-filter:blur(22px) saturate(1.8);border:1px solid rgba(255,255,255,.65);box-shadow:inset 0 1.5px 0 #fff,inset 1px 0 0 rgba(255,120,150,.16),inset -1px 0 0 rgba(90,160,255,.22),0 10px 30px rgba(40,30,20,.16);animation:rise .22s ease-out both">
+<sc-if value="{{ k.pill.idle }}" hint-placeholder-val="{{ true }}"><span onClick="{{ k.pill.on916 }}" style="padding:6px 10px;border-radius:999px;cursor:pointer" style-hover="background:rgba(255,255,255,.85)">9:16</span><span onClick="{{ k.pill.on45 }}" style="padding:6px 10px;border-radius:999px;cursor:pointer" style-hover="background:rgba(255,255,255,.85)">4:5</span><span onClick="{{ k.pill.on169 }}" style="padding:6px 10px;border-radius:999px;cursor:pointer" style-hover="background:rgba(255,255,255,.85)">16:9</span><span onClick="{{ k.pill.onDl }}" style="width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#1A1A1A;cursor:pointer"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 2v8M3.5 6.5 7 10l3.5-3.5M2.5 12.5h9"></path></svg></span></sc-if>
+<sc-if value="{{ k.pill.busy }}" hint-placeholder-val="{{ false }}"><span style="padding:6px 12px;font-family:'Geist Mono';font-size:12px">{{ k.pill.label }}</span></sc-if>
+<sc-if value="{{ k.pill.done }}" hint-placeholder-val="{{ false }}"><span onClick="{{ k.pill.onCopy }}" style="padding:6px 10px;border-radius:999px;cursor:pointer">Copied link</span><span style="color:#9A958C">·</span><span onClick="{{ k.pill.onDownload }}" style="padding:6px 12px;border-radius:999px;cursor:pointer;background:#1A1A1A;color:#fff">Download</span></sc-if>
+</div>
+</div>
+</sc-if>
+</sc-if>
+<sc-if value="{{ k.isGhost }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;inset:0;border-radius:18px;background:rgba(26,26,26,.03);box-shadow:{{ k.shadow }};transition:box-shadow .25s;overflow:hidden">
+<sc-if value="{{ k.notBusy }}" hint-placeholder-val="{{ true }}">
+<div style="position:absolute;inset:0;padding:18px;box-sizing:border-box;display:flex;flex-direction:column;gap:6px">
+<span style="font-size:{{ fs15 }}px;font-weight:500">{{ k.p }}</span>
+<span style="font-family:'Geist Mono';font-size:{{ fs12 }}px;color:#6B6B6B">{{ k.len }}</span>
+<div style="flex:1"></div>
+<div data-nopan="1" onPointerDown="{{ stop }}" onClick="{{ k.onGen }}" style="align-self:flex-start;padding:7px 14px;border-radius:999px;background:#1A1A1A;color:#fff;font-size:{{ fs12 }}px;cursor:pointer">Generate</div>
+<span style="font-size:{{ fs12 }}px;color:#6B6B6B">or drop footage</span>
+</div>
+</sc-if>
+<sc-if value="{{ k.busy }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:0;background:linear-gradient(100deg,rgba(255,255,255,0) 30%,rgba(255,255,255,.8) 50%,rgba(255,255,255,0) 70%),linear-gradient(160deg,#e9e3da,#d8d0c6);background-size:220% 100%,100% 100%;animation:shimmer 1.4s linear infinite"></div></sc-if>
+</div>
+</sc-if>
+</div>
+</sc-for>
+<sc-for list="{{ board.groups }}" as="g" hint-placeholder-count="0">
+<div style="position:absolute;left:1720px;top:{{ g.y }}px;display:flex;flex-direction:column;gap:12px">
+<div style="display:flex;align-items:baseline;gap:10px"><span style="font-family:'Caveat';font-size:{{ cav }}px;font-weight:700;line-height:1">{{ g.tag }}</span><span style="font-size:{{ fs12 }}px;color:#6B6B6B">{{ g.count }}</span></div>
+<div style="position:relative;height:120px;width:520px">
+<sc-for list="{{ g.cards }}" as="m" hint-placeholder-count="0"><div data-nopan="1" onClick="{{ m.onClick }}" style="position:absolute;left:{{ m.x }}px;top:0;width:62px;height:110px;border-radius:10px;padding:{{ hair }}px;box-sizing:border-box;cursor:pointer;background:linear-gradient(160deg,#FFFFFF 0%,#C9CCD1 30%,#F4F5F7 52%,#9EA3AA 78%,#E8EAED 100%);box-shadow:0 1px 2px rgba(26,26,26,.14),0 8px 18px rgba(26,26,26,.12);transition:left .5s cubic-bezier(.34,1.4,.5,1)"><div style="position:relative;width:100%;height:100%;border-radius:9px;overflow:hidden"><div style="position:absolute;inset:0;background:{{ m.bg }};transform:{{ m.tf }}"></div></div></div></sc-for>
+</div>
+</div>
+</sc-for>
+<div style="position:absolute;left:60px;top:{{ board.tplY }}px;display:flex;align-items:baseline;gap:14px"><span style="font-size:{{ fs15 }}px;font-weight:500">Start a new ad from a template</span><span style="font-size:{{ fs12 }}px;color:#6B6B6B">right-click any row to save it as one</span></div>
+<sc-for list="{{ board.templates }}" as="tp" hint-placeholder-count="0">
+<div data-nopan="1" onClick="{{ tp.onClick }}" style="position:absolute;left:{{ tp.x }}px;top:{{ tp.y }}px;width:280px;min-height:150px;padding:16px 18px;box-sizing:border-box;border-radius:20px;background:#FDFCF9;cursor:pointer;display:flex;flex-direction:column;gap:12px;box-shadow:0 1px 2px rgba(26,26,26,.1),0 10px 28px rgba(26,26,26,.08)" style-hover="box-shadow:0 0 0 1.5px #1A1A1A,0 10px 28px rgba(26,26,26,.1)">
+<span style="font-size:{{ fs15 }}px;font-weight:500;line-height:1.3">{{ tp.name }}</span>
+<div style="display:flex;gap:6px">
+<sc-for list="{{ tp.beats }}" as="b" hint-placeholder-count="0"><div style="flex:1;min-width:0;height:72px;border-radius:8px;background:rgba(26,26,26,.04);box-shadow:inset 0 0 0 1px rgba(26,26,26,.07);padding:6px;box-sizing:border-box;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden"><span style="font-size:12px;line-height:1.15;overflow:hidden;text-overflow:ellipsis">{{ b.p }}</span><span style="font-family:'Geist Mono';font-size:12px;color:#6B6B6B">{{ b.len }}</span></div></sc-for>
+</div>
+</div>
+</sc-for>
+
+<!-- EDIT: panels (dimmable) -->
+<div style="position:absolute;left:0;top:0;z-index:12;opacity:{{ ez.op }};pointer-events:{{ ez.pe }};transition:opacity .45s">
+<div style="position:absolute;left:2720px;top:62px;width:520px;display:flex;align-items:baseline;gap:12px;white-space:nowrap"><span style="font-size:15px;font-weight:500">{{ hud.clipName }}</span><span style="font-size:12px;color:#6B6B6B">{{ clipMeta }}</span></div>
+<div data-nopan="1" style="position:absolute;left:2520px;top:200px;width:180px;height:330px;perspective:900px">
+<sc-for list="{{ takes.cards }}" as="k" hint-placeholder-count="0">
+<div onPointerDown="{{ k.onDown }}" style="position:absolute;left:0;top:0;width:150px;height:267px;border-radius:16px;padding:{{ hair }}px;box-sizing:border-box;background:linear-gradient(160deg,#FFFFFF 0%,#C9CCD1 30%,#F4F5F7 52%,#9EA3AA 78%,#E8EAED 100%);transform:{{ k.tf }};transition:{{ k.tr }};z-index:{{ k.z }};opacity:{{ k.op }};box-shadow:0 1px 2px rgba(26,26,26,.14),0 16px 36px rgba(26,26,26,.16);cursor:{{ k.cursor }}">
+<div style="position:relative;width:100%;height:100%;border-radius:15px;overflow:hidden"><div style="position:absolute;inset:0;background:{{ k.bg }};transform:{{ k.ctf }};filter:{{ k.f }}"></div><div style="position:absolute;inset:0;background:linear-gradient(130deg,rgba(255,255,255,.3),rgba(255,255,255,0) 40%)"></div></div>
+</div>
+</sc-for>
+<div style="position:absolute;left:0;top:300px;display:flex;flex-direction:column;gap:4px;width:200px"><span style="font-size:15px">{{ takes.topName }}</span><span style="font-size:12px;color:#6B6B6B">{{ takes.count }} takes · flick to browse · click to use</span></div>
+</div>
+
+<sc-if value="{{ panel.styles }}" hint-placeholder-val="{{ true }}">
+<div data-nopan="1" style="position:absolute;left:3130px;top:110px;width:400px;padding:22px 0;box-sizing:border-box;border-radius:26px;display:flex;flex-direction:column;gap:14px;background:linear-gradient(180deg,rgba(255,255,255,.6) 0%,rgba(255,255,255,.26) 40%,rgba(255,255,255,.34) 100%);backdrop-filter:blur(26px) saturate(1.9);-webkit-backdrop-filter:blur(26px) saturate(1.9);border:1px solid rgba(255,255,255,.65);box-shadow:inset 0 1.5px 0 #fff,inset 1.5px 0 0 rgba(255,120,150,.16),inset -1.5px 0 0 rgba(90,160,255,.22),0 20px 50px rgba(40,30,20,.14),0 2px 8px rgba(40,30,20,.06)">
+<div style="display:flex;align-items:baseline;justify-content:space-between;padding:0 22px"><span style="font-size:15px;font-weight:500">Styles</span><span style="font-size:12px;color:#6B6B6B">right-click an edit to save one</span></div>
+<sc-if value="{{ panel.learn }}" hint-placeholder-val="{{ true }}">
+<div style="margin:0 22px;padding:12px 12px 12px 16px;border-radius:16px;background:rgba(255,255,255,.6);box-shadow:inset 0 0 0 1px rgba(26,26,26,.06);display:flex;align-items:center;gap:10px"><span style="flex:1;font-size:15px;line-height:1.4">You usually keep punch-ins under 0.4s. Apply?</span><span onClick="{{ panel.onLearn }}" style="padding:7px 14px;border-radius:999px;background:#1A1A1A;color:#fff;font-size:15px;cursor:pointer">Apply</span><span onClick="{{ panel.onLearnNo }}" style="padding:7px 8px;font-size:15px;color:#6B6B6B;cursor:pointer">×</span></div>
+</sc-if>
+<span style="padding:0 22px;font-size:12px;color:#6B6B6B">My styles</span>
+<div data-scroll="1" style="display:flex;gap:12px;overflow-x:auto;padding:2px 22px 4px;scrollbar-width:none">
+<sc-for list="{{ panel.mine }}" as="st" hint-placeholder-count="3">
+<div onClick="{{ st.onClick }}" onContextMenu="{{ st.onCtx }}" style="flex:none;width:84px;display:flex;flex-direction:column;gap:6px;cursor:pointer;animation:{{ st.anim }}">
+<div style="width:84px;height:150px;border-radius:14px;padding:{{ hair }}px;box-sizing:border-box;background:linear-gradient(160deg,#FFFFFF 0%,#C9CCD1 30%,#F4F5F7 52%,#9EA3AA 78%,#E8EAED 100%);box-shadow:{{ st.ring }};transition:box-shadow .2s"><div style="position:relative;width:100%;height:100%;border-radius:13px;overflow:hidden"><div style="position:absolute;inset:0;background:{{ st.bg }};filter:{{ st.f }};animation:drift {{ st.dur }}s ease-in-out infinite"></div></div></div>
+<span style="font-size:12px;line-height:1.3">{{ st.name }}</span>
+<sc-if value="{{ st.isDefault }}" hint-placeholder-val="{{ false }}"><span style="font-size:12px;color:#6B6B6B">project default</span></sc-if>
+</div>
+</sc-for>
+</div>
+<span style="padding:0 22px;font-size:12px;color:#6B6B6B">Recipes</span>
+<div data-scroll="1" style="display:flex;gap:12px;overflow-x:auto;padding:2px 22px 4px;scrollbar-width:none">
+<sc-for list="{{ panel.recipes }}" as="st" hint-placeholder-count="4">
+<div onClick="{{ st.onClick }}" onContextMenu="{{ st.onCtx }}" style="flex:none;width:84px;display:flex;flex-direction:column;gap:6px;cursor:pointer">
+<div style="width:84px;height:150px;border-radius:14px;padding:{{ hair }}px;box-sizing:border-box;background:linear-gradient(160deg,#FFFFFF 0%,#C9CCD1 30%,#F4F5F7 52%,#9EA3AA 78%,#E8EAED 100%);box-shadow:{{ st.ring }};transition:box-shadow .2s"><div style="position:relative;width:100%;height:100%;border-radius:13px;overflow:hidden"><div style="position:absolute;inset:0;background:{{ st.bg }};filter:{{ st.f }};animation:drift {{ st.dur }}s ease-in-out infinite"></div></div></div>
+<span style="font-size:12px;line-height:1.3">{{ st.name }}</span>
+</div>
+</sc-for>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ panel.broll }}" hint-placeholder-val="{{ false }}">
+<div data-nopan="1" style="position:absolute;left:3130px;top:110px;width:420px;padding:22px 0;box-sizing:border-box;border-radius:26px;display:flex;flex-direction:column;gap:14px;animation:rise .45s cubic-bezier(.34,1.3,.5,1) both;background:linear-gradient(180deg,rgba(255,255,255,.6) 0%,rgba(255,255,255,.26) 40%,rgba(255,255,255,.34) 100%);backdrop-filter:blur(26px) saturate(1.9);-webkit-backdrop-filter:blur(26px) saturate(1.9);border:1px solid rgba(255,255,255,.65);box-shadow:inset 0 1.5px 0 #fff,inset 1.5px 0 0 rgba(255,120,150,.16),inset -1.5px 0 0 rgba(90,160,255,.22),0 20px 50px rgba(40,30,20,.14),0 2px 8px rgba(40,30,20,.06)">
+<div style="display:flex;align-items:center;gap:10px;padding:0 18px 0 22px"><span style="font-size:15px;font-weight:500">B-roll</span><span style="flex:1;font-size:12px;color:#6B6B6B">{{ panel.gapLabel }}</span><span onClick="{{ panel.onAuto }}" style="padding:6px 12px;border-radius:999px;font-size:15px;cursor:pointer;background:rgba(255,255,255,.65);box-shadow:inset 0 0 0 1px rgba(26,26,26,.08)">auto</span><span onClick="{{ panel.onClose }}" style="padding:6px 8px;font-size:15px;color:#6B6B6B;cursor:pointer">×</span></div>
+<div style="margin:0 22px;display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:16px;background:rgba(255,255,255,.62);box-shadow:inset 0 0 0 1px rgba(26,26,26,.07)"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="#6B6B6B" stroke-width="1.5" stroke-linecap="round"><circle cx="7" cy="7" r="5"></circle><path d="M11 11l3.5 3.5"></path></svg><input value="{{ panel.query }}" onChange="{{ panel.onQuery }}" onKeyDown="{{ panel.onQueryKey }}" style="flex:1;min-width:0;font-family:inherit;font-size:15px;border:0;outline:0;background:transparent;color:#1A1A1A"></div>
+<div style="display:flex;flex-wrap:wrap;gap:6px;padding:0 22px"><sc-for list="{{ panel.chips }}" as="ch" hint-placeholder-count="0"><span style="padding:3px 9px;border-radius:999px;font-size:12px;background:rgba(26,26,26,.06)">{{ ch.t }}</span></sc-for></div>
+<div data-scroll="1" style="display:flex;gap:12px;overflow-x:auto;padding:2px 22px 4px;scrollbar-width:none">
+<sc-for list="{{ panel.results }}" as="r" hint-placeholder-count="0">
+<div onPointerDown="{{ r.onDown }}" style="flex:none;width:100px;display:flex;flex-direction:column;gap:6px;cursor:grab">
+<div style="position:relative;width:100px;height:178px;border-radius:14px;padding:{{ hair }}px;box-sizing:border-box;background:linear-gradient(160deg,#FFFFFF 0%,#C9CCD1 30%,#F4F5F7 52%,#9EA3AA 78%,#E8EAED 100%);box-shadow:0 1px 2px rgba(26,26,26,.14),0 8px 18px rgba(26,26,26,.14)"><div style="position:relative;width:100%;height:100%;border-radius:13px;overflow:hidden"><div style="position:absolute;inset:0;background:{{ r.bg }};animation:drift {{ r.dur }}s ease-in-out infinite"></div>
+<sc-if value="{{ r.shim }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:0;background:linear-gradient(100deg,rgba(255,255,255,0) 30%,rgba(255,255,255,.75) 50%,rgba(255,255,255,0) 70%),rgba(247,245,240,.5);background-size:220% 100%,100% 100%;animation:shimmer 1.5s linear infinite;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)"></div></sc-if>
+<sc-if value="{{ r.genIdle }}" hint-placeholder-val="{{ false }}"><span onPointerDown="{{ stop }}" onClick="{{ r.onRender }}" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);padding:7px 14px;border-radius:999px;background:#1A1A1A;color:#fff;font-size:15px;cursor:pointer">Render</span></sc-if>
+</div></div>
+<span style="font-size:12px;font-weight:500">{{ r.src }}</span>
+<span style="font-size:12px;line-height:1.3;color:#6B6B6B">{{ r.meta }}</span>
+</div>
+</sc-for>
+</div>
+<span style="padding:0 22px;font-size:12px;color:#6B6B6B">Drag onto the thread to insert · hold over a bead to swap</span>
+</div>
+</sc-if>
+
+<sc-if value="{{ loop.show }}" hint-placeholder-val="{{ false }}"><div data-nopan="1" onClick="{{ loop.onExit }}" style="position:absolute;left:2720px;top:62px;width:360px;display:flex;justify-content:center;z-index:30"></div></sc-if>
+</div>
+
+<!-- loop dim -->
+<sc-if value="{{ loop.show }}" hint-placeholder-val="{{ false }}"><div onPointerDown="{{ loop.onExit }}" style="position:absolute;left:-6000px;top:-6000px;width:16000px;height:16000px;background:rgba(22,17,12,.55);z-index:20;animation:rise .4s ease-out both"></div>
+<div data-nopan="1" onClick="{{ loop.onExit }}" style="position:absolute;left:2720px;top:62px;width:360px;display:flex;justify-content:center;z-index:31"><span style="padding:8px 16px;border-radius:999px;font-size:15px;cursor:pointer;color:#fff;background:rgba(255,255,255,.14);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);box-shadow:inset 0 1px 0 rgba(255,255,255,.5)">Looping “{{ loop.tag }}” · Esc to exit</span></div></sc-if>
+
+<!-- EDIT: thread -->
+<div style="position:absolute;left:0;top:0;z-index:27;opacity:{{ ez.op }};pointer-events:{{ ez.pe }};transition:opacity .45s">
+<div data-nopan="1" onClick="{{ thread.onPlay }}" style="position:absolute;left:2448px;top:818px;width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;background:linear-gradient(180deg,rgba(255,255,255,.7),rgba(255,255,255,.35));backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.7);box-shadow:inset 0 1.5px 0 #fff,0 6px 16px rgba(40,30,20,.14)">
+<sc-if value="{{ thread.playIcon }}" hint-placeholder-val="{{ true }}"><svg width="14" height="14" viewBox="0 0 14 14"><path d="M3.5 2.2v9.6L11.5 7z" fill="#1A1A1A"></path></svg></sc-if>
+<sc-if value="{{ thread.pauseIcon }}" hint-placeholder-val="{{ false }}"><svg width="14" height="14" viewBox="0 0 14 14"><rect x="3" y="2.5" width="3" height="9" rx="1" fill="#1A1A1A"></rect><rect x="8" y="2.5" width="3" height="9" rx="1" fill="#1A1A1A"></rect></svg></sc-if>
+</div>
+<div style="position:absolute;left:2420px;top:870px;width:100px;text-align:center;font-family:'Geist Mono';font-size:12px;color:#6B6B6B">{{ thread.time }}</div>
+<div data-nopan="1" onPointerMove="{{ thread.onZoneMove }}" onPointerLeave="{{ thread.onZoneLeave }}" onClick="{{ thread.onZoneClick }}" onContextMenu="{{ thread.onZoneCtx }}" style="position:absolute;left:2500px;top:812px;width:800px;height:56px;cursor:copy"></div>
+<div style="position:absolute;left:2520px;top:839.5px;width:{{ thread.len }}px;height:1px;background:rgba(26,26,26,.4);pointer-events:none;transition:width .4s cubic-bezier(.34,1.3,.5,1)"></div>
+<sc-for list="{{ beads }}" as="b" hint-placeholder-count="0">
+<div style="position:absolute;left:{{ b.wordsLeft }}px;top:760px;width:{{ b.wordsW }}px;height:58px;display:flex;flex-wrap:wrap;align-content:flex-end;justify-content:center;gap:0 4px;font-size:12px;line-height:1.35;text-align:center;overflow:hidden;transition:left .4s cubic-bezier(.34,1.3,.5,1),width .4s cubic-bezier(.34,1.3,.5,1)">
+<sc-for list="{{ b.words }}" as="w" hint-placeholder-count="0"><span data-nopan="1" onClick="{{ w.onClick }}" style="text-decoration:{{ w.deco }};opacity:{{ w.op }};cursor:{{ w.cursor }}">{{ w.w }}</span></sc-for>
+</div>
+<div style="position:absolute;left:{{ b.x0 }}px;top:838.5px;width:{{ b.w }}px;height:3px;pointer-events:none;transition:left .4s cubic-bezier(.34,1.3,.5,1),width .4s cubic-bezier(.34,1.3,.5,1)"><div style="position:absolute;left:4px;right:4px;top:0;height:3px;border-radius:2px;background:#1A1A1A;opacity:.72"></div></div>
+<div data-nopan="1" onPointerDown="{{ b.onTrim }}" style="position:absolute;left:{{ b.x0 }}px;top:826px;width:12px;height:28px;margin-left:{{ b.w }}px;transform:translateX(-6px);cursor:ew-resize;display:flex;justify-content:center;z-index:3;transition:left .4s cubic-bezier(.34,1.3,.5,1)"><div style="width:1.5px;height:16px;margin-top:6px;border-radius:1px;background:#1A1A1A;opacity:.55"></div></div>
+<div data-drop="{{ b.drop }}" data-nopan="1" onPointerDown="{{ b.onDown }}" onDoubleClick="{{ b.onDbl }}" onContextMenu="{{ b.onCtx }}" style="position:absolute;left:{{ b.left }}px;top:{{ b.top }}px;width:{{ b.d }}px;height:{{ b.d }}px;border-radius:50%;padding:{{ hair }}px;box-sizing:border-box;background:linear-gradient(160deg,#FFFFFF 0%,#C9CCD1 30%,#F4F5F7 52%,#9EA3AA 78%,#E8EAED 100%);box-shadow:{{ b.shadow }};cursor:grab;z-index:2;animation:{{ b.anim }};transition:left .4s cubic-bezier(.34,1.3,.5,1),width .3s,height .3s,top .3s,box-shadow .2s">
+<div style="position:relative;width:100%;height:100%;border-radius:50%;overflow:hidden;background:#2b2723"><div style="position:absolute;inset:0;background:{{ b.bg }};transform:{{ b.tf }}"></div><div style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:{{ b.imgBg }}"></div>{{ b.vidEl }}</div>
+<sc-if value="{{ b.sat }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;right:-12px;top:-14px;width:22px;height:22px;border-radius:50%;padding:1px;box-sizing:border-box;background:linear-gradient(160deg,#FFFFFF,#9EA3AA);box-shadow:0 2px 6px rgba(26,26,26,.25);animation:beadpop .6s cubic-bezier(.34,1.8,.5,1)"><div style="width:100%;height:100%;border-radius:50%;background:{{ b.satBg }}"></div></div></sc-if>
+<sc-if value="{{ b.swap }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;left:50%;top:-30px;transform:translateX(-50%);font-size:12px;color:#3D7BF2;font-weight:500;white-space:nowrap">swap</span></sc-if>
+</div>
+<sc-if value="{{ b.hasKey }}" hint-placeholder-val="{{ false }}">
+<div data-nopan="1" onClick="{{ b.onTick }}" style="position:absolute;left:{{ b.cx }}px;top:866px;width:60px;margin-left:-30px;display:flex;flex-direction:column;align-items:center;gap:5px;cursor:pointer;transition:left .4s cubic-bezier(.34,1.3,.5,1)"><div style="width:2px;height:10px;border-radius:1px;background:{{ b.tickC }};box-shadow:{{ b.tickGlow }}"></div><span style="font-size:12px;line-height:1">{{ b.key }}</span></div>
+</sc-if>
+<div style="position:absolute;left:{{ b.cx }}px;top:902px;display:flex;flex-direction:column;align-items:flex-start;gap:4px;pointer-events:none"><sc-for list="{{ b.labels }}" as="l" hint-placeholder-count="0"><span style="padding:1px 8px 2px;border-radius:5px;background:#FDFCF9;font-family:'Caveat';font-size:19px;font-weight:600;line-height:1.1;box-shadow:0 1px 2px rgba(26,26,26,.25);transform:rotate(-3deg);white-space:nowrap">{{ l.t }}</span></sc-for></div>
+</sc-for>
+<sc-if value="{{ thread.showGaps }}" hint-placeholder-val="{{ false }}"><sc-for list="{{ thread.gapZones }}" as="g" hint-placeholder-count="0"><div data-drop="{{ g.drop }}" style="position:absolute;left:{{ g.x }}px;top:806px;width:44px;height:68px;border-radius:22px;box-shadow:{{ g.shadow }};z-index:4"></div></sc-for></sc-if>
+<div style="position:absolute;left:{{ thread.playX }}px;top:798px;width:1.5px;height:84px;margin-left:-.75px;background:#1A1A1A;pointer-events:none;z-index:3"><div style="position:absolute;left:-3.5px;top:-4px;width:8px;height:8px;border-radius:50%;background:#1A1A1A"></div></div>
+<sc-if value="{{ thread.snip }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;left:{{ thread.snipX }}px;top:840px;width:28px;height:28px;margin:-14px 0 0 -14px;border-radius:50%;box-shadow:0 0 0 1.5px #1A1A1A;animation:snip .5s ease-out both;pointer-events:none;z-index:5"></div></sc-if>
+<sc-for list="{{ thread.texts }}" as="tx" hint-placeholder-count="0"><span style="position:absolute;left:{{ tx.x }}px;top:806px;font-family:'Geist Mono';font-size:12px;font-weight:500;pointer-events:none">T</span></sc-for>
+<sc-if value="{{ thread.plus }}" hint-placeholder-val="{{ false }}"><div data-nopan="1" data-pop="1" onPointerDown="{{ stop }}" onClick="{{ thread.onPlus }}" style="position:absolute;left:{{ thread.plusX }}px;top:840px;width:30px;height:30px;margin:-15px 0 0 -15px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:6;font-size:15px;background:linear-gradient(180deg,rgba(255,255,255,.75),rgba(255,255,255,.4));backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,.8);box-shadow:inset 0 1.5px 0 #fff,0 4px 12px rgba(40,30,20,.2);animation:beadpop .35s cubic-bezier(.34,1.8,.5,1)">+</div></sc-if>
+<sc-if value="{{ thread.glyphs }}" hint-placeholder-val="{{ false }}">
+<div data-nopan="1" data-pop="1" onPointerDown="{{ stop }}" style="position:absolute;left:{{ thread.glyphX }}px;top:872px;transform:translateX(-50%);display:flex;gap:4px;padding:6px;border-radius:999px;z-index:8;animation:rise .3s cubic-bezier(.34,1.5,.5,1) both;background:linear-gradient(180deg,rgba(255,255,255,.66),rgba(255,255,255,.32));backdrop-filter:blur(22px) saturate(1.8);-webkit-backdrop-filter:blur(22px) saturate(1.8);border:1px solid rgba(255,255,255,.7);box-shadow:inset 0 1.5px 0 #fff,inset 1px 0 0 rgba(255,120,150,.16),inset -1px 0 0 rgba(90,160,255,.22),0 12px 30px rgba(40,30,20,.18)">
+<div onClick="{{ thread.onVoice }}" style="width:58px;padding:8px 0 6px;border-radius:999px;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer" style-hover="background:rgba(255,255,255,.8)"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#1A1A1A" stroke-width="1.5" stroke-linecap="round"><rect x="5.5" y="1.5" width="5" height="8.5" rx="2.5"></rect><path d="M3 8a5 5 0 0 0 10 0M8 13v2"></path></svg><span style="font-size:12px">voice</span></div>
+<div onClick="{{ thread.onBroll }}" style="width:58px;padding:8px 0 6px;border-radius:999px;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer" style-hover="background:rgba(255,255,255,.8)"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#1A1A1A" stroke-width="1.5"><rect x="3" y="1.5" width="10" height="13" rx="2.5"></rect><circle cx="8" cy="8" r="2"></circle></svg><span style="font-size:12px">b-roll</span></div>
+<div onClick="{{ thread.onGrade }}" style="width:58px;padding:8px 0 6px;border-radius:999px;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer" style-hover="background:rgba(255,255,255,.8)"><svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="#1A1A1A" stroke-width="1.5"></circle><path d="M8 2a6 6 0 0 1 0 12z" fill="#1A1A1A"></path></svg><span style="font-size:12px">grade</span></div>
+<div onClick="{{ thread.onMusic }}" style="width:58px;padding:8px 0 6px;border-radius:999px;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer" style-hover="background:rgba(255,255,255,.8)"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#1A1A1A" stroke-width="1.5" stroke-linecap="round"><path d="M6 12V3l7-1.5v9"></path><circle cx="4.3" cy="12" r="1.8" fill="#1A1A1A"></circle><circle cx="11.3" cy="10.5" r="1.8" fill="#1A1A1A"></circle></svg><span style="font-size:12px">music</span></div>
+<div onClick="{{ thread.onText }}" style="width:58px;padding:8px 0 6px;border-radius:999px;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer" style-hover="background:rgba(255,255,255,.8)"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#1A1A1A" stroke-width="1.6" stroke-linecap="round"><path d="M3 3.5h10M8 3.5V13"></path></svg><span style="font-size:12px">text</span></div>
+</div>
+</sc-if>
+<sc-if value="{{ thread.hasVoice }}" hint-placeholder-val="{{ false }}">
+<span style="position:absolute;left:2460px;top:921px;font-size:12px;color:#6B6B6B">voice</span>
+<div style="position:absolute;left:2520px;top:929px;width:760px;height:1px;background:rgba(26,26,26,.15)"></div>
+<sc-for list="{{ thread.vbars }}" as="vb" hint-placeholder-count="0"><div style="position:absolute;left:{{ vb.x }}px;top:929px;width:2px;height:{{ vb.h }}px;transform:translateY(-50%);border-radius:1px;background:#1A1A1A"></div></sc-for>
+</sc-if>
+<sc-if value="{{ thread.music }}" hint-placeholder-val="{{ true }}">
+<span style="position:absolute;left:2460px;top:948px;font-size:12px;color:#6B6B6B">music</span>
+<svg width="760" height="24" style="position:absolute;left:2520px;top:944px;overflow:visible"><path d="{{ thread.musicPath }}" fill="none" stroke="#1A1A1A" stroke-opacity=".55" stroke-width="1.2"></path></svg>
+<span style="position:absolute;left:3290px;top:948px;font-size:12px;color:#6B6B6B;white-space:nowrap">{{ thread.musicName }}</span>
+</sc-if>
+<div data-nopan="1" style="position:absolute;left:3304px;top:820px;display:flex;gap:6px">
+<span onClick="{{ thread.onMoments }}" style="padding:8px 14px;border-radius:999px;font-size:15px;cursor:pointer;background:{{ thread.momBg }};color:{{ thread.momColor }};box-shadow:inset 0 0 0 1px rgba(26,26,26,.1),inset 0 1px 0 rgba(255,255,255,.8)">Moments</span>
+<span onClick="{{ thread.onDrawer }}" style="padding:8px 14px;border-radius:999px;font-size:15px;cursor:pointer;background:rgba(255,255,255,.55);box-shadow:inset 0 0 0 1px rgba(26,26,26,.1),inset 0 1px 0 rgba(255,255,255,.8)">Timeline</span>
+</div>
+<span style="position:absolute;left:3304px;top:874px;width:240px;font-size:12px;line-height:1.45;color:#6B6B6B">Click the thread to snip · drag an edge to trim · drag a bead off to lift it out</span>
+</div>
+
+<!-- HERO LENS -->
+<div data-drop="{{ activeDrop }}" onPointerEnter="{{ hero.onEnter }}" onPointerLeave="{{ hero.onLeave }}" onPointerDown="{{ hero.onDown }}" onClick="{{ hero.onClick }}" onDoubleClick="{{ hero.onDbl }}" onContextMenu="{{ hero.onCtx }}" style="position:absolute;left:{{ hero.x }}px;top:{{ hero.y }}px;width:{{ hero.w }}px;height:{{ hero.h }}px;border-radius:{{ hero.r }}px;z-index:26;transition:{{ hero.tr }};cursor:{{ hero.cursor }}">
+<div style="position:absolute;inset:{{ hero.toneInset }};background:{{ hero.toneBg }};opacity:{{ hero.toneOp }};pointer-events:none;transition:inset .9s,opacity .9s"></div>
+<div style="position:absolute;inset:-28%;border-radius:50%;background:{{ hero.glowBg }};filter:blur({{ hero.blur }}px);opacity:{{ hero.glowOp }};pointer-events:none;transition:opacity .9s,filter .9s"></div>
+<div style="position:absolute;inset:0;border-radius:inherit;padding:{{ hair }}px;box-sizing:border-box;background:linear-gradient(160deg,#FFFFFF 0%,#C9CCD1 30%,#F4F5F7 52%,#9EA3AA 78%,#E8EAED 100%);box-shadow:{{ hero.shadow }};transition:box-shadow .25s">
+<div ref="{{ heroInner }}" style="position:relative;width:100%;height:100%;border-radius:inherit;overflow:hidden;background:#2b2723;transform:translateZ(0)">
+<div style="position:absolute;inset:0;transform:{{ hero.zoom }};transition:transform .8s cubic-bezier(.34,1.3,.5,1)">
+<div style="position:absolute;inset:0;animation:{{ hero.anim }}">
+<div style="position:absolute;inset:0;filter:{{ hero.filter }};transition:filter .7s">
+<div style="position:absolute;inset:0;background:{{ hero.bg }};transform:{{ hero.tf }};transition:transform .5s cubic-bezier(.34,1.2,.5,1)"></div>
+{{ hero.vidEl }}
+<div style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:{{ hero.imgBg }}"></div>
+</div>
+<div style="position:absolute;inset:0;background:{{ hero.light }};mix-blend-mode:soft-light;pointer-events:none"></div>
+<div style="position:absolute;inset:0;background:{{ hero.tint }};mix-blend-mode:soft-light;pointer-events:none;transition:background .7s"></div>
+</div>
+</div>
+<sc-if value="{{ talk.reveal }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;left:0;top:0;width:360px;height:640px;clip-path:{{ talk.clip }};transition:{{ talk.tr }};pointer-events:none">
+<div style="position:absolute;inset:0;filter:{{ talk.filter }}"><div style="position:absolute;inset:0;background:{{ hero.bg }};transform:{{ hero.tf }}"></div><div style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:{{ hero.imgBg }}"></div></div>
+<div style="position:absolute;inset:0;background:{{ talk.light }};mix-blend-mode:soft-light"></div>
+</div>
+</sc-if>
+<sc-if value="{{ talk.brush }}" hint-placeholder-val="{{ false }}">
+<svg viewBox="0 0 360 640" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;filter:drop-shadow(0 0 10px rgba(61,123,242,.9)) drop-shadow(0 0 26px rgba(120,170,255,.6));animation:{{ talk.brushAnim }}"><path d="{{ talk.path }}" fill="none" stroke="rgba(150,190,255,.42)" stroke-width="54" stroke-linecap="round" stroke-linejoin="round"></path><path d="{{ talk.path }}" fill="none" stroke="rgba(255,255,255,.85)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="2 6"></path></svg>
+</sc-if>
+<sc-if value="{{ cap.title }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;left:0;right:0;top:12%;text-align:center;font-size:30px;font-weight:600;letter-spacing:-.02em;color:#fff;text-shadow:0 2px 18px rgba(0,0,0,.45);pointer-events:none;animation:rise .4s ease-out both">{{ cap.titleText }}</div></sc-if>
+<sc-if value="{{ cap.show }}" hint-placeholder-val="{{ true }}">
+<div onPointerDown="{{ cap.onBlockDown }}" style="position:absolute;left:{{ cap.left }}%;top:{{ cap.top }}%;transform:translate(-50%,-50%);width:86%;display:flex;flex-direction:column;align-items:center;gap:8px;cursor:grab">
+<div style="display:flex;flex-wrap:wrap;justify-content:{{ cap.justify }};align-self:stretch;gap:2px 2px;padding:{{ cap.pad }};border-radius:12px;background:{{ cap.bg }};backdrop-filter:{{ cap.bf }};-webkit-backdrop-filter:{{ cap.bf }};font-size:{{ cap.fs }}px;font-weight:{{ cap.fw }};text-transform:{{ cap.tt }};letter-spacing:-.015em;line-height:1.15;color:#fff;text-shadow:{{ cap.ts }};box-shadow:{{ cap.ring }}">
+<sc-for list="{{ cap.words }}" as="w" hint-placeholder-count="0">
+<sc-if value="{{ w.editing }}" hint-placeholder-val="{{ false }}"><input value="{{ cap.editVal }}" onChange="{{ cap.onEditChange }}" onKeyDown="{{ cap.onEditKey }}" onBlur="{{ cap.onEditBlur }}" onPointerDown="{{ stop }}" autoFocus="{{ true }}" size="{{ w.size }}" style="font:inherit;text-transform:inherit;letter-spacing:inherit;color:#1A1A1A;background:#fff;border:0;outline:0;border-radius:6px;padding:0 4px;caret-color:#3D7BF2;text-shadow:none"></sc-if>
+<sc-if value="{{ w.plain }}" hint-placeholder-val="{{ true }}"><span onPointerDown="{{ w.down }}" style="display:inline-flex;align-items:center;padding:0 4px;border-radius:6px;opacity:{{ w.op }};transform:scale({{ w.sc }});background:{{ w.bg }};color:{{ w.color }};transition:transform .2s cubic-bezier(.34,1.8,.5,1),background .15s;cursor:text">{{ w.w }}<sc-if value="{{ w.caret }}" hint-placeholder-val="{{ false }}"><span style="display:inline-block;width:2px;height:.95em;margin-left:2px;background:#fff;box-shadow:0 0 6px rgba(61,123,242,.9);animation:blink 1s steps(1) infinite"></span></sc-if></span></sc-if>
+</sc-for>
+</div>
+<sc-if value="{{ cap.sub }}" hint-placeholder-val="{{ false }}"><div style="font-size:15px;line-height:1.35;color:#fff;text-align:center;padding:5px 10px;border-radius:8px;background:rgba(20,18,16,.4);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)">{{ cap.subText }}</div></sc-if>
+</div>
+</sc-if>
+<sc-if value="{{ hero.analysing }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:0;background:linear-gradient(100deg,rgba(255,255,255,0) 30%,rgba(255,255,255,.55) 50%,rgba(255,255,255,0) 70%);background-size:220% 100%;animation:shimmer 1.5s linear infinite"></div><span style="position:absolute;left:16px;bottom:16px;font-size:15px;color:#fff;text-shadow:0 1px 8px rgba(0,0,0,.5)">{{ hero.status }}</span></sc-if>
+<div style="position:absolute;inset:0;border-radius:inherit;background:linear-gradient(140deg,rgba(255,255,255,.2),rgba(255,255,255,0) 30%);pointer-events:none"></div>
+<sc-if value="{{ hero.markShow }}" hint-placeholder-val="{{ true }}"><span style="position:absolute;right:14px;top:14px;font-family:'Geist Mono';font-size:12px;padding:2px 8px;border-radius:999px;color:#1A1A1A;background:rgba(255,255,255,.55);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)">{{ hero.mark }}</span></sc-if>
+</div>
+</div>
+<sc-if value="{{ cap.pill }}" hint-placeholder-val="{{ true }}">
+<div data-nopan="1" onPointerDown="{{ stop }}" onClick="{{ stop }}" style="position:absolute;left:50%;top:{{ cap.pillTop }}px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:6px;z-index:7">
+<div style="display:flex;align-items:center;gap:2px;padding:4px;border-radius:999px;white-space:nowrap;font-size:15px;background:linear-gradient(180deg,rgba(255,255,255,.62),rgba(255,255,255,.3));backdrop-filter:blur(22px) saturate(1.8);-webkit-backdrop-filter:blur(22px) saturate(1.8);border:1px solid rgba(255,255,255,.65);box-shadow:inset 0 1.5px 0 #fff,inset 1px 0 0 rgba(255,120,150,.16),inset -1px 0 0 rgba(90,160,255,.22),0 10px 30px rgba(40,30,20,.2)">
+<sc-for list="{{ cap.looks }}" as="l" hint-placeholder-count="4"><span onClick="{{ l.onClick }}" style="padding:6px 10px;border-radius:999px;cursor:pointer;background:{{ l.bg }};color:{{ l.color }};transition:background .2s">{{ l.label }}</span></sc-for>
+<span style="width:1px;height:18px;background:rgba(26,26,26,.15);margin:0 2px"></span>
+<span onClick="{{ cap.onTranslate }}" style="padding:6px 10px;border-radius:999px;cursor:pointer">Translate {{ cap.lang }}</span>
+</div>
+<sc-if value="{{ cap.langOpen }}" hint-placeholder-val="{{ false }}"><div style="display:flex;gap:2px;padding:4px;border-radius:999px;font-size:15px;background:linear-gradient(180deg,rgba(255,255,255,.66),rgba(255,255,255,.34));backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);border:1px solid rgba(255,255,255,.65);box-shadow:inset 0 1.5px 0 #fff,0 8px 22px rgba(40,30,20,.18);animation:rise .2s ease-out both"><sc-for list="{{ cap.langs }}" as="l" hint-placeholder-count="0"><span onClick="{{ l.onClick }}" style="padding:6px 10px;border-radius:999px;cursor:pointer;background:{{ l.bg }}">{{ l.label }}</span></sc-for></div></sc-if>
+</div>
+</sc-if>
+<sc-if value="{{ hero.pill.ring }}" hint-placeholder-val="{{ false }}"><svg width="{{ hero.ringW }}" height="{{ hero.ringH }}" style="position:absolute;left:-6px;top:-6px;overflow:visible;pointer-events:none"><rect x="1" y="1" width="{{ hero.w }}" height="{{ hero.h }}" transform="translate(5 5)" rx="{{ hero.ringRx }}" fill="none" stroke="#1A1A1A" stroke-width="2" vector-effect="non-scaling-stroke" pathLength="100" stroke-dasharray="100" stroke-dashoffset="{{ hero.pill.off }}"></rect></svg></sc-if>
+<sc-if value="{{ hero.pill.show }}" hint-placeholder-val="{{ false }}">
+<div data-nopan="1" onPointerDown="{{ stop }}" onClick="{{ stop }}" style="position:absolute;right:0;top:0;padding-bottom:10px;transform:translateY(-100%) scale({{ hero.inv }});transform-origin:right bottom;z-index:8">
+<div style="display:flex;align-items:center;gap:2px;padding:4px;border-radius:999px;white-space:nowrap;font-size:15px;background:linear-gradient(180deg,rgba(255,255,255,.62),rgba(255,255,255,.3));backdrop-filter:blur(22px) saturate(1.8);-webkit-backdrop-filter:blur(22px) saturate(1.8);border:1px solid rgba(255,255,255,.65);box-shadow:inset 0 1.5px 0 #fff,inset 1px 0 0 rgba(255,120,150,.16),inset -1px 0 0 rgba(90,160,255,.22),0 10px 30px rgba(40,30,20,.16);animation:rise .22s ease-out both">
+<sc-if value="{{ hero.pill.idle }}" hint-placeholder-val="{{ true }}"><span onClick="{{ hero.pill.on916 }}" style="padding:6px 10px;border-radius:999px;cursor:pointer" style-hover="background:rgba(255,255,255,.85)">9:16</span><span onClick="{{ hero.pill.on45 }}" style="padding:6px 10px;border-radius:999px;cursor:pointer" style-hover="background:rgba(255,255,255,.85)">4:5</span><span onClick="{{ hero.pill.on169 }}" style="padding:6px 10px;border-radius:999px;cursor:pointer" style-hover="background:rgba(255,255,255,.85)">16:9</span><span onClick="{{ hero.pill.onDl }}" style="width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#1A1A1A;cursor:pointer"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 2v8M3.5 6.5 7 10l3.5-3.5M2.5 12.5h9"></path></svg></span></sc-if>
+<sc-if value="{{ hero.pill.busy }}" hint-placeholder-val="{{ false }}"><span style="padding:6px 12px;font-family:'Geist Mono';font-size:12px">{{ hero.pill.label }}</span></sc-if>
+<sc-if value="{{ hero.pill.done }}" hint-placeholder-val="{{ false }}"><span onClick="{{ hero.pill.onCopy }}" style="padding:6px 10px;border-radius:999px;cursor:pointer">Copied link</span><span style="color:#9A958C">·</span><span onClick="{{ hero.pill.onDownload }}" style="padding:6px 12px;border-radius:999px;cursor:pointer;background:#1A1A1A;color:#fff">Download</span></sc-if>
+</div>
+</div>
+</sc-if>
+<div style="position:absolute;left:-14px;top:22px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;z-index:6"><sc-for list="{{ hero.labels }}" as="l" hint-placeholder-count="0"><span onClick="{{ l.onClick }}" style="padding:1px 10px 2px;border-radius:5px;background:#FDFCF9;font-family:'Caveat';font-size:{{ cav }}px;font-weight:600;line-height:1.15;box-shadow:0 1px 2px rgba(26,26,26,.25),0 4px 10px rgba(26,26,26,.08);transform:rotate({{ l.rot }});white-space:nowrap">{{ l.t }}</span></sc-for></div>
+</div>
+
+<!-- bubble -->
+<sc-if value="{{ talk.show }}" hint-placeholder-val="{{ false }}">
+<div data-nopan="1" onPointerDown="{{ stop }}" style="position:absolute;left:2930px;top:150px;width:460px;padding:24px 26px 22px;box-sizing:border-box;border-radius:28px;display:flex;flex-direction:column;gap:16px;z-index:40;animation:rise .4s cubic-bezier(.34,1.4,.5,1) both;background:linear-gradient(180deg,rgba(255,255,255,.55) 0%,rgba(255,255,255,.2) 42%,rgba(255,255,255,.3) 100%);backdrop-filter:blur(28px) saturate(2);-webkit-backdrop-filter:blur(28px) saturate(2);border:1px solid rgba(255,255,255,.7);box-shadow:inset 0 1.5px 0 #fff,inset 2px 0 0 rgba(255,110,140,.2),inset -2px 0 0 rgba(80,150,255,.26),inset 0 -1px 0 rgba(255,255,255,.4),0 30px 70px rgba(30,22,14,.22),0 2px 10px rgba(30,22,14,.1)">
+<div style="display:flex;align-items:center;gap:10px"><span style="width:8px;height:8px;border-radius:50%;background:{{ talk.dot }};animation:pulse 1s ease-in-out infinite"></span><span style="font-size:12px;color:#3D3A35">{{ talk.status }}</span></div>
+<div style="height:52px;display:flex;align-items:center;gap:3px">
+<sc-for list="{{ talk.bars }}" as="b" hint-placeholder-count="0"><div style="flex:1;height:{{ b.h }}px;border-radius:2px;background:#1A1A1A"></div></sc-for>
+</div>
+<div style="font-size:15px;line-height:1.55;min-height:48px;text-wrap:pretty">
+<sc-if value="{{ talk.empty }}" hint-placeholder-val="{{ false }}"><span style="color:#6B6B6B">Say what should change…</span></sc-if>{{ talk.text }}<sc-if value="{{ talk.caret }}" hint-placeholder-val="{{ false }}"><span style="display:inline-block;width:2px;height:1.05em;margin-left:2px;vertical-align:-3px;background:#1A1A1A;animation:blink 1s steps(1) infinite"></span></sc-if>
+</div>
+<sc-if value="{{ talk.done }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;align-items:center;gap:8px;animation:rise .3s ease-out both"><span onClick="{{ talk.onKeep }}" style="padding:9px 18px;border-radius:999px;background:#1A1A1A;color:#fff;font-size:15px;cursor:pointer">Keep</span><span onClick="{{ talk.onUndo }}" style="padding:9px 14px;border-radius:999px;font-size:15px;cursor:pointer;background:rgba(255,255,255,.55);box-shadow:inset 0 0 0 1px rgba(26,26,26,.08)">Undo</span><span onClick="{{ talk.onRetry }}" style="padding:9px 14px;border-radius:999px;font-size:15px;cursor:pointer">Try again</span><span style="flex:1"></span><span style="font-size:12px;color:#6B6B6B">saved as a new take</span></div>
+</sc-if>
+</div>
+</sc-if>
+
+<!-- theater controls -->
+<sc-if value="{{ theater.show }}" hint-placeholder-val="{{ false }}">
+<div data-nopan="1" style="position:absolute;left:2900px;top:{{ theater.y }}px;transform:translateX(-50%);display:flex;align-items:center;gap:14px;padding:6px 18px 6px 6px;border-radius:999px;z-index:30;white-space:nowrap;animation:rise .5s ease-out both;background:linear-gradient(180deg,rgba(255,255,255,.62),rgba(255,255,255,.3));backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);border:1px solid rgba(255,255,255,.65);box-shadow:inset 0 1.5px 0 #fff,0 10px 30px rgba(40,30,20,.16)">
+<span onClick="{{ theater.onPlay }}" style="width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#1A1A1A;cursor:pointer"><sc-if value="{{ theater.playIcon }}" hint-placeholder-val="{{ true }}"><svg width="12" height="12" viewBox="0 0 14 14"><path d="M3.5 2.2v9.6L11.5 7z" fill="#fff"></path></svg></sc-if><sc-if value="{{ theater.pauseIcon }}" hint-placeholder-val="{{ false }}"><svg width="12" height="12" viewBox="0 0 14 14"><rect x="3" y="2.5" width="3" height="9" rx="1" fill="#fff"></rect><rect x="8" y="2.5" width="3" height="9" rx="1" fill="#fff"></rect></svg></sc-if></span>
+<span style="font-size:15px">{{ theater.title }}</span><span style="font-family:'Geist Mono';font-size:12px;color:#6B6B6B">{{ theater.time }}</span>
+</div>
+</sc-if>
+
+<!-- free lenses -->
+<sc-for list="{{ free }}" as="f" hint-placeholder-count="0">
+<div data-drop="{{ f.drop }}" onPointerDown="{{ f.onDown }}" onDoubleClick="{{ f.onDbl }}" onContextMenu="{{ f.onCtx }}" onPointerEnter="{{ f.onEnter }}" onPointerLeave="{{ f.onLeave }}" style="position:absolute;left:{{ f.x }}px;top:{{ f.y }}px;width:{{ f.w }}px;height:{{ f.h }}px;border-radius:16px;opacity:{{ f.op }};z-index:8;cursor:grab;animation:{{ f.anim }}">
+<div style="position:absolute;inset:-22%;border-radius:40%;background:{{ f.glowBg }};filter:blur(36px);opacity:{{ f.glowOp }};pointer-events:none"></div>
+<div style="position:absolute;inset:-60%;background:{{ f.toneBg }};opacity:.6;pointer-events:none"></div>
+<div style="position:absolute;inset:0;border-radius:16px;padding:{{ hair }}px;box-sizing:border-box;background:linear-gradient(160deg,#FFFFFF 0%,#C9CCD1 30%,#F4F5F7 52%,#9EA3AA 78%,#E8EAED 100%);box-shadow:{{ f.shadow }};transition:box-shadow .25s">
+<div style="position:relative;width:100%;height:100%;border-radius:15px;overflow:hidden;background:#2b2723">
+<div style="position:absolute;inset:0;background:{{ f.bg }};transform:{{ f.tf }}"></div>
+{{ f.vidEl }}
+<div style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:{{ f.imgBg }}"></div>
+<sc-if value="{{ f.analysing }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:0;background:linear-gradient(100deg,rgba(255,255,255,0) 30%,rgba(255,255,255,.6) 50%,rgba(255,255,255,0) 70%);background-size:220% 100%;animation:shimmer 1.4s linear infinite"></div></sc-if>
+<div style="position:absolute;inset:0;background:linear-gradient(135deg,rgba(255,255,255,.22),rgba(255,255,255,0) 35%);pointer-events:none"></div>
+<sc-if value="{{ f.markShow }}" hint-placeholder-val="{{ true }}"><span style="position:absolute;right:9px;top:9px;font-family:'Geist Mono';font-size:12px;padding:2px 7px;border-radius:999px;background:rgba(255,255,255,.55);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)">{{ f.mark }}</span></sc-if>
+</div>
+</div>
+<div style="position:absolute;left:2px;top:{{ f.h }}px;padding-top:12px;width:240px;display:flex;flex-direction:column;gap:3px"><span style="font-size:15px;white-space:nowrap">{{ f.name }}</span><span style="font-size:12px;line-height:1.4;color:#6B6B6B">{{ f.summary }}</span></div>
+<div style="position:absolute;left:-12px;top:-14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;z-index:4"><sc-for list="{{ f.labels }}" as="l" hint-placeholder-count="0"><span style="padding:1px 10px 2px;border-radius:5px;background:#FDFCF9;font-family:'Caveat';font-size:20px;font-weight:600;line-height:1.15;box-shadow:0 1px 2px rgba(26,26,26,.25);transform:rotate({{ l.rot }});white-space:nowrap">{{ l.t }}</span></sc-for></div>
+<sc-if value="{{ f.pill.ring }}" hint-placeholder-val="{{ false }}"><svg width="{{ f.ringW }}" height="{{ f.ringH }}" style="position:absolute;left:-6px;top:-6px;overflow:visible;pointer-events:none"><rect x="1" y="1" width="{{ f.w }}" height="{{ f.h }}" transform="translate(5 5)" rx="21" fill="none" stroke="#1A1A1A" stroke-width="2" vector-effect="non-scaling-stroke" pathLength="100" stroke-dasharray="100" stroke-dashoffset="{{ f.pill.off }}"></rect></svg></sc-if>
+<sc-if value="{{ f.pill.show }}" hint-placeholder-val="{{ false }}">
+<div data-nopan="1" onPointerDown="{{ stop }}" style="position:absolute;right:0;top:0;padding-bottom:8px;transform:translateY(-100%) scale({{ inv }});transform-origin:right bottom;z-index:6">
+<div style="display:flex;align-items:center;gap:2px;padding:4px;border-radius:999px;white-space:nowrap;font-size:15px;background:linear-gradient(180deg,rgba(255,255,255,.62),rgba(255,255,255,.3));backdrop-filter:blur(22px) saturate(1.8);-webkit-backdrop-filter:blur(22px) saturate(1.8);border:1px solid rgba(255,255,255,.65);box-shadow:inset 0 1.5px 0 #fff,inset 1px 0 0 rgba(255,120,150,.16),inset -1px 0 0 rgba(90,160,255,.22),0 10px 30px rgba(40,30,20,.16);animation:rise .22s ease-out both">
+<sc-if value="{{ f.pill.idle }}" hint-placeholder-val="{{ true }}"><span onClick="{{ f.pill.on916 }}" style="padding:6px 10px;border-radius:999px;cursor:pointer" style-hover="background:rgba(255,255,255,.85)">9:16</span><span onClick="{{ f.pill.on45 }}" style="padding:6px 10px;border-radius:999px;cursor:pointer" style-hover="background:rgba(255,255,255,.85)">4:5</span><span onClick="{{ f.pill.on169 }}" style="padding:6px 10px;border-radius:999px;cursor:pointer" style-hover="background:rgba(255,255,255,.85)">16:9</span><span onClick="{{ f.pill.onDl }}" style="width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#1A1A1A;cursor:pointer"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 2v8M3.5 6.5 7 10l3.5-3.5M2.5 12.5h9"></path></svg></span></sc-if>
+<sc-if value="{{ f.pill.busy }}" hint-placeholder-val="{{ false }}"><span style="padding:6px 12px;font-family:'Geist Mono';font-size:12px">{{ f.pill.label }}</span></sc-if>
+<sc-if value="{{ f.pill.done }}" hint-placeholder-val="{{ false }}"><span onClick="{{ f.pill.onCopy }}" style="padding:6px 10px;border-radius:999px;cursor:pointer">Copied link</span><span style="color:#9A958C">·</span><span onClick="{{ f.pill.onDownload }}" style="padding:6px 12px;border-radius:999px;cursor:pointer;background:#1A1A1A;color:#fff">Download</span></sc-if>
+</div>
+</div>
+</sc-if>
+</div>
+</sc-for>
+
+</div>
+
+<!-- SCREEN OVERLAY -->
+<sc-if value="{{ grain }}" hint-placeholder-val="{{ true }}"><div style="position:absolute;inset:0;pointer-events:none;z-index:60;opacity:.22;mix-blend-mode:multiply;background-image:url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .1 0 0 0 0 .09 0 0 0 0 .08 0 0 0 .5 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E&quot;)"></div></sc-if>
+<sc-if value="{{ fileGlow.show }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:0;pointer-events:none;z-index:70;background:{{ fileGlow.bg }}"></div><div style="position:absolute;left:{{ fileGlow.x }}px;top:{{ fileGlow.y }}px;padding:9px 16px;border-radius:999px;font-size:15px;z-index:71;pointer-events:none;background:linear-gradient(180deg,rgba(255,255,255,.7),rgba(255,255,255,.4));backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.7);box-shadow:inset 0 1.5px 0 #fff,0 0 0 1px rgba(61,123,242,.25),0 10px 30px rgba(61,123,242,.2)">{{ fileGlow.label }}</div></sc-if>
+
+<div data-nopan="1" style="position:absolute;left:20px;top:18px;display:flex;align-items:center;gap:10px;white-space:nowrap;padding:6px 16px 6px 8px;border-radius:999px;z-index:65;background:linear-gradient(180deg,rgba(255,255,255,.62),rgba(255,255,255,.3));backdrop-filter:blur(22px) saturate(1.8);-webkit-backdrop-filter:blur(22px) saturate(1.8);border:1px solid rgba(255,255,255,.65);box-shadow:inset 0 1.5px 0 #fff,0 8px 24px rgba(40,30,20,.1)">
+<div style="width:28px;height:28px;border-radius:50%;padding:1.5px;box-sizing:border-box;background:linear-gradient(160deg,#FFFFFF 0%,#C9CCD1 30%,#F4F5F7 52%,#9EA3AA 78%,#E8EAED 100%)"><div style="width:100%;height:100%;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff3dc,#f2b78a 45%,#3a2416 100%)"></div></div>
+<span style="font-size:15px;font-weight:600;letter-spacing:-.01em">eyelore</span>
+<span style="width:1px;height:16px;background:rgba(26,26,26,.15)"></span>
+<span style="font-size:15px">{{ hud.project }}</span><span style="font-size:15px;color:#6B6B6B">“{{ hud.ad }}”</span>
+</div>
+
+<div data-nopan="1" style="position:absolute;left:50%;bottom:22px;transform:translateX(-50%);display:flex;align-items:center;gap:2px;padding:4px;border-radius:999px;z-index:65;background:linear-gradient(180deg,rgba(255,255,255,.62),rgba(255,255,255,.3));backdrop-filter:blur(22px) saturate(1.8);-webkit-backdrop-filter:blur(22px) saturate(1.8);border:1px solid rgba(255,255,255,.65);box-shadow:inset 0 1.5px 0 #fff,inset 1px 0 0 rgba(255,120,150,.16),inset -1px 0 0 rgba(90,160,255,.22),0 12px 32px rgba(40,30,20,.14)">
+<sc-for list="{{ hud.nav }}" as="n" hint-placeholder-count="4"><span onClick="{{ n.onClick }}" style="padding:8px 16px;border-radius:999px;font-size:15px;cursor:pointer;background:{{ n.bg }};color:{{ n.color }};transition:background .25s,color .25s">{{ n.label }}</span></sc-for>
+<span style="padding:0 12px 0 10px;font-family:'Geist Mono';font-size:12px;color:#6B6B6B;min-width:40px;text-align:right">{{ hud.zoom }}</span>
+</div>
+<div style="position:absolute;right:22px;bottom:32px;max-width:300px;text-align:right;font-size:12px;line-height:1.45;color:#6B6B6B;z-index:65;pointer-events:none">{{ hud.hint }}</div>
+
+<sc-if value="{{ hud.toast }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;left:50%;top:20px;transform:translateX(-50%);padding:10px 18px;border-radius:999px;font-size:15px;z-index:85;white-space:nowrap;animation:rise .3s cubic-bezier(.34,1.5,.5,1) both;background:linear-gradient(180deg,rgba(255,255,255,.72),rgba(255,255,255,.42));backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);border:1px solid rgba(255,255,255,.7);box-shadow:inset 0 1.5px 0 #fff,0 12px 30px rgba(40,30,20,.16)">{{ hud.toastText }}</div></sc-if>
+
+<sc-if value="{{ menu.show }}" hint-placeholder-val="{{ false }}">
+<div data-menu="1" data-nopan="1" onPointerDown="{{ stop }}" style="position:absolute;left:{{ menu.x }}px;top:{{ menu.y }}px;width:{{ menu.w }}px;padding:6px;box-sizing:border-box;border-radius:20px;z-index:80;animation:rise .2s ease-out both;background:linear-gradient(180deg,rgba(255,255,255,.7),rgba(255,255,255,.4));backdrop-filter:blur(26px) saturate(1.9);-webkit-backdrop-filter:blur(26px) saturate(1.9);border:1px solid rgba(255,255,255,.7);box-shadow:inset 0 1.5px 0 #fff,inset 1.5px 0 0 rgba(255,120,150,.16),inset -1.5px 0 0 rgba(90,160,255,.22),0 20px 50px rgba(40,30,20,.2)">
+<sc-if value="{{ menu.list }}" hint-placeholder-val="{{ true }}"><sc-for list="{{ menu.items }}" as="it" hint-placeholder-count="0"><div onClick="{{ it.act }}" style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border-radius:14px;font-size:15px;cursor:pointer" style-hover="background:rgba(255,255,255,.8)"><span>{{ it.label }}</span><span style="font-family:'Geist Mono';font-size:12px;color:#6B6B6B">{{ it.hint }}</span></div></sc-for></sc-if>
+<sc-if value="{{ menu.saving }}" hint-placeholder-val="{{ false }}">
+<div style="padding:14px;display:flex;flex-direction:column;gap:14px">
+<span style="font-size:15px;font-weight:500">Save as style</span>
+<input value="{{ menu.name }}" onChange="{{ menu.onName }}" onKeyDown="{{ menu.onNameKey }}" autoFocus="{{ true }}" style="font-family:inherit;font-size:15px;padding:10px 12px;border-radius:12px;border:0;outline:0;background:rgba(255,255,255,.75);box-shadow:inset 0 0 0 1px rgba(26,26,26,.1);color:#1A1A1A">
+<span style="font-size:12px;color:#6B6B6B">Captures from this edit</span>
+<div style="display:flex;flex-direction:column;gap:7px"><sc-for list="{{ menu.caps }}" as="cp" hint-placeholder-count="0"><div style="display:flex;justify-content:space-between;gap:12px;font-size:12px"><span style="color:#6B6B6B">{{ cp.k }}</span><span>{{ cp.v }}</span></div></sc-for></div>
+<div onClick="{{ menu.onDef }}" style="display:flex;align-items:center;gap:10px;cursor:pointer"><div style="position:relative;width:36px;height:20px;border-radius:999px;background:{{ menu.defBg }};transition:background .2s"><div style="position:absolute;top:2px;left:{{ menu.defKnob }};width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:left .25s cubic-bezier(.34,1.6,.5,1)"></div></div><span style="font-size:15px">{{ menu.defLabel }}</span></div>
+<div style="display:flex;gap:8px"><span onClick="{{ menu.onSave }}" style="padding:9px 18px;border-radius:999px;background:#1A1A1A;color:#fff;font-size:15px;cursor:pointer">Save</span><span onClick="{{ menu.onCancel }}" style="padding:9px 14px;border-radius:999px;font-size:15px;cursor:pointer">Cancel</span></div>
+</div>
+</sc-if>
+</div>
+</sc-if>
+
+<sc-if value="{{ pop.show }}" hint-placeholder-val="{{ false }}">
+<div data-pop="1" data-nopan="1" onPointerDown="{{ stop }}" style="position:absolute;left:{{ pop.x }}px;top:{{ pop.y }}px;width:340px;padding:18px;box-sizing:border-box;border-radius:24px;z-index:79;display:flex;flex-direction:column;gap:14px;animation:rise .25s cubic-bezier(.34,1.4,.5,1) both;background:linear-gradient(180deg,rgba(255,255,255,.7),rgba(255,255,255,.4));backdrop-filter:blur(26px) saturate(1.9);-webkit-backdrop-filter:blur(26px) saturate(1.9);border:1px solid rgba(255,255,255,.7);box-shadow:inset 0 1.5px 0 #fff,inset 1.5px 0 0 rgba(255,120,150,.16),inset -1.5px 0 0 rgba(90,160,255,.22),0 20px 50px rgba(40,30,20,.2)">
+<sc-if value="{{ pop.voice }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;align-items:baseline;justify-content:space-between"><span style="font-size:15px;font-weight:500">Voiceover</span><span style="font-size:12px;color:#6B6B6B">ducks music · becomes captions</span></div>
+<div style="display:flex;align-items:center;gap:12px"><span onClick="{{ pop.onRec }}" style="display:flex;align-items:center;gap:8px;padding:9px 16px;border-radius:999px;background:{{ pop.recBg }};color:#fff;font-size:15px;cursor:pointer;white-space:nowrap"><span style="width:8px;height:8px;border-radius:50%;background:#fff"></span>{{ pop.recLabel }}</span><div style="flex:1;height:30px;display:flex;align-items:center;gap:2px;overflow:hidden"><sc-for list="{{ pop.recBars }}" as="b" hint-placeholder-count="0"><div style="flex:none;width:2px;height:{{ b.h }}px;border-radius:1px;background:#1A1A1A"></div></sc-for></div></div>
+<input value="{{ pop.line }}" onChange="{{ pop.onLine }}" onKeyDown="{{ pop.onLineKey }}" placeholder="Or type a line, then Enter" style="font-family:inherit;font-size:15px;padding:10px 12px;border-radius:12px;border:0;outline:0;background:rgba(255,255,255,.75);box-shadow:inset 0 0 0 1px rgba(26,26,26,.1);color:#1A1A1A">
+<div style="display:flex;gap:6px;flex-wrap:wrap"><sc-for list="{{ pop.voices }}" as="vc" hint-placeholder-count="0"><span onClick="{{ vc.onClick }}" style="padding:6px 12px;border-radius:999px;font-size:12px;cursor:pointer;background:{{ vc.bg }};color:{{ vc.color }};box-shadow:inset 0 0 0 1px rgba(26,26,26,.08)">{{ vc.n }}</span></sc-for></div>
+</sc-if>
+<sc-if value="{{ pop.grade }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;align-items:baseline;justify-content:space-between"><span style="font-size:15px;font-weight:500">Grade</span><span style="font-size:12px;color:#6B6B6B">saved looks on this frame</span></div>
+<div style="display:flex;gap:8px"><sc-for list="{{ pop.swatches }}" as="sw" hint-placeholder-count="0"><div onClick="{{ sw.onClick }}" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer"><div style="width:52px;height:52px;border-radius:50%;padding:1.5px;box-sizing:border-box;background:linear-gradient(160deg,#FFFFFF 0%,#C9CCD1 30%,#F4F5F7 52%,#9EA3AA 78%,#E8EAED 100%);box-shadow:{{ sw.ring }}"><div style="position:relative;width:100%;height:100%;border-radius:50%;overflow:hidden"><div style="position:absolute;inset:0;background:{{ sw.bg }};transform:{{ sw.tf }};filter:{{ sw.f }}"></div><div style="position:absolute;inset:0;background:{{ sw.tint }};mix-blend-mode:soft-light"></div></div></div><span style="font-size:12px;white-space:nowrap">{{ sw.name }}</span></div></sc-for></div>
+<span style="font-size:12px;color:#6B6B6B">or drag a reference onto the Lens</span>
+<div style="display:flex;gap:14px;padding:4px 6px 6px"><sc-for list="{{ pop.refs }}" as="rf" hint-placeholder-count="0"><div onPointerDown="{{ rf.onDown }}" style="width:84px;padding:6px 6px 22px;box-sizing:border-box;background:#FDFCF9;transform:rotate({{ rf.rot }});box-shadow:0 1px 2px rgba(26,26,26,.2),0 10px 20px rgba(26,26,26,.14);cursor:grab;position:relative"><div style="position:relative;width:72px;height:72px;overflow:hidden"><div style="position:absolute;inset:0;background:{{ rf.bg }};transform:{{ rf.tf }}"></div></div><span style="position:absolute;left:8px;bottom:2px;font-family:'Caveat';font-size:17px;font-weight:600">{{ rf.name }}</span></div></sc-for></div>
+</sc-if>
+<sc-if value="{{ pop.music }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;align-items:baseline;justify-content:space-between"><span style="font-size:15px;font-weight:500">Music</span><span style="font-size:12px;color:#6B6B6B">auto-ducks under voice</span></div>
+<div style="display:flex;flex-direction:column;gap:2px"><sc-for list="{{ pop.tracks }}" as="tr" hint-placeholder-count="0"><div onClick="{{ tr.onClick }}" style="display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:14px;cursor:pointer;background:{{ tr.bg }}" style-hover="background:rgba(255,255,255,.8)"><div style="display:flex;align-items:center;gap:2px;height:22px;width:30px"><sc-for list="{{ tr.bars }}" as="b" hint-placeholder-count="0"><div style="width:2px;height:{{ b.h }}px;border-radius:1px;background:#1A1A1A"></div></sc-for></div><span style="flex:1;font-size:15px">{{ tr.name }}</span><span style="font-size:12px;color:#6B6B6B">{{ tr.energy }}</span></div></sc-for></div>
+</sc-if>
+</div>
+</sc-if>
+
+<sc-if value="{{ labelEdit.show }}" hint-placeholder-val="{{ false }}">
+<div data-nopan="1" onPointerDown="{{ stop }}" style="position:absolute;left:{{ labelEdit.x }}px;top:{{ labelEdit.y }}px;z-index:82;transform:rotate(-2deg);padding:4px 12px;border-radius:6px;background:#FDFCF9;box-shadow:0 1px 2px rgba(26,26,26,.25),0 10px 24px rgba(26,26,26,.14);animation:rise .2s ease-out both"><input value="{{ labelEdit.val }}" onChange="{{ labelEdit.onChange }}" onKeyDown="{{ labelEdit.onKey }}" onBlur="{{ labelEdit.onBlur }}" autoFocus="{{ true }}" placeholder="label or #tag" style="width:200px;font-family:'Caveat';font-size:24px;font-weight:600;border:0;outline:0;background:transparent;color:#1A1A1A"></div>
+</sc-if>
+
+<div data-drawer="1" data-nopan="1" onPointerDown="{{ stop }}" style="position:absolute;left:20px;right:20px;bottom:0;height:270px;padding:18px 24px 20px;box-sizing:border-box;border-radius:28px 28px 0 0;z-index:75;transform:{{ drawer.tf }};transition:transform .6s cubic-bezier(.34,1.2,.5,1);display:flex;flex-direction:column;gap:10px;background:linear-gradient(180deg,rgba(255,255,255,.72),rgba(255,255,255,.48));backdrop-filter:blur(28px) saturate(1.9);-webkit-backdrop-filter:blur(28px) saturate(1.9);border:1px solid rgba(255,255,255,.7);box-shadow:inset 0 1.5px 0 #fff,0 -20px 50px rgba(40,30,20,.14)">
+<div style="display:flex;align-items:center;gap:14px"><span style="font-size:15px;font-weight:500">Timeline</span><span style="font-family:'Geist Mono';font-size:12px;color:#6B6B6B">{{ drawer.time }}</span><span style="flex:1"></span><span style="font-size:12px;color:#6B6B6B">T</span><span onClick="{{ drawer.onClose }}" style="font-size:15px;cursor:pointer;padding:4px 8px">×</span></div>
+<div onClick="{{ drawer.onSeek }}" style="position:relative;flex:1;display:grid;grid-template-columns:64px minmax(0,1fr);grid-auto-rows:1fr;row-gap:6px;column-gap:10px;cursor:pointer">
+<span style="font-size:12px;color:#6B6B6B;align-self:center">video</span><div style="position:relative"><sc-for list="{{ drawer.vid }}" as="d" hint-placeholder-count="0"><div style="position:absolute;left:{{ d.l }}%;width:{{ d.w }}%;top:0;bottom:0;padding:0 1px;box-sizing:border-box"><div style="position:relative;width:100%;height:100%;border-radius:6px;overflow:hidden;background:{{ d.bg }}"><span style="position:absolute;left:6px;bottom:3px;right:4px;font-size:12px;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.6);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ d.label }}</span></div></div></sc-for></div>
+<span style="font-size:12px;color:#6B6B6B;align-self:center">b-roll</span><div style="position:relative"><sc-for list="{{ drawer.bro }}" as="d" hint-placeholder-count="0"><div style="position:absolute;left:{{ d.l }}%;width:{{ d.w }}%;top:0;bottom:0;border-radius:6px;background:{{ d.bg }}"></div></sc-for></div>
+<span style="font-size:12px;color:#6B6B6B;align-self:center">voice</span><div style="position:relative"><sc-for list="{{ drawer.voi }}" as="d" hint-placeholder-count="0"><div style="position:absolute;left:{{ d.l }}%;width:{{ d.w }}%;top:4px;bottom:4px;border-radius:6px;background:rgba(26,26,26,.75);color:#fff;font-size:12px;padding:0 6px;display:flex;align-items:center;white-space:nowrap;overflow:hidden">{{ d.label }}</div></sc-for></div>
+<span style="font-size:12px;color:#6B6B6B;align-self:center">music</span><div style="position:relative"><sc-if value="{{ drawer.mus }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;left:0;right:0;top:6px;bottom:6px;border-radius:6px;background:rgba(26,26,26,.12);font-size:12px;padding:0 8px;display:flex;align-items:center">{{ drawer.musLabel }}</div></sc-if></div>
+<span style="font-size:12px;color:#6B6B6B;align-self:center">captions</span><div style="position:relative"><sc-for list="{{ drawer.caps }}" as="d" hint-placeholder-count="0"><div style="position:absolute;left:{{ d.l }}%;width:{{ d.w }}%;top:4px;bottom:4px;padding:0 1px;box-sizing:border-box"><div style="height:100%;border-radius:6px;background:rgba(255,255,255,.8);box-shadow:inset 0 0 0 1px rgba(26,26,26,.1);font-size:12px;padding:0 6px;display:flex;align-items:center;white-space:nowrap;overflow:hidden">{{ d.label }}</div></div></sc-for></div>
+<div style="position:absolute;left:74px;right:0;top:0;bottom:0;pointer-events:none"><div style="position:absolute;left:{{ drawer.ph }}%;top:-4px;bottom:0;width:1.5px;background:#1A1A1A"></div></div>
+</div>
+</div>
+
+<sc-if value="{{ ghost.show }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;left:{{ ghost.x }}px;top:{{ ghost.y }}px;width:{{ ghost.w }}px;height:{{ ghost.h }}px;border-radius:{{ ghost.r }};padding:1.5px;box-sizing:border-box;pointer-events:none;z-index:95;transform:rotate(-4deg) scale(1.05);background:linear-gradient(160deg,#FFFFFF 0%,#C9CCD1 30%,#F4F5F7 52%,#9EA3AA 78%,#E8EAED 100%);box-shadow:0 22px 50px rgba(26,26,26,.3)"><div style="position:relative;width:100%;height:100%;border-radius:inherit;overflow:hidden"><div style="position:absolute;inset:0;background:{{ ghost.bg }};transform:{{ ghost.tf }}"></div></div></div></sc-if>
+
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;showMarks&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Display&quot;},&quot;ambient&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:1,&quot;min&quot;:0,&quot;max&quot;:1.5,&quot;step&quot;:0.05,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Display&quot;},&quot;grain&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Display&quot;}}">
+class Component extends DCLogic {
+  state = { ready: false };
+  rootRef = React.createRef();
+  heroInner = React.createRef();
+  componentDidMount() {
+    const load = src => new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = rej; document.head.appendChild(s); });
+    const boot = () => {
+      const App = window.EYE.App; window.EYE.React = React;
+      Object.keys(App.M).forEach(k => { this[k] = App.M[k].bind(this); });
+      this.initApp();
+    };
+    if (window.EYE && window.EYE.App) boot();
+    else load('./eyelore-data.js').then(() => load('./eyelore-app.js')).then(boot);
+  }
+  componentWillUnmount() { this.teardown && this.teardown(); }
+  renderVals() {
+    if (this.state.ready && window.EYE && window.EYE.App) return window.EYE.App.render(this);
+    return { ready: false, rootRef: this.rootRef };
+  }
+}
+</script>
+</body>
+</html>

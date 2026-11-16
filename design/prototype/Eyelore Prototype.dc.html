@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Caveat:wght@500;600&display=swap">
+<style>
+body{margin:0;background:#F2EFE8;-webkit-font-smoothing:antialiased;overflow:hidden}
+a{color:#1A1A1A}a:hover{color:#5B7CFA}
+@keyframes ey-blink{0%,49%{opacity:1}50%,100%{opacity:0}}
+@keyframes ey-sweep{0%{background-position:120% 0}100%{background-position:-120% 0}}
+@keyframes ey-march{to{stroke-dashoffset:-44}}
+@keyframes ey-breathe{0%,100%{opacity:.55}50%{opacity:1}}
+</style>
+</helmet>
+<div ref="{{ rootRef }}" onPointerDown="{{ pDown }}" onContextMenu="{{ onCtx }}" onDragOver="{{ onDragOver }}" onDrop="{{ onDrop }}" style="position:fixed;inset:0;overflow:hidden;background:radial-gradient(120% 90% at 50% 40%,#F8F6F1 0%,#EEEAE2 100%);font-family:'Geist',-apple-system,sans-serif;color:#1A1A1A;user-select:none;touch-action:none;cursor:{{ rootCursor }}">
+
+<svg width="0" height="0" style="position:absolute">
+<filter id="eyRefract" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB"><feTurbulence type="fractalNoise" baseFrequency="0.007 0.011" numOctaves="2" seed="7" result="n"></feTurbulence><feDisplacementMap in="SourceGraphic" in2="n" scale="34" xChannelSelector="R" yChannelSelector="G"></feDisplacementMap></filter>
+<filter id="eySelGlow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="26"></feGaussianBlur></filter>
+</svg>
+
+<!-- WORLD (infinite canvas) -->
+<div style="position:absolute;left:0;top:0;width:1px;height:1px;transform-origin:0 0;transform:translate({{ camTx }}px,{{ camTy }}px) scale({{ camS }});transition:{{ camTr }};filter:{{ worldFx }};opacity:{{ worldOp }}">
+<sc-for list="{{ projects }}" as="p" hint-placeholder-count="2">
+<div style="position:absolute;left:{{ p.x }}px;top:{{ p.y }}px;display:flex;align-items:baseline;gap:12px;white-space:nowrap"><span style="font-size:15px;font-weight:500">{{ p.name }}</span><span style="font-size:12px;color:#6B6B6B">{{ p.meta }}</span></div>
+</sc-for>
+<sc-for list="{{ rows }}" as="r" hint-placeholder-count="3">
+<div style="position:absolute;left:{{ r.x }}px;top:{{ r.y }}px;display:flex;align-items:baseline;gap:14px;white-space:nowrap"><span style="font-size:32px;font-weight:500;letter-spacing:-.03em;line-height:1">{{ r.title }}</span><span style="font-family:'Geist Mono';font-size:12px;color:#6B6B6B">{{ r.meta }}</span></div>
+</sc-for>
+<sc-for list="{{ arrows }}" as="a" hint-placeholder-count="6">
+<div style="position:absolute;left:{{ a.x }}px;top:{{ a.y }}px;width:{{ a.w }}px;height:0;border-top:{{ hair }} solid rgba(26,26,26,.32)"><div style="position:absolute;right:0;top:-4px;width:7px;height:7px;box-sizing:border-box;border-top:{{ hair }} solid rgba(26,26,26,.4);border-right:{{ hair }} solid rgba(26,26,26,.4);transform:rotate(45deg)"></div></div>
+</sc-for>
+<sc-for list="{{ stickies }}" as="n" hint-placeholder-count="1">
+<div style="position:absolute;left:{{ n.x }}px;top:{{ n.y }}px;width:200px;padding:18px 18px 22px;box-sizing:border-box;background:linear-gradient(180deg,#F8EBAE,#F2E08F);transform:rotate(-2.5deg);font-family:'Caveat';font-size:24px;line-height:1.15;color:#3A3220;box-shadow:0 1px 1px rgba(60,45,10,.12),0 18px 28px -16px rgba(60,45,10,.4)">{{ n.text }}</div>
+</sc-for>
+<sc-for list="{{ cards }}" as="c" hint-placeholder-count="8">
+<div data-card="{{ c.id }}" data-scene="{{ c.scene }}" style="position:absolute;left:{{ c.x }}px;top:{{ c.y }}px;width:150px;height:267px;cursor:pointer;opacity:{{ c.op }}">
+<div style="position:absolute;left:-60%;top:-40%;right:-60%;bottom:-40%;border-radius:50%;background:radial-gradient(closest-side,rgba(24,15,10,.34),rgba(24,15,10,0));opacity:{{ c.night }};pointer-events:none"></div>
+<div style="position:absolute;left:-12%;top:-4%;right:-12%;bottom:-10%;border-radius:40px;background:{{ c.bg }};filter:blur(28px) saturate(1.6);opacity:{{ c.glow }};transform:translateY(7%);pointer-events:none"></div>
+<div style="position:absolute;inset:0;border-radius:14px;padding:{{ hair }};box-sizing:border-box;background:linear-gradient(160deg,#FFFFFF 0%,#CDD0D5 46%,#8E949C 100%);box-shadow:0 0 0 {{ ring }} rgba(20,20,26,.42),0 18px 30px -14px rgba(40,28,18,.45);transition:transform .35s cubic-bezier(.3,1.5,.5,1)" style-hover="transform:translateY(-4px) scale(1.015)">
+<div style="position:relative;width:100%;height:100%;border-radius:13px;overflow:hidden;background:#d9d5ce">
+<div style="position:absolute;inset:0;background:{{ c.bg }};transform:{{ c.tf }};filter:{{ c.flt }}"></div>
+<div style="position:absolute;inset:0;border-radius:inherit;box-shadow:inset 0 1px 0 rgba(255,255,255,.55),inset 0 0 0 {{ hair }} rgba(255,255,255,.22)"></div>
+</div>
+</div>
+<div style="position:absolute;left:0;top:282px;width:200px;display:flex;flex-direction:column;gap:5px">
+<div style="font-size:15px;line-height:1.3;text-wrap:pretty">{{ c.words }}</div>
+<div style="font-family:'Geist Mono';font-size:12px;color:#6B6B6B">{{ c.time }}</div>
+</div>
+</div>
+</sc-for>
+</div>
+
+<!-- AMBIENT -->
+<div style="position:absolute;left:{{ amb.x }}px;top:{{ amb.y }}px;width:{{ amb.d }}px;height:{{ amb.d }}px;transform:translate(-50%,-50%);border-radius:50%;background:radial-gradient(closest-side,{{ amb.tint }},rgba(255,255,255,0));opacity:{{ amb.warm }};transition:opacity 1.1s ease;pointer-events:none"></div>
+<div style="position:absolute;inset:0;background:{{ amb.nightBg }};opacity:{{ amb.night }};transition:opacity 1.1s ease;pointer-events:none"></div>
+
+<sc-if value="{{ heroOn }}" hint-placeholder-val="{{ false }}">
+<!-- footage glow -->
+<div style="position:absolute;left:{{ hero.x }}px;top:{{ hero.y }}px;width:{{ hero.w }}px;height:{{ hero.h }}px;border-radius:{{ hero.r }}px;transition:{{ heroTr }};pointer-events:none">
+<sc-for list="{{ heroLayers }}" as="L" hint-placeholder-count="1">
+<div style="position:absolute;left:-22%;top:-16%;right:-22%;bottom:-26%;border-radius:inherit;background:{{ L.bg }};filter:blur(80px) saturate(1.7);opacity:{{ L.glowOp }};transition:opacity 1s ease"></div>
+</sc-for>
+</div>
+
+<!-- THE LENS -->
+<div data-hero="1" data-scene="{{ curScene }}" onDoubleClick="{{ heroDbl }}" style="position:absolute;left:{{ hero.x }}px;top:{{ hero.y }}px;width:{{ hero.w }}px;height:{{ hero.h }}px;border-radius:{{ hero.r }}px;padding:1.25px;box-sizing:border-box;background:linear-gradient(160deg,#FFFFFF 0%,#CDD0D5 46%,#8E949C 100%);box-shadow:0 0 0 .6px rgba(20,20,26,.45),0 2px 4px rgba(26,26,26,.12),0 46px 90px -34px rgba(30,20,12,.6);transition:{{ heroTr }};cursor:{{ heroCursor }}">
+<div style="position:relative;width:100%;height:100%;border-radius:{{ hero.ri }}px;overflow:hidden;background:#2a2622;transform:translateZ(0);transition:{{ heroTr }}">
+<sc-for list="{{ heroLayers }}" as="L" hint-placeholder-count="1">
+<div style="position:absolute;inset:0;background:{{ L.bg }};transform:{{ L.tf }};filter:{{ L.flt }};opacity:{{ L.on }};transition:opacity .9s ease,transform 3.2s ease-out,filter .6s ease"></div>
+</sc-for>
+<div style="position:absolute;inset:0;background:{{ R.bg }};transform:{{ R.tf }};filter:{{ R.flt }};-webkit-mask-image:{{ R.mask }};mask-image:{{ R.mask }};-webkit-mask-size:100% 100%;mask-size:100% 100%;opacity:{{ R.aOp }};transition:{{ R.aTr }}"></div>
+<div style="position:absolute;inset:0;background:{{ R.bg }};transform:{{ R.tf }};filter:{{ R.flt }};clip-path:circle({{ R.rad }} at {{ R.ox }}% {{ R.oy }}%);transition:{{ R.clipTr }};opacity:{{ R.bOp }}"></div>
+<div style="position:absolute;left:{{ R.ox }}%;top:{{ R.oy }}%;width:{{ R.ringD }}px;height:{{ R.ringD }}px;transform:translate(-50%,-50%);border-radius:50%;box-shadow:0 0 0 1.5px rgba(255,255,255,.8),0 0 50px 12px rgba(255,255,255,.35),inset 0 0 50px 8px rgba(255,255,255,.3);opacity:{{ R.ringOp }};transition:{{ R.ringTr }};pointer-events:none"></div>
+<div style="position:absolute;inset:0;background:linear-gradient(100deg,rgba(255,255,255,0) 35%,rgba(255,255,255,.6) 50%,rgba(255,255,255,0) 65%);background-size:250% 100%;animation:ey-sweep 1.1s linear infinite;-webkit-mask-image:{{ R.mask }};mask-image:{{ R.mask }};-webkit-mask-size:100% 100%;mask-size:100% 100%;opacity:{{ R.shimOp }};transition:opacity .4s;pointer-events:none"></div>
+<svg viewBox="0 0 1000 {{ R.vbh }}" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible;opacity:{{ R.selOp }};transition:opacity .45s">
+<path d="{{ R.d }}" fill="none" stroke="#5B7CFA" stroke-width="190" stroke-linecap="round" stroke-linejoin="round" filter="url(#eySelGlow)" style="animation:ey-breathe 1.6s ease-in-out infinite"></path>
+<path d="{{ R.d }}" fill="none" stroke="#FFFFFF" stroke-opacity=".24" stroke-width="130" stroke-linecap="round" stroke-linejoin="round"></path>
+<path d="{{ R.d }}" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-dasharray="12 10" stroke-linecap="round" stroke-linejoin="round" style="animation:ey-march 1s linear infinite"></path>
+</svg>
+<div style="position:absolute;inset:0;border-radius:inherit;pointer-events:none;box-shadow:inset 0 1px 0 rgba(255,255,255,.55),inset 0 0 0 1px rgba(255,255,255,.2),inset 0 -1px 0 rgba(0,0,0,.18)"></div>
+</div>
+</div>
+</sc-if>
+
+<!-- BEADS -->
+<sc-if value="{{ showBeads }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;left:{{ thread.x }}px;top:{{ thread.y }}px;width:{{ thread.w }}px;height:1px;background:linear-gradient(90deg,rgba(26,26,26,0),rgba(26,26,26,.32) 8%,rgba(26,26,26,.32) 92%,rgba(26,26,26,0));transition:{{ uiTr }};pointer-events:none"></div>
+<sc-for list="{{ beads }}" as="b" hint-placeholder-count="4">
+<div data-ui="1" style="position:absolute;left:{{ b.wx }}px;top:{{ b.wTop }}px;width:{{ b.ww }}px;height:72px;display:flex;flex-direction:column;justify-content:flex-end;text-align:center;font-size:15px;line-height:1.3;color:{{ b.wc }};text-wrap:pretty;transition:{{ uiTr }},color .3s;pointer-events:none">{{ b.words }}</div>
+<div data-ui="1" data-scene="{{ b.scene }}" onClick="{{ b.on }}" style="position:absolute;left:{{ b.bx }}px;top:{{ b.by }}px;width:{{ b.sz }}px;height:{{ b.sz }}px;border-radius:50%;padding:1px;box-sizing:border-box;background:linear-gradient(160deg,#FFFFFF 0%,#CDD0D5 46%,#8E949C 100%);box-shadow:0 0 0 .6px rgba(20,20,26,.45),0 0 0 {{ b.ringW }} rgba(91,124,250,{{ b.ringOp }}),0 8px 16px -6px rgba(30,20,12,.45);cursor:pointer;transition:{{ uiTr }},box-shadow .3s">
+<div style="width:100%;height:100%;border-radius:50%;overflow:hidden;position:relative"><div style="position:absolute;inset:0;background:{{ b.bg }};filter:{{ b.flt }};transform:scale(1.6)"></div></div>
+</div>
+<div style="position:absolute;left:{{ b.wx }}px;top:{{ b.ty }}px;width:{{ b.ww }}px;text-align:center;font-family:'Geist Mono';font-size:12px;color:#6B6B6B;transition:{{ uiTr }};pointer-events:none">{{ b.time }}</div>
+</sc-for>
+</sc-if>
+
+<!-- TAKES STACK -->
+<sc-if value="{{ showTakes }}" hint-placeholder-val="{{ false }}">
+<div data-ui="1" style="position:absolute;left:{{ tk.x }}px;top:{{ tk.y }}px;width:{{ tk.w }}px;height:{{ tk.h }}px;perspective:900px;transition:{{ uiTr }}">
+<sc-for list="{{ stack }}" as="k" hint-placeholder-count="4">
+<div data-depth="{{ k.d }}" data-scene="{{ k.scene }}" onPointerDown="{{ takeDown }}" style="position:absolute;inset:0;border-radius:14px;padding:1px;box-sizing:border-box;background:linear-gradient(160deg,#FFFFFF 0%,#CDD0D5 46%,#8E949C 100%);box-shadow:0 0 0 .6px rgba(20,20,26,.42),0 2px 4px rgba(26,26,26,.1),0 26px 40px -20px rgba(30,20,12,.55);transform:{{ k.ctf }};transform-origin:50% 80%;transition:transform .5s cubic-bezier(.3,1.4,.5,1);cursor:{{ k.cur }};touch-action:none">
+<div style="position:relative;width:100%;height:100%;border-radius:13px;overflow:hidden">
+<div style="position:absolute;inset:0;background:{{ k.bg }};transform:{{ k.tf }};filter:{{ k.flt }}"></div>
+<div style="position:absolute;inset:0;background:rgba(240,236,228,{{ k.shade }})"></div>
+<div style="position:absolute;inset:0;border-radius:inherit;box-shadow:inset 0 1px 0 rgba(255,255,255,.55)"></div>
+</div>
+</div>
+</sc-for>
+<div style="position:absolute;left:0;top:{{ tk.labelY }}px;display:flex;flex-direction:column;gap:4px;white-space:nowrap"><span style="font-size:15px">{{ tk.label }}</span><span style="font-size:12px;color:#6B6B6B">flick the top card to see the next</span></div>
+</div>
+</sc-if>
+
+<!-- DOCK -->
+<sc-if value="{{ showDock }}" hint-placeholder-val="{{ false }}">
+<div data-ui="1" style="position:absolute;left:{{ dock.x }}px;top:{{ dock.y }}px;width:56px;padding:6px;box-sizing:border-box;border-radius:28px;display:flex;flex-direction:column;gap:4px;background:rgba(250,248,244,.52);-webkit-backdrop-filter:blur(20px) saturate(1.9);backdrop-filter:{{ gbf }};box-shadow:inset 0 1px 0 rgba(255,255,255,.95),inset 0 -1px 0 rgba(255,255,255,.35),inset 1.5px 0 0 rgba(255,110,140,.2),inset -1.5px 0 0 rgba(100,165,255,.24),0 0 0 .5px rgba(40,32,24,.16),0 1px 2px rgba(26,26,26,.08),0 24px 54px -18px rgba(30,24,18,.4);transition:{{ uiTr }}">
+<div style="position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:linear-gradient(180deg,rgba(255,255,255,.6) 0%,rgba(255,255,255,0) 34%,rgba(255,255,255,0) 82%,rgba(255,255,255,.22) 100%)"></div>
+<div title="Talk to edit (demo)" onClick="{{ demo }}" style="position:relative;width:44px;height:44px;border-radius:22px;display:flex;align-items:center;justify-content:center;cursor:pointer" style-hover="background:rgba(26,26,26,.07)"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="#1A1A1A" stroke-width="1.5" stroke-linecap="round"><rect x="7" y="2.5" width="6" height="10" rx="3"></rect><path d="M4.5 9.5a5.5 5.5 0 0 0 11 0M10 15v2.5"></path></svg></div>
+<div title="Style recipes" onClick="{{ openStyleDock }}" style="position:relative;width:44px;height:44px;border-radius:22px;display:flex;align-items:center;justify-content:center;cursor:pointer" style-hover="background:rgba(26,26,26,.07)"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="#1A1A1A" stroke-width="1.5"><circle cx="7.5" cy="8" r="4.5"></circle><circle cx="12.5" cy="8" r="4.5"></circle><circle cx="10" cy="12.5" r="4.5"></circle></svg></div>
+<div title="Theater (Enter)" onClick="{{ goTheater }}" style="position:relative;width:44px;height:44px;border-radius:22px;display:flex;align-items:center;justify-content:center;cursor:pointer" style-hover="background:rgba(26,26,26,.07)"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="#1A1A1A" stroke-width="1.5"><circle cx="10" cy="10" r="7"></circle></svg></div>
+<div title="Timeline (T)" onClick="{{ toggleDrawer }}" style="position:relative;width:44px;height:44px;border-radius:22px;display:flex;align-items:center;justify-content:center;cursor:pointer;background:{{ drawerBtnBg }}" style-hover="background:rgba(26,26,26,.07)"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="#1A1A1A" stroke-width="1.5" stroke-linecap="round"><path d="M3 6h14M3 10h9M3 14h12"></path></svg></div>
+</div>
+</sc-if>
+
+<!-- TALK BUBBLE -->
+<sc-if value="{{ B.on }}" hint-placeholder-val="{{ false }}">
+<div data-ui="1" style="position:absolute;left:{{ B.x }}px;top:{{ B.y }}px;width:{{ B.bw }}px;box-sizing:border-box;padding:22px 24px 24px;border-radius:30px;display:flex;flex-direction:column;gap:16px;background:rgba(250,248,244,.56);-webkit-backdrop-filter:blur(20px) saturate(1.9);backdrop-filter:{{ gbf }};box-shadow:inset 0 1px 0 rgba(255,255,255,.95),inset 0 -1px 0 rgba(255,255,255,.35),inset 1.5px 0 0 rgba(255,110,140,.22),inset -1.5px 0 0 rgba(100,165,255,.26),0 0 0 .5px rgba(40,32,24,.16),0 1px 2px rgba(26,26,26,.08),0 30px 70px -20px rgba(30,24,18,.45);transition:left .5s cubic-bezier(.3,1.2,.4,1),top .5s cubic-bezier(.3,1.2,.4,1)">
+<div style="position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:linear-gradient(180deg,rgba(255,255,255,.6) 0%,rgba(255,255,255,0) 30%,rgba(255,255,255,0) 84%,rgba(255,255,255,.22) 100%)"></div>
+<div style="position:absolute;inset:0;border-radius:inherit;pointer-events:none;padding:1px;background:linear-gradient(172deg,#FFFFFF 0%,rgba(255,255,255,.2) 30%,rgba(255,255,255,.04) 62%,rgba(255,255,255,.7) 100%);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude"></div>
+<div style="position:relative;display:flex;align-items:center;gap:10px">
+<div style="width:8px;height:8px;border-radius:50%;background:{{ B.dot }};box-shadow:0 0 0 4px {{ B.halo }}"></div>
+<span style="font-size:15px;font-weight:500;white-space:nowrap">{{ B.head }}</span>
+<sc-if value="{{ B.metaOn }}" hint-placeholder-val="{{ true }}"><span style="margin-left:auto;font-size:12px;color:#6B6B6B;white-space:nowrap">{{ B.meta }}</span></sc-if>
+</div>
+<sc-if value="{{ B.wave }}" hint-placeholder-val="{{ false }}">
+<div ref="{{ waveRef }}" style="position:relative;height:48px;display:flex;align-items:center;gap:4px">
+<sc-for list="{{ bars }}" as="w" hint-placeholder-count="40"><div style="flex:1;height:6px;border-radius:2px;background:#1A1A1A"></div></sc-for>
+</div>
+</sc-if>
+<sc-if value="{{ B.gen }}" hint-placeholder-val="{{ false }}">
+<div style="position:relative;height:48px;border-radius:14px;background:linear-gradient(100deg,rgba(26,26,26,.05) 30%,rgba(255,255,255,.85) 50%,rgba(26,26,26,.05) 70%);background-size:250% 100%;animation:ey-sweep 1.2s linear infinite"></div>
+</sc-if>
+<div style="position:relative;font-size:15px;line-height:1.5;color:{{ B.tc }};text-wrap:pretty;min-height:45px">{{ B.text }}<sc-if value="{{ B.wave }}" hint-placeholder-val="{{ false }}"><span style="animation:ey-blink 1s steps(1) infinite;margin-left:1px">▍</span></sc-if></div>
+<sc-if value="{{ B.prompt }}" hint-placeholder-val="{{ false }}">
+<div style="position:relative;display:flex;align-items:center;gap:10px;font-size:12px;color:#6B6B6B"><span style="padding:4px 10px;border-radius:7px;background:rgba(255,255,255,.7);box-shadow:inset 0 -1px 0 rgba(26,26,26,.15),0 0 0 .5px rgba(26,26,26,.18);font-family:'Geist Mono';color:#1A1A1A">Space</span><span>hold to talk · brush again to add</span></div>
+</sc-if>
+<sc-if value="{{ B.done }}" hint-placeholder-val="{{ false }}">
+<div style="position:relative;display:flex;align-items:center;gap:8px">
+<div onClick="{{ keep }}" style="padding:11px 20px;border-radius:999px;background:#1A1A1A;color:#F7F5F0;font-size:15px;font-weight:500;cursor:pointer">Keep</div>
+<div onClick="{{ undo }}" style="padding:11px 18px;border-radius:999px;background:rgba(26,26,26,.07);font-size:15px;cursor:pointer" style-hover="background:rgba(26,26,26,.11)">Undo</div>
+<div onPointerDown="{{ cmpDown }}" onPointerUp="{{ cmpUp }}" onPointerLeave="{{ cmpUp }}" style="margin-left:auto;padding:11px 4px;font-size:15px;color:#6B6B6B;cursor:pointer;white-space:nowrap">{{ B.cmpLabel }}</div>
+</div>
+</sc-if>
+</div>
+</sc-if>
+
+<!-- THEATER UI -->
+<sc-if value="{{ showTheater }}" hint-placeholder-val="{{ false }}">
+<svg width="{{ th.size }}" height="{{ th.size }}" style="position:absolute;left:{{ th.x }}px;top:{{ th.y }}px;pointer-events:none;overflow:visible">
+<circle cx="{{ th.c }}" cy="{{ th.c }}" r="{{ th.r }}" fill="none" stroke="rgba(26,26,26,.1)" stroke-width="1"></circle>
+<circle cx="{{ th.c }}" cy="{{ th.c }}" r="{{ th.r }}" fill="none" stroke="#1A1A1A" stroke-width="1.25" stroke-linecap="round" stroke-dasharray="{{ th.dash }}" transform="rotate(-90 {{ th.c }} {{ th.c }})"></circle>
+</svg>
+<div data-ui="1" style="position:absolute;left:{{ th.px }}px;top:{{ th.py }}px;transform:translateX(-50%);display:flex;align-items:center;gap:14px;padding:6px 20px 6px 6px;border-radius:999px;white-space:nowrap;background:rgba(250,248,244,.52);-webkit-backdrop-filter:blur(20px) saturate(1.9);backdrop-filter:{{ gbf }};box-shadow:inset 0 1px 0 rgba(255,255,255,.95),inset 0 -1px 0 rgba(255,255,255,.35),inset 1.5px 0 0 rgba(255,110,140,.2),inset -1.5px 0 0 rgba(100,165,255,.24),0 0 0 .5px rgba(40,32,24,.16),0 24px 54px -18px rgba(30,24,18,.4)">
+<div onClick="{{ togglePlay }}" style="width:40px;height:40px;border-radius:50%;padding:1px;box-sizing:border-box;background:linear-gradient(160deg,#FFFFFF 0%,#C9CCD1 48%,#9EA3AA 100%);cursor:pointer"><div style="width:100%;height:100%;border-radius:50%;background:#FBFAF7;display:flex;align-items:center;justify-content:center;gap:3px">
+<sc-if value="{{ th.playing }}" hint-placeholder-val="{{ true }}"><div style="width:3px;height:12px;border-radius:1px;background:#1A1A1A"></div><div style="width:3px;height:12px;border-radius:1px;background:#1A1A1A"></div></sc-if>
+<sc-if value="{{ th.paused }}" hint-placeholder-val="{{ false }}"><svg width="12" height="14" viewBox="0 0 12 14"><path d="M2 1.5v11l9-5.5z" fill="#1A1A1A"></path></svg></sc-if>
+</div></div>
+<span style="font-size:15px;font-weight:500">{{ th.title }}</span>
+<span style="font-size:15px;color:#6B6B6B">{{ th.words }}</span>
+<span style="font-family:'Geist Mono';font-size:12px;color:#6B6B6B">{{ th.time }}</span>
+</div>
+</sc-if>
+
+<!-- TIMELINE DRAWER -->
+<div data-ui="1" style="position:absolute;left:24px;right:24px;bottom:20px;height:290px;box-sizing:border-box;padding:20px 24px;border-radius:28px;display:flex;flex-direction:column;gap:14px;background:rgba(250,248,244,.58);-webkit-backdrop-filter:blur(20px) saturate(1.9);backdrop-filter:{{ gbf }};box-shadow:inset 0 1px 0 rgba(255,255,255,.95),inset 0 -1px 0 rgba(255,255,255,.35),inset 1.5px 0 0 rgba(255,110,140,.2),inset -1.5px 0 0 rgba(100,165,255,.24),0 0 0 .5px rgba(40,32,24,.16),0 30px 70px -20px rgba(30,24,18,.45);transform:translateY({{ dr.ty }});opacity:{{ dr.op }};pointer-events:{{ dr.pe }};transition:transform .7s cubic-bezier(.3,1.15,.4,1),opacity .4s ease">
+<div style="position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:linear-gradient(180deg,rgba(255,255,255,.55) 0%,rgba(255,255,255,0) 26%)"></div>
+<div style="position:relative;display:flex;align-items:baseline;gap:14px"><span style="font-size:15px;font-weight:500">Timeline</span><span style="font-size:12px;color:#6B6B6B">{{ dr.meta }}</span><div onClick="{{ toggleDrawer }}" style="margin-left:auto;font-size:15px;color:#6B6B6B;cursor:pointer">Close</div></div>
+<div style="position:relative;flex:1;display:grid;grid-template-columns:72px minmax(0,1fr);grid-template-rows:18px 64px 34px 44px;row-gap:10px;align-items:center">
+<span></span>
+<div style="position:relative;height:18px">
+<sc-for list="{{ dr.ticks }}" as="t" hint-placeholder-count="13"><div style="position:absolute;left:{{ t.x }}%;bottom:0;display:flex;flex-direction:column;align-items:flex-start;gap:2px"><span style="font-family:'Geist Mono';font-size:12px;color:#6B6B6B;line-height:1">{{ t.label }}</span><div style="width:1px;height:{{ t.h }}px;background:rgba(26,26,26,.25)"></div></div></sc-for>
+</div>
+<span style="font-size:12px;color:#6B6B6B">Video</span>
+<div style="display:flex;gap:4px;height:64px">
+<sc-for list="{{ dr.clips }}" as="k" hint-placeholder-count="4"><div onClick="{{ k.on }}" style="flex:1;min-width:0;border-radius:10px;overflow:hidden;position:relative;cursor:pointer;box-shadow:0 0 0 .6px rgba(20,20,26,.4),0 0 0 {{ k.bw }} #5B7CFA"><div style="position:absolute;inset:0;background:{{ k.bg }};filter:{{ k.flt }};background-size:cover"></div><div style="position:absolute;inset:0;box-shadow:inset 0 1px 0 rgba(255,255,255,.5);border-radius:inherit"></div></div></sc-for>
+</div>
+<span style="font-size:12px;color:#6B6B6B">Words</span>
+<div style="display:flex;gap:4px">
+<sc-for list="{{ dr.clips }}" as="k" hint-placeholder-count="4"><div style="flex:1;min-width:0;padding:7px 10px;border-radius:9px;background:rgba(26,26,26,.05);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ k.words }}</div></sc-for>
+</div>
+<span style="font-size:12px;color:#6B6B6B">Audio</span>
+<div style="display:flex;align-items:center;gap:2px;height:44px">
+<sc-for list="{{ dr.wave }}" as="w" hint-placeholder-count="60"><div style="flex:1;height:{{ w.h }}px;border-radius:1px;background:rgba(26,26,26,.5)"></div></sc-for>
+</div>
+<div style="position:absolute;left:calc(72px + (100% - 72px) * {{ dr.play }});top:0;bottom:0;width:1px;background:#1A1A1A;pointer-events:none;transition:left .5s cubic-bezier(.3,1.2,.4,1)"><div style="position:absolute;left:-4px;top:-2px;width:9px;height:9px;border-radius:50%;background:#1A1A1A"></div></div>
+</div>
+</div>
+
+<!-- TOP LEFT -->
+<div data-ui="1" style="position:absolute;left:24px;top:20px;display:flex;align-items:center;gap:16px;opacity:{{ chromeOp }};transition:opacity .5s">
+<span style="font-size:15px;font-weight:500;letter-spacing:-.01em">eyelore</span>
+<div onClick="{{ toggleSwitcher }}" style="position:relative;display:flex;align-items:center;gap:8px;padding:9px 14px;border-radius:999px;cursor:pointer;font-size:15px;background:rgba(250,248,244,.52);-webkit-backdrop-filter:blur(20px) saturate(1.9);backdrop-filter:{{ gbf }};box-shadow:inset 0 1px 0 rgba(255,255,255,.95),inset 1.5px 0 0 rgba(255,110,140,.18),inset -1.5px 0 0 rgba(100,165,255,.22),0 0 0 .5px rgba(40,32,24,.16),0 10px 24px -12px rgba(30,24,18,.35)">{{ projectName }}<svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 3.5l3 3 3-3" fill="none" stroke="#1A1A1A" stroke-width="1.4" stroke-linecap="round"></path></svg></div>
+</div>
+<sc-if value="{{ switcher }}" hint-placeholder-val="{{ false }}">
+<div data-ui="1" style="position:absolute;left:96px;top:66px;width:250px;padding:6px;box-sizing:border-box;border-radius:18px;display:flex;flex-direction:column;gap:2px;background:rgba(250,248,244,.62);-webkit-backdrop-filter:blur(20px) saturate(1.9);backdrop-filter:{{ gbf }};box-shadow:inset 0 1px 0 rgba(255,255,255,.95),inset 1.5px 0 0 rgba(255,110,140,.2),inset -1.5px 0 0 rgba(100,165,255,.24),0 0 0 .5px rgba(40,32,24,.16),0 24px 54px -18px rgba(30,24,18,.4)">
+<sc-for list="{{ projList }}" as="p" hint-placeholder-count="2">
+<div onClick="{{ p.pick }}" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;cursor:pointer" style-hover="background:rgba(26,26,26,.06)"><div style="display:flex;flex-direction:column;gap:2px;flex:1"><span style="font-size:15px">{{ p.name }}</span><span style="font-size:12px;color:#6B6B6B">{{ p.meta }}</span></div><svg width="14" height="14" viewBox="0 0 14 14" style="opacity:{{ p.check }}"><path d="M2.5 7.5 L5.5 10.5 L11.5 3.5" fill="none" stroke="#5B7CFA" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg></div>
+</sc-for>
+</div>
+</sc-if>
+
+<!-- EDIT TITLE -->
+<div style="position:absolute;left:28px;top:84px;display:flex;flex-direction:column;gap:8px;opacity:{{ et.op }};transition:opacity .5s;pointer-events:none">
+<div style="font-size:32px;font-weight:500;letter-spacing:-.03em;line-height:1">{{ et.title }}</div>
+<div style="font-size:12px;color:#6B6B6B">{{ et.meta }}</div>
+</div>
+
+<!-- HUD: zoom levels -->
+<div data-ui="1" style="position:absolute;right:24px;top:20px;display:flex;gap:2px;padding:4px;border-radius:999px;opacity:{{ chromeOp }};transition:opacity .5s;background:rgba(250,248,244,.52);-webkit-backdrop-filter:blur(20px) saturate(1.9);backdrop-filter:{{ gbf }};box-shadow:inset 0 1px 0 rgba(255,255,255,.95),inset 1.5px 0 0 rgba(255,110,140,.18),inset -1.5px 0 0 rgba(100,165,255,.22),0 0 0 .5px rgba(40,32,24,.16),0 10px 24px -12px rgba(30,24,18,.35)">
+<sc-for list="{{ hud }}" as="h" hint-placeholder-count="3">
+<div onClick="{{ h.go }}" style="padding:8px 16px;border-radius:999px;font-size:15px;cursor:pointer;color:{{ h.color }};background:{{ h.bg }};box-shadow:{{ h.sh }};transition:background .25s,color .25s">{{ h.label }}</div>
+</sc-for>
+</div>
+
+<!-- HINTS -->
+<sc-if value="{{ showHint }}" hint-placeholder-val="{{ false }}">
+<div data-ui="1" style="position:absolute;left:{{ hintL }};top:{{ hintT }};transform:{{ hintTf }};display:flex;align-items:center;gap:12px;padding:7px 8px 7px 16px;border-radius:999px;white-space:nowrap;font-size:15px;background:rgba(250,248,244,.52);-webkit-backdrop-filter:blur(20px) saturate(1.9);backdrop-filter:{{ gbf }};box-shadow:inset 0 1px 0 rgba(255,255,255,.95),inset 1.5px 0 0 rgba(255,110,140,.18),inset -1.5px 0 0 rgba(100,165,255,.22),0 0 0 .5px rgba(40,32,24,.16),0 10px 24px -12px rgba(30,24,18,.35)">
+<span>Hold</span><span style="padding:3px 9px;border-radius:7px;background:rgba(255,255,255,.75);box-shadow:inset 0 -1px 0 rgba(26,26,26,.15),0 0 0 .5px rgba(26,26,26,.18);font-family:'Geist Mono';font-size:12px">Space</span><span>and brush</span><sc-if value="{{ hintLong }}" hint-placeholder-val="{{ true }}"><span style="margin-left:-8px">over anything to change it</span></sc-if>
+<div onClick="{{ demo }}" style="padding:7px 14px;border-radius:999px;background:#1A1A1A;color:#F7F5F0;cursor:pointer">Watch demo</div>
+</div>
+</sc-if>
+<div style="position:absolute;left:24px;bottom:20px;font-size:12px;color:#6B6B6B;opacity:{{ boardHintOp }};transition:opacity .4s;pointer-events:none">Click a card to fly in · scroll to pan, pinch or ⌘-scroll to zoom · drop a photo onto any Lens to use it</div>
+
+<!-- CONTEXT MENU -->
+<sc-if value="{{ M.on }}" hint-placeholder-val="{{ false }}">
+<div data-ui="1" style="position:absolute;left:{{ M.x }}px;top:{{ M.y }}px;width:240px;padding:6px;box-sizing:border-box;border-radius:18px;display:flex;flex-direction:column;gap:1px;font-size:15px;background:rgba(250,248,244,.62);-webkit-backdrop-filter:blur(20px) saturate(1.9);backdrop-filter:{{ gbf }};box-shadow:inset 0 1px 0 rgba(255,255,255,.95),inset 1.5px 0 0 rgba(255,110,140,.2),inset -1.5px 0 0 rgba(100,165,255,.24),0 0 0 .5px rgba(40,32,24,.16),0 24px 54px -18px rgba(30,24,18,.4)">
+<div onMouseEnter="{{ subAspect }}" style="display:flex;justify-content:space-between;padding:9px 12px;border-radius:11px;background:{{ M.aBg }}"><span>Aspect ratio</span><span style="color:#6B6B6B">›</span></div>
+<div onMouseEnter="{{ subStyle }}" style="display:flex;justify-content:space-between;padding:9px 12px;border-radius:11px;background:{{ M.sBg }}"><span>Style</span><span style="color:#6B6B6B">›</span></div>
+<div style="height:1px;margin:4px 12px;background:rgba(26,26,26,.08)"></div>
+<div onMouseEnter="{{ subNone }}" onClick="{{ menuDemo }}" style="display:flex;justify-content:space-between;align-items:center;padding:9px 12px;border-radius:11px;cursor:pointer" style-hover="background:rgba(26,26,26,.06)"><span>Talk to edit</span><span style="font-family:'Geist Mono';font-size:12px;color:#6B6B6B">Space</span></div>
+<div onMouseEnter="{{ subNone }}" onClick="{{ goTheater }}" style="display:flex;justify-content:space-between;align-items:center;padding:9px 12px;border-radius:11px;cursor:pointer" style-hover="background:rgba(26,26,26,.06)"><span>Theater</span><span style="font-family:'Geist Mono';font-size:12px;color:#6B6B6B">↵</span></div>
+<div onMouseEnter="{{ subNone }}" onClick="{{ toggleDrawer }}" style="display:flex;justify-content:space-between;align-items:center;padding:9px 12px;border-radius:11px;cursor:pointer" style-hover="background:rgba(26,26,26,.06)"><span>Timeline</span><span style="font-family:'Geist Mono';font-size:12px;color:#6B6B6B">T</span></div>
+</div>
+<sc-if value="{{ M.aspect }}" hint-placeholder-val="{{ false }}">
+<div data-ui="1" style="position:absolute;left:{{ M.sx }}px;top:{{ M.sy }}px;width:236px;padding:6px;box-sizing:border-box;border-radius:18px;display:flex;flex-direction:column;gap:1px;font-size:15px;background:rgba(250,248,244,.62);-webkit-backdrop-filter:blur(20px) saturate(1.9);backdrop-filter:{{ gbf }};box-shadow:inset 0 1px 0 rgba(255,255,255,.95),inset 1.5px 0 0 rgba(255,110,140,.2),inset -1.5px 0 0 rgba(100,165,255,.24),0 0 0 .5px rgba(40,32,24,.16),0 24px 54px -18px rgba(30,24,18,.4)">
+<sc-for list="{{ aspects }}" as="a" hint-placeholder-count="4">
+<div onClick="{{ a.pick }}" style="display:flex;align-items:center;gap:12px;padding:9px 12px;border-radius:11px;cursor:pointer" style-hover="background:rgba(26,26,26,.06)"><div style="width:24px;display:flex;justify-content:center"><div style="width:{{ a.iw }}px;height:{{ a.ih }}px;border-radius:2px;box-shadow:inset 0 0 0 1.25px rgba(26,26,26,.75)"></div></div><span>{{ a.k }}</span><span style="flex:1;font-size:12px;color:#6B6B6B">{{ a.meta }}</span><svg width="14" height="14" viewBox="0 0 14 14" style="opacity:{{ a.check }}"><path d="M2.5 7.5 L5.5 10.5 L11.5 3.5" fill="none" stroke="#5B7CFA" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg></div>
+</sc-for>
+</div>
+</sc-if>
+<sc-if value="{{ M.style }}" hint-placeholder-val="{{ false }}">
+<div data-ui="1" style="position:absolute;left:{{ M.sx }}px;top:{{ M.sy }}px;width:236px;padding:6px;box-sizing:border-box;border-radius:18px;display:flex;flex-direction:column;gap:1px;font-size:15px;background:rgba(250,248,244,.62);-webkit-backdrop-filter:blur(20px) saturate(1.9);backdrop-filter:{{ gbf }};box-shadow:inset 0 1px 0 rgba(255,255,255,.95),inset 1.5px 0 0 rgba(255,110,140,.2),inset -1.5px 0 0 rgba(100,165,255,.24),0 0 0 .5px rgba(40,32,24,.16),0 24px 54px -18px rgba(30,24,18,.4)">
+<sc-for list="{{ styles }}" as="r" hint-placeholder-count="5">
+<div onClick="{{ r.pick }}" style="display:flex;align-items:center;gap:12px;padding:8px 12px;border-radius:11px;cursor:pointer" style-hover="background:rgba(26,26,26,.06)"><div style="width:24px;height:24px;border-radius:50%;padding:1px;box-sizing:border-box;background:linear-gradient(160deg,#FFFFFF 0%,#CDD0D5 46%,#8E949C 100%)"><div style="width:100%;height:100%;border-radius:50%;background:{{ r.sw }}"></div></div><span>{{ r.name }}</span></div>
+</sc-for>
+</div>
+</sc-if>
+</sc-if>
+
+<sc-if value="{{ showGrain }}" hint-placeholder-val="{{ true }}">
+<div style="position:absolute;inset:0;pointer-events:none;opacity:.22;mix-blend-mode:multiply;background-image:url(data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20width=%22180%22%20height=%22180%22%3E%3Cfilter%20id=%22n%22%3E%3CfeTurbulence%20type=%22fractalNoise%22%20baseFrequency=%22.85%22%20numOctaves=%222%22%20stitchTiles=%22stitch%22/%3E%3CfeColorMatrix%20values=%220%200%200%200%200.1%200%200%200%200%200.1%200%200%200%200%200.1%200%200%200%200.5%200%22/%3E%3C/filter%3E%3Crect%20width=%22100%25%22%20height=%22100%25%22%20filter=%22url%28%23n%29%22/%3E%3C/svg%3E)"></div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;showGrain&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;},&quot;refraction&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;},&quot;spring&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;soft&quot;,&quot;snappy&quot;,&quot;bouncy&quot;],&quot;default&quot;:&quot;snappy&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;ambient&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;min&quot;:0,&quot;max&quot;:1,&quot;step&quot;:0.05,&quot;default&quot;:0.8,&quot;tsType&quot;:&quot;number&quot;}}">
+const W=150,H=267,GAP=230;
+const pad=n=>String(n).padStart(2,'0');
+const fmt=ms=>'0:'+pad(Math.floor(ms/1000));
+const pos=(c,sz)=>((c-sz/2)/(100-sz)*100).toFixed(2);
+const L=(g,cx,cy,w,h)=>`${g} ${pos(cx,w)}% ${pos(cy,h)}% / ${w}% ${h}% no-repeat`;
+const rg=(...st)=>`radial-gradient(closest-side,${st.join(',')})`;
+const RING=(cx,cy,w,h,hl)=>[L(rg(hl,'rgba(255,255,255,0)'),cx-w*.2,cy-h*.3,w*.3,h*.26),L(rg('rgba(0,0,0,0) 54%','#0a0a0c 60%','#4a4b51 67%','#141416 74%','#040405 79%','rgba(0,0,0,0) 83%'),cx,cy,w,h),L(rg('rgba(30,34,46,.42)','rgba(0,0,0,0)'),cx+1.5,cy+h*.3,w*1.3,h*1.2)].join(',');
+const LIGHTS=[[6,12],[20,17],[34,20],[50,21],[66,19],[80,15],[94,10]].map(([x,y])=>L(rg('rgba(255,234,176,1)','rgba(255,190,90,.5) 30%','rgba(0,0,0,0)'),x,y,10,6)).join(',');
+const SC={
+sheets:{night:false,tint:'rgba(255,212,150,.6)',say:'make the sheets warmer, like the sun just hit them',fx:'sepia(.3) saturate(1.6) brightness(1.06) hue-rotate(-8deg)',label:'Warmer sheets',sub:{x:.5,y:.56,rx:.28,ry:.1},
+bg:[RING(50,56,34,15,'rgba(255,255,255,.95)'),'linear-gradient(118deg,rgba(255,240,210,0) 20%,rgba(255,234,196,.75) 36%,rgba(255,240,210,0) 52%)','radial-gradient(70% 10% at 26% 24%,rgba(150,162,184,.55),rgba(0,0,0,0))','radial-gradient(85% 9% at 70% 84%,rgba(140,152,176,.5),rgba(0,0,0,0))','radial-gradient(60% 8% at 30% 74%,rgba(255,255,255,.95),rgba(0,0,0,0))','radial-gradient(90% 12% at 62% 36%,rgba(255,255,255,.85),rgba(0,0,0,0))','radial-gradient(50% 7% at 80% 64%,rgba(160,170,190,.4),rgba(0,0,0,0))','linear-gradient(172deg,#FFFBF2 0%,#F0E9DE 42%,#D3D8E1 100%)'].join(',')},
+nightstand:{night:true,tint:'rgba(255,150,70,.3)',say:'bring the lamp up a little, keep it moody',fx:'brightness(1.4) saturate(1.3) contrast(1.05)',label:'Lamp up',sub:{x:.6,y:.5,rx:.3,ry:.24},
+bg:['radial-gradient(40% 24% at 80% 16%,rgba(255,226,170,1),rgba(255,160,70,.55) 42%,rgba(0,0,0,0) 74%)',RING(44,68,32,9,'rgba(255,196,130,.95)'),'radial-gradient(55% 9% at 60% 66%,rgba(255,160,80,.6),rgba(0,0,0,0))','repeating-linear-gradient(91deg,rgba(20,10,4,.14) 0 2px,rgba(0,0,0,0) 2px 11px)','linear-gradient(180deg,#1b1310 0%,#2c1d15 40%,#3d2819 57%,#6e4228 58%,#4b2b18 74%,#24140b 100%)'].join(',')},
+gym:{night:false,tint:'rgba(110,150,255,.34)',say:'make the dumbbell pop, more electric blue',fx:'saturate(1.9) contrast(1.12) hue-rotate(6deg) brightness(1.04)',label:'Bluer dumbbell',sub:{x:.44,y:.58,rx:.34,ry:.12},
+bg:['radial-gradient(70% 45% at 12% -5%,rgba(228,240,255,.75),rgba(0,0,0,0))',RING(80,78,18,6,'rgba(255,255,255,.8)'),L(rg('#7C9DFF','#3A5FE0 50%','#1C3592 88%','rgba(0,0,0,0)'),24,58,22,20),L(rg('#7C9DFF','#3A5FE0 50%','#1C3592 88%','rgba(0,0,0,0)'),64,58,22,20),L('linear-gradient(180deg,#d0d5dc,#5a6169)',44,58,26,3.5),L(rg('rgba(8,12,22,.6)','rgba(0,0,0,0)'),45,67,72,12),'repeating-radial-gradient(circle at 37% 71%,rgba(255,255,255,.05) 0 1px,rgba(0,0,0,0) 1px 3px)','linear-gradient(180deg,#b0b9c3 0%,#828b95 30%,#4d545c 62%,#2e3339 100%)'].join(',')},
+dresser:{night:false,tint:'rgba(255,190,160,.6)',say:'softer and more golden on the case',fx:'sepia(.32) saturate(1.4) brightness(1.08)',label:'Golden case',sub:{x:.5,y:.58,rx:.3,ry:.15},
+bg:['radial-gradient(60% 40% at 86% 8%,rgba(255,240,200,.95),rgba(0,0,0,0))',RING(50,63,15,5,'rgba(255,236,226,.95)'),L(rg('#8E4D5A','#6A3341 70%','rgba(0,0,0,0)'),50,63,40,12),L(rg('#E4AEB0','#C8858C 72%','rgba(0,0,0,0)'),50,67,56,22),L(rg('#ECBDBD','#CF9196 76%','rgba(0,0,0,0)'),50,49,48,18),L(rg('rgba(90,50,30,.4)','rgba(0,0,0,0)'),52,76,70,10),'repeating-linear-gradient(118deg,rgba(255,246,222,0) 0 9%,rgba(255,240,206,.35) 9% 15%)','linear-gradient(180deg,#F8E9D6 0%,#F0D5BA 58%,#C99B72 59%,#A97B55 76%,#7d5638 100%)'].join(',')},
+selfie:{night:true,tint:'rgba(255,190,100,.3)',say:'warm up her face and make the lights glow',fx:'brightness(1.2) saturate(1.35) sepia(.18)',label:'Warmer glow',sub:{x:.47,y:.4,rx:.2,ry:.15},
+bg:[LIGHTS,L('linear-gradient(180deg,#2c2c31,#0d0d0f)',74,46,9,14),L(rg('rgba(196,222,255,.35)','rgba(0,0,0,0)'),68,44,30,24),L(rg('#EDB894','#C9845F 68%','rgba(0,0,0,0)'),46,40,22,16),L(rg('#2b1715','#170c0b 70%','rgba(0,0,0,0)'),46,37,36,30),L(rg('#DCA552','#A8742E 62%','rgba(0,0,0,0)'),46,92,80,48),'linear-gradient(180deg,rgba(0,0,0,0) 0 55%,#1F4A4D 61%,#123033 100%)','linear-gradient(180deg,#3c2342 0%,#4b2b46 45%,#2d2236 60%)'].join(',')}
+};
+const TAKES=[{t:'scale(1)',f:''},{t:'scale(1.14) translate(-3%,2%)',f:'saturate(1.12) brightness(1.04)'},{t:'scale(1.28) translate(4%,-4%)',f:'contrast(1.08) hue-rotate(-6deg)'},{t:'scale(1.06) translate(2%,3%) rotate(-1.5deg)',f:'brightness(.95) saturate(.9)'}];
+const ORD0=[0,1,2,3];
+const ADS={
+bed:{title:'wear it to bed',beats:[['sheets','I never take it off.'],['nightstand','Not even to sleep.'],['gym','It knows when I’ve pushed too hard.'],['selfie','And it still looks like jewelry.']]},
+dresser:{title:'dresser glow-up',beats:[['dresser','My dresser got an upgrade.'],['sheets','One glance every morning.'],['selfie','People keep asking about it.']]},
+travel:{title:'travel day',beats:[['gym','6am, hotel gym.'],['nightstand','Red-eye, still tracking.'],['dresser','Unpacked in two minutes.'],['selfie','Home. Fully rested.']]}};
+const PROJ=[{id:'shoplink',name:'ShopLink',y:0,ads:['bed','dresser']},{id:'everstock',name:'Everstock',y:1120,ads:['travel']}];
+const CARDS=[],CARD={},ROWS=[],ARROWS=[],STICKY=[];
+PROJ.forEach(p=>p.ads.forEach((a,i)=>{const ry=p.y+70+i*480,n=ADS[a].beats.length;ROWS.push({x:0,y:ry,title:ADS[a].title,meta:`${n} beats · ${fmt(n*3000)}`});
+if(a==='bed')STICKY.push({x:4*GAP+10,y:ry+96,text:'hook has to land in 2s — try the nightstand first?'});
+ADS[a].beats.forEach((b,j)=>{const c={id:a+'-'+j,ad:a,pid:p.id,j,scene:b[0],words:'“'+b[1]+'”',x:j*GAP,y:ry+66,time:`${fmt(j*3000)}–${fmt(j*3000+3000)}`};CARDS.push(c);CARD[c.id]=c;if(j>0)ARROWS.push({x:(j-1)*GAP+W+16,y:ry+66+H/2,w:GAP-W-32});});}));
+const AR={'9:16':9/16,'4:5':.8,'1:1':1,'16:9':16/9};
+const ASPECTS=[{k:'9:16',meta:'Reels',iw:9,ih:16},{k:'4:5',meta:'Feed',iw:13,ih:16},{k:'1:1',meta:'Square',iw:15,ih:15},{k:'16:9',meta:'YouTube',iw:20,ih:11}];
+const STYLES=[{name:'Morning linen',fx:'sepia(.3) saturate(1.4) brightness(1.07)',sw:'linear-gradient(135deg,#FFF3DC,#E9C49A)'},{name:'Lamp noir',fx:'contrast(1.2) brightness(.86) sepia(.25) saturate(1.2)',sw:'linear-gradient(135deg,#F0A55A,#2A170E)'},{name:'Cobalt',fx:'saturate(1.6) hue-rotate(-12deg) contrast(1.08)',sw:'linear-gradient(135deg,#9FB6FF,#2F55D9)'},{name:'Rose hour',fx:'sepia(.2) saturate(1.3) hue-rotate(-18deg) brightness(1.05)',sw:'linear-gradient(135deg,#F7D4CF,#C8858C)'},{name:'Film 400',fx:'contrast(.92) saturate(.82) sepia(.12) brightness(1.04)',sw:'linear-gradient(135deg,#E9E2D0,#7E8A7A)'}];
+const SPR={soft:[950,'cubic-bezier(.22,1.08,.32,1)'],snappy:[720,'cubic-bezier(.3,1.22,.42,1)'],bouncy:[880,'cubic-bezier(.34,1.5,.5,1)']};
+const IDLE={phase:'idle',strokes:[],words:0,say:'',fx:'',label:'',kind:'talk',spread:false};
+const BARS=Array.from({length:40},(_,i)=>({i}));
+const WAVE=Array.from({length:120},(_,i)=>({h:Math.round(6+Math.abs(Math.sin(i*.37)*Math.cos(i*.13))*30+(i%7)*1.2)}));
+function fitCam(pid,vw,vh){const p=PROJ.find(x=>x.id===pid);const cw=4*GAP+240,ch=70+p.ads.length*480;const s=Math.min(1,(vw-160)/cw,(vh-170)/ch);return {s,tx:(vw-cw*s)/2,ty:96-p.y*s};}
+
+class Component extends DCLogic {
+  state={vw:innerWidth,vh:innerHeight,project:'shoplink',mode:'board',focus:null,heroOn:false,hero:{x:0,y:0,w:100,h:100,r:14},heroAnim:false,cam:fitCam('shoplink',innerWidth,innerHeight),camAnim:false,boardCam:null,ar:{},drawer:false,menu:null,switcher:false,order:{},talk:IDLE,edits:{},photos:{},playing:true,t:0,hinted:false,compare:false};
+  rootRef=React.createRef(); waveRef=React.createRef();
+  spr(){return SPR[this.props.spring]||SPR.snappy;}
+  componentDidMount(){
+    this.onResize=()=>this.setState({vw:innerWidth,vh:innerHeight},()=>{if(this.state.mode==='board')this.setState({cam:fitCam(this.state.project,innerWidth,innerHeight)});else this.relayout(false);});
+    this.kd=e=>this.keyDown(e); this.ku=e=>this.keyUp(e);
+    this.pm=e=>this.pMove(e); this.pu=e=>this.pUp(e);
+    addEventListener('resize',this.onResize);addEventListener('keydown',this.kd);addEventListener('keyup',this.ku);addEventListener('pointermove',this.pm);addEventListener('pointerup',this.pu);
+    this.rootRef.current&&this.rootRef.current.addEventListener('wheel',this.wheel,{passive:false});
+    try{const p=JSON.parse(localStorage.getItem('eyelore-photos')||'{}');if(p&&typeof p==='object')this.setState({photos:p});}catch(e){}
+    const loop=()=>{this.tick();this.raf=requestAnimationFrame(loop);};this.raf=requestAnimationFrame(loop);
+    this.pI=setInterval(()=>{const s=this.state;if(s.mode==='theater'&&s.playing&&s.focus){const n=ADS[CARD[s.focus].ad].beats.length;this.setState({t:(s.t+100)%(n*3000)});}},100);
+  }
+  componentWillUnmount(){removeEventListener('resize',this.onResize);removeEventListener('keydown',this.kd);removeEventListener('keyup',this.ku);removeEventListener('pointermove',this.pm);removeEventListener('pointerup',this.pu);cancelAnimationFrame(this.raf);clearInterval(this.pI);clearInterval(this.wI);clearInterval(this.dI);}
+  tick(){const el=this.waveRef.current;if(!el)return;const t=performance.now()/1000;const k=el.children;const gate=.25+.75*Math.max(0,Math.sin(t*3.1))*Math.abs(Math.sin(t*1.3+1));for(let i=0;i<k.length;i++){const c=1-Math.abs(i-k.length/2)/(k.length/2)*.55;const v=(Math.abs(Math.sin(t*11+i*.8)*Math.cos(t*6.3+i*1.7))*.85+Math.random()*.15)*gate*c;k[i].style.height=(4+v*40).toFixed(1)+'px';}}
+  bg(k){const ph=this.state.photos[k];return ph?`url("${ph}") center/cover no-repeat`:SC[k].bg;}
+  flt(id,ord){const f=(TAKES[ord[0]].f+' '+(this.state.edits[id]||'')).trim();return f||'none';}
+  arv(ad,s=this.state){return AR[s.ar[ad]||'9:16'];}
+  cardRect(id,cam){const c=CARD[id];return {x:c.x*cam.s+cam.tx,y:c.y*cam.s+cam.ty,w:W*cam.s,h:H*cam.s,r:14*cam.s};}
+  layout(mode,focus,s=this.state){const {vw,vh}=s;const c=CARD[focus];const arv=this.arv(c.ad,s);
+    if(mode==='edit'){const short=vh<720;const top=short?76:100,res=s.drawer?320:(short?200:250);const avail=Math.max(160,vh-top-res);let h=Math.min(avail,640),w=h*arv;const maxW=Math.max(160,vw-(vw<1100?460:660));if(w>maxW){w=maxW;h=w/arv;}const x=(vw-w)/2,y=top+(avail-h)/2;const cs=h/H;return {hero:{x,y,w,h,r:20},cam:{s:cs,tx:x+w/2-(c.x+W/2)*cs,ty:y+h/2-(c.y+H/2)*cs}};}
+    const d=Math.min(vh*.78,vw*.6);const x=(vw-d)/2,y=(vh-d)/2-34;const cs=d*1.25/H;return {hero:{x,y,w:d,h:d,r:d/2},cam:{s:cs,tx:vw/2-(c.x+W/2)*cs,ty:y+d/2-(c.y+H/2)*cs}};}
+  anim(){const [D]=this.spr();this.setState({heroAnim:true,camAnim:true});clearTimeout(this.aT);this.aT=setTimeout(()=>this.setState({camAnim:false}),D+60);}
+  relayout(a=true){const s=this.state;if(s.mode==='board'||!s.focus)return;const Lo=this.layout(s.mode,s.focus);if(a)this.anim();this.setState(Lo);}
+  resetTalk(){clearInterval(this.wI);clearInterval(this.dI);clearTimeout(this.tT);clearTimeout(this.tT2);clearTimeout(this.tT3);clearTimeout(this.dT);this.setState({talk:IDLE,compare:false});}
+  firstCard(pid){return CARDS.find(c=>c.pid===pid).id;}
+  go(mode,id){const s=this.state;const [D]=this.spr();
+    if(mode==='board'){if(s.mode==='board')return;this.resetTalk();const bc=s.boardCam||fitCam(s.project,s.vw,s.vh);const r=this.cardRect(s.focus,bc);this.anim();this.lastFocus=s.focus;this.setState({mode:'board',cam:bc,hero:r,drawer:false,menu:null});clearTimeout(this.hT);this.hT=setTimeout(()=>this.setState({heroOn:false,focus:null}),D+80);return;}
+    id=id||s.focus||this.lastFocus||this.firstCard(s.project);
+    if(s.mode==='board'){const bc=s.cam.s>1.25?fitCam(s.project,s.vw,s.vh):s.cam;const start=this.cardRect(id,s.cam);clearTimeout(this.hT);
+      this.setState({focus:id,heroOn:true,hero:start,heroAnim:false,boardCam:bc,menu:null,switcher:false,project:CARD[id].pid},()=>requestAnimationFrame(()=>requestAnimationFrame(()=>{const Lo=this.layout(mode,id);this.anim();this.setState({mode,...Lo,t:CARD[id].j*3000,playing:true});})));return;}
+    if(mode===s.mode&&id===s.focus)return;
+    if(id!==s.focus||mode==='theater')this.resetTalk();
+    const Lo=this.layout(mode,id,{...s,focus:id,drawer:mode==='theater'?false:s.drawer});this.anim();
+    this.setState({mode,focus:id,...Lo,menu:null,t:mode==='theater'?CARD[id].j*3000:s.t,drawer:mode==='theater'?false:s.drawer,playing:true});}
+  toggleDrawer=()=>{const s=this.state;if(s.mode!=='edit')return;this.setState({drawer:!s.drawer,menu:null},()=>this.relayout(true));};
+  setProject(pid){const s=this.state;this.setState({switcher:false,project:pid});const cam=fitCam(pid,s.vw,s.vh);if(s.mode==='board'){this.anim();this.setState({cam,heroOn:false});}else{this.setState({boardCam:cam},()=>this.go('board'));}}
+  wheel=e=>{e.preventDefault();const s=this.state;
+    if(s.mode==='board'){if(e.ctrlKey||e.metaKey){const k=Math.exp(-e.deltaY*(e.ctrlKey?.012:.004));const ns=Math.min(4,Math.max(.3,s.cam.s*k));const kk=ns/s.cam.s;const cam={s:ns,tx:e.clientX-(e.clientX-s.cam.tx)*kk,ty:e.clientY-(e.clientY-s.cam.ty)*kk};
+        if(e.deltaY<0&&H*ns>s.vh*.42){const el=document.elementFromPoint(e.clientX,e.clientY);const ce=el&&el.closest('[data-card]');if(ce){this.state.cam=cam;this.setState({cam,camAnim:false},()=>this.go('edit',ce.getAttribute('data-card')));return;}}
+        this.setState({cam,camAnim:false});}else this.setState({cam:{...s.cam,tx:s.cam.tx-e.deltaX,ty:s.cam.ty-e.deltaY},camAnim:false});return;}
+    if((this.busyUntil||0)>Date.now())return;this.acc=(this.acc||0)+e.deltaY;clearTimeout(this.accT);this.accT=setTimeout(()=>this.acc=0,260);const th=e.ctrlKey?36:170;
+    if(this.acc<-th){this.acc=0;this.busyUntil=Date.now()+this.spr()[0];if(s.mode==='edit')this.go('theater');}
+    else if(this.acc>th){this.acc=0;this.busyUntil=Date.now()+this.spr()[0];this.go(s.mode==='theater'?'edit':'board');}};
+  pDown=e=>{if(e.button!==0)return;const s=this.state,t=e.target;if(t.closest('[data-ui]'))return;if(s.menu||s.switcher)this.setState({menu:null,switcher:false});
+    if(s.mode==='board'){const ce=t.closest('[data-card]');this.drag={x:e.clientX,y:e.clientY,tx:s.cam.tx,ty:s.cam.ty,moved:false,card:ce?ce.getAttribute('data-card'):null};return;}
+    if(t.closest('[data-hero]')){if(s.mode==='edit')this.startBrush(e);else if(s.mode==='theater')this.setState({playing:!s.playing});}};
+  norm(e){const h=this.state.hero;return [Math.max(0,Math.min(1,(e.clientX-h.x)/h.w)),Math.max(0,Math.min(1,(e.clientY-h.y)/h.h))];}
+  startBrush(e){const T=this.state.talk;if(T.phase==='gen'||T.phase==='reveal')return;let n=T.phase==='done'?{...IDLE}:{...T};n.strokes=[...n.strokes,[this.norm(e)]];if(n.phase==='idle')n.phase='brush';this.brushing=true;this.setState({talk:n,hinted:true});}
+  pMove(e){const s=this.state;
+    if(this.drag){const dx=e.clientX-this.drag.x,dy=e.clientY-this.drag.y;if(Math.abs(dx)+Math.abs(dy)>4)this.drag.moved=true;if(this.drag.moved)this.setState({cam:{...s.cam,tx:this.drag.tx+dx,ty:this.drag.ty+dy},camAnim:false});return;}
+    if(this.brushing){const T=s.talk;const st=T.strokes.slice();const cur=st[st.length-1]||[];const p=this.norm(e);const l=cur[cur.length-1];if(l&&Math.hypot(p[0]-l[0],p[1]-l[1])<.008)return;st[st.length-1]=[...cur,p];this.setState({talk:{...T,strokes:st}});return;}
+    if(this.fl){const f=this.fl,now=performance.now(),dt=Math.max(1,now-f.t);const dx=e.clientX-f.x0,dy=e.clientY-f.y0;f.vx=(dx-f.dx)/dt;f.vy=(dy-f.dy)/dt;f.dx=dx;f.dy=dy;f.t=now;const ry=Math.max(-35,Math.min(35,dx*.14));f.el.style.transform=`translate(${dx}px,${dy}px) rotate(${dx*.05}deg) rotateY(${ry}deg) rotateX(${-dy*.08}deg)`;}}
+  pUp(e){if(this.drag){const d=this.drag;this.drag=null;if(!d.moved&&d.card)this.go('edit',d.card);return;}
+    if(this.brushing){this.brushing=false;const T=this.state.talk;const st=T.strokes.filter(q=>q.length>2);if(!st.length&&T.phase==='brush')this.setState({talk:IDLE});else this.setState({talk:{...T,strokes:st}});return;}
+    if(this.fl){const f=this.fl;this.fl=null;if(Math.abs(f.dx)>100||Math.abs(f.vx)>.55)this.fling(f);else{f.el.style.transition='transform .5s cubic-bezier(.3,1.5,.5,1)';f.el.style.transform=f.orig;setTimeout(()=>{f.el.style.transition=f.origTr;},520);}}}
+  takeDown=e=>{e.stopPropagation();const el=e.currentTarget;if(el.getAttribute('data-depth')!=='0')return;this.fl={el,x0:e.clientX,y0:e.clientY,dx:0,dy:0,vx:0,vy:0,t:performance.now(),orig:el.style.transform,origTr:el.style.transition};el.style.transition='none';};
+  fling(f){const el=f.el;let x=f.dx,y=f.dy,vx=(Math.sign(f.dx||f.vx)||1)*Math.max(Math.abs(f.vx),1.3),vy=f.vy*.6,rot=f.dx*.05,last=performance.now();
+    const step=now=>{const dt=Math.min(32,now-last);last=now;x+=vx*dt;y+=vy*dt;vy+=.0025*dt;rot+=vx*dt*.04;el.style.transform=`translate(${x}px,${y}px) rotate(${rot}deg) rotateY(${Math.sign(vx)*30}deg)`;el.style.opacity=String(Math.max(0,1-Math.abs(x)/520));
+      if(Math.abs(x)<560)requestAnimationFrame(step);else{el.style.transform=f.orig;el.style.opacity='';const id=this.state.focus;const o=(this.state.order[id]||ORD0).slice();o.push(o.shift());this.setState({order:{...this.state.order,[id]:o}},()=>requestAnimationFrame(()=>{el.style.transition=f.origTr;}));}};requestAnimationFrame(step);}
+  curScene(){const s=this.state;const c=CARD[s.focus];return c?c.scene:'sheets';}
+  startListen(){const s=this.state;const sc=SC[this.curScene()];clearTimeout(this.tT);const keep=(s.talk.phase==='brush'||s.talk.phase==='listen')?s.talk.strokes:[];
+    this.setState({talk:{...IDLE,phase:'listen',strokes:keep,say:sc.say,fx:sc.fx,label:sc.label},hinted:true,menu:null});clearInterval(this.wI);
+    this.wI=setInterval(()=>this.setState(st=>({talk:{...st.talk,words:Math.min(st.talk.words+1,st.talk.say.split(' ').length)}})),230);}
+  release(){clearInterval(this.wI);const T=this.state.talk;if(T.phase!=='listen')return;this.setState({talk:{...T,phase:'gen',words:99}});this.runGen(T.strokes.flat().length>2);}
+  runGen(has){clearTimeout(this.tT);this.tT=setTimeout(()=>{this.setState(st=>({talk:{...st.talk,phase:'reveal'}}));this.tT2=setTimeout(()=>{this.setState(st=>({talk:{...st.talk,spread:true}}));this.tT3=setTimeout(()=>this.setState(st=>({talk:{...st.talk,phase:'done'}})),1650);},has?900:40);},1150);}
+  demo=()=>{const s=this.state;if(s.mode!=='edit')return;this.resetTalk();const {x,y,rx,ry}=SC[this.curScene()].sub;const pts=[];for(let i=0;i<=46;i++){const a=i/46*Math.PI*2.3-Math.PI*.9,r=1-.35*(i/46);pts.push([x+Math.cos(a)*rx*r,y+Math.sin(a)*ry*r]);}
+    setTimeout(()=>{this.startListen();let i=1;this.dI=setInterval(()=>{i++;this.setState(st=>({talk:{...st.talk,strokes:[pts.slice(0,i)]}}));if(i>=pts.length)clearInterval(this.dI);},28);this.dT=setTimeout(()=>this.release(),2900);},30);};
+  applyStyle(r){if(this.state.mode!=='edit')return;this.resetTalk();this.setState({menu:null,talk:{...IDLE,phase:'gen',words:99,say:`Applying the “${r.name}” recipe to this beat.`,fx:r.fx,label:r.name,kind:'style'}});this.runGen(false);}
+  keep=()=>{const s=this.state;const id=s.focus;this.setState({edits:{...s.edits,[id]:((s.edits[id]||'')+' '+s.talk.fx).trim()}});this.resetTalk();};
+  undo=()=>this.resetTalk();
+  keyDown(e){const s=this.state;if(e.target&&e.target.closest&&e.target.closest('input,textarea,[contenteditable]'))return;
+    if(e.code==='Space'){e.preventDefault();if(e.repeat)return;if(document.activeElement&&document.activeElement.blur)document.activeElement.blur();if(s.mode==='edit'){if(!['gen','reveal'].includes(s.talk.phase))this.startListen();}else if(s.mode==='theater')this.setState({playing:!s.playing});return;}
+    if(e.key==='Escape'){if(s.menu||s.switcher)return this.setState({menu:null,switcher:false});if(s.drawer)return this.toggleDrawer();if(s.mode==='edit'&&s.talk.phase!=='idle')return this.resetTalk();if(s.mode==='theater')return this.go('edit');if(s.mode==='edit')return this.go('board');}
+    if(e.key==='Enter'){if(s.mode==='edit')this.go('theater');else if(s.mode==='board')this.go('edit');}
+    if(e.key==='t'||e.key==='T')this.toggleDrawer();
+    if((e.key==='ArrowRight'||e.key==='ArrowLeft')&&s.mode==='edit'){const c=CARD[s.focus];const n=ADS[c.ad].beats.length;this.go('edit',c.ad+'-'+((c.j+(e.key==='ArrowRight'?1:-1)+n)%n));}}
+  keyUp(e){if(e.code==='Space'){e.preventDefault();if(this.state.mode==='edit')this.release();}}
+  onCtx=e=>{const s=this.state;if(s.mode!=='edit')return;e.preventDefault();if(e.target.closest('[data-hero]'))this.setState({menu:{x:e.clientX,y:e.clientY,sub:null}});};
+  onDragOver=e=>e.preventDefault();
+  onDrop=e=>{e.preventDefault();const f=[...((e.dataTransfer&&e.dataTransfer.files)||[])].find(f=>f.type.startsWith('image/'));if(!f)return;const el=document.elementFromPoint(e.clientX,e.clientY);const t=el&&el.closest('[data-scene]');if(!t)return;const key=t.getAttribute('data-scene');const url=URL.createObjectURL(f);const img=new Image();
+    img.onload=()=>{const k=Math.min(1,1400/Math.max(img.width,img.height));const cv=document.createElement('canvas');cv.width=Math.round(img.width*k);cv.height=Math.round(img.height*k);cv.getContext('2d').drawImage(img,0,0,cv.width,cv.height);const photos={...this.state.photos,[key]:cv.toDataURL('image/jpeg',.86)};this.setState({photos});try{localStorage.setItem('eyelore-photos',JSON.stringify(photos));}catch(_){}URL.revokeObjectURL(url);};img.src=url;};
+  mask(strokes,vbh){const d=strokes.filter(p=>p.length).map(p=>'M'+p.map(q=>Math.round(q[0]*1000)+' '+Math.round(q[1]*vbh)).join(' L')).join(' ');const svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 ${vbh}" preserveAspectRatio="none"><filter id="f" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="24"/></filter><path d="${d}" fill="none" stroke="#fff" stroke-width="140" stroke-linecap="round" stroke-linejoin="round" filter="url(#f)"/></svg>`;return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;}
+
+  renderVals(){
+    const s=this.state,p=this.props,[D,E]=this.spr();const cam=s.cam,mode=s.mode,amb=p.ambient??.8;
+    const hair=(1.25/cam.s).toFixed(3)+'px',ring=(.7/cam.s).toFixed(3)+'px';
+    const c=CARD[s.focus]||CARD[this.lastFocus]||CARDS[0];const ad=ADS[c.ad],n=ad.beats.length;const arv=this.arv(c.ad);
+    const hero={...s.hero,ri:Math.max(0,s.hero.r-1.25)};
+    const uiTr=`left ${D}ms ${E},top ${D}ms ${E},width ${D}ms ${E},height ${D}ms ${E},opacity .4s`;
+    const cards=CARDS.map(k=>{const ord=s.order[k.id]||ORD0;const sc=SC[k.scene];return {id:k.id,scene:k.scene,x:k.x,y:k.y,bg:this.bg(k.scene),tf:TAKES[ord[0]].t,flt:this.flt(k.id,ord),words:k.words,time:k.time,op:(s.heroOn&&s.focus===k.id)?0:1,night:sc.night?amb:0,glow:(sc.night?.5:.75)*amb};});
+    const beatIdx=mode==='theater'?Math.floor(s.t/3000)%n:c.j;const curKey=ad.beats[beatIdx][0];const sc=SC[curKey];
+    const heroLayers=ad.beats.map((b,j)=>{const id=c.ad+'-'+j;const ord=s.order[id]||ORD0;const on=j===beatIdx;return {bg:this.bg(b[0]),on:on?1:0,tf:TAKES[ord[0]].t+(mode==='theater'&&on?' scale(1.08)':''),flt:this.flt(id,ord),glowOp:on?amb*(SC[b[0]].night?.6:.9):0};});
+    const T=s.talk,vbh=Math.round(1000/arv);const pts=T.strokes.flat();const has=pts.length>2;
+    const cu=has?pts.reduce((a,q)=>a+q[0],0)/pts.length:.5,cv=has?pts.reduce((a,q)=>a+q[1],0)/pts.length:.5;
+    const curL=heroLayers[beatIdx];const showRes=['reveal','done'].includes(T.phase)&&!s.compare;const mk=has?this.mask(T.strokes,vbh):'none';
+    const R={bg:curL.bg,tf:curL.tf,flt:((curL.flt==='none'?'':curL.flt)+' '+T.fx).trim()||'none',mask:mk,aOp:showRes&&has?1:0,aTr:T.phase==='reveal'?'opacity .6s ease':'none',rad:T.spread?'150%':'0%',bOp:showRes&&T.spread?1:0,clipTr:T.spread&&T.phase==='reveal'?'clip-path 1.6s cubic-bezier(.22,.8,.25,1)':'none',ox:(cu*100).toFixed(1),oy:(cv*100).toFixed(1),ringD:T.spread?Math.round(Math.max(hero.w,hero.h)*2.6):0,ringOp:T.spread?0:1,ringTr:T.spread?'width 1.6s cubic-bezier(.22,.8,.25,1),height 1.6s cubic-bezier(.22,.8,.25,1),opacity 1.6s ease-in':'none',vbh,d:has?T.strokes.filter(q=>q.length).map(q=>'M'+q.map(pt=>Math.round(pt[0]*1000)+' '+Math.round(pt[1]*vbh)).join(' L')).join(' '):'M0 0',selOp:has&&mode==='edit'&&['brush','listen','gen'].includes(T.phase)?1:0,shimOp:T.phase==='gen'?1:0};
+    // bubble
+    const ph=T.phase,words=T.say?T.say.split(' '):[];
+    const bw=Math.min(400,Math.max(260,hero.x-80-24-20));let bx=hero.x-80-24-bw;const ay=hero.y+cv*hero.h;let by=Math.max(150,Math.min(s.vh-(s.drawer?340:0)-300,ay-120));
+    if(bx<20){bx=20;by=150;}
+    const B={bw,metaOn:bw>=340,cmpLabel:bw>=340?'Hold to compare':'Compare',on:mode==='edit'&&ph!=='idle',x:bx,y:by,head:{brush:'Selection ready',listen:'Listening',gen:'Working on it',reveal:T.label,done:T.label}[ph]||'',meta:ph==='listen'?'release Space to apply':ph==='gen'?(has?'inside your selection':'whole frame'):ph==='done'?'applied':'',wave:ph==='listen',gen:ph==='gen',text:ph==='brush'?'Hold Space and say what should change.':ph==='listen'?words.slice(0,T.words).join(' '):(T.kind==='style'?T.say:'“'+T.say+'”'),tc:ph==='brush'?'#6B6B6B':'#1A1A1A',caret:ph==='listen'?1:0,done:ph==='done',prompt:ph==='brush',dot:ph==='listen'?'#E5484D':'#1A1A1A',halo:ph==='listen'?'rgba(229,72,77,.2)':'rgba(26,26,26,.08)'};
+    // beads
+    const shortV=s.vh<720;const sp=Math.min(136,(s.vw-260)/n),bcx=hero.x+hero.w/2,byy=hero.y+hero.h+(shortV?96:122);
+    const beads=ad.beats.map((b,j)=>{const id=c.ad+'-'+j;const act=j===c.j;const sz=act?52:40;const x=bcx+(j-(n-1)/2)*sp;const ord=s.order[id]||ORD0;return {scene:b[0],bg:this.bg(b[0]),flt:this.flt(id,ord),words:'“'+b[1]+'”',wc:act?'#1A1A1A':'#6B6B6B',time:fmt(j*3000),sz,bx:x-sz/2,by:byy-sz/2,wx:x-(sp-14)/2,ww:sp-14,wTop:byy-26-12-72,ty:byy+34,ringW:act?'3px':'0px',ringOp:act?1:0,on:()=>this.go('edit',id)};});
+    const thread={x:bcx-(n-1)/2*sp-40,y:byy,w:(n-1)*sp+80};
+    // takes
+    const thh=Math.round(Math.min(hero.h*.78,arv<1?298:112,(arv<1?168:200)/arv)),tw=Math.round(thh*arv);const ord=s.order[c.id]||ORD0;
+    const tk={x:hero.x+hero.w+56,y:hero.y+Math.max(0,(hero.h-thh-60)/2),w:tw,h:thh,labelY:thh+28,label:`Take ${ord[0]+1} of 4`};
+    const stack=ord.map((ti,d)=>({d:String(d),scene:c.scene,bg:this.bg(c.scene),tf:TAKES[ti].t,flt:((TAKES[ti].f+' '+(s.edits[c.id]||'')).trim())||'none',ctf:`translate(${d*10}px,${d*8}px) rotate(${(d*2.8-.8).toFixed(1)}deg) scale(${(1-d*.04).toFixed(3)})`,shade:(d*.1).toFixed(2),cur:d===0?'grab':'default'})).reverse();
+    // menu
+    let M={on:false,x:0,y:0,sx:0,sy:0,aspect:false,style:false,aBg:'transparent',sBg:'transparent'};
+    if(s.menu&&mode==='edit'){const mw=240,mh=226,sw=236;const mx=Math.max(12,Math.min(s.menu.x,s.vw-mw-12)),my=Math.max(12,Math.min(s.menu.y,s.vh-mh-12));const sub=s.menu.sub;const subH=sub==='aspect'?186:236;const sx=(mx+mw+6+sw<=s.vw-12)?mx+mw+6:mx-sw-6;const sy=Math.max(12,Math.min(my+(sub==='style'?44:0),s.vh-subH-12));M={on:true,x:mx,y:my,sx,sy,aspect:sub==='aspect',style:sub==='style',aBg:sub==='aspect'?'rgba(26,26,26,.06)':'transparent',sBg:sub==='style'?'rgba(26,26,26,.06)':'transparent'};}
+    const curAR=s.ar[c.ad]||'9:16';
+    const aspects=ASPECTS.map(a=>({...a,check:a.k===curAR?1:0,pick:()=>this.setState({ar:{...s.ar,[c.ad]:a.k},menu:null},()=>this.relayout(true))}));
+    const styles=STYLES.map(r=>({...r,pick:()=>this.applyStyle(r)}));
+    // theater
+    const d=hero.w,total=n*3000,Cc=2*Math.PI*(d/2+14);
+    const th={size:d+28,x:hero.x-14,y:hero.y-14,c:(d+28)/2,r:d/2+12,dash:`${(Cc*(s.t/total)).toFixed(1)} ${Cc.toFixed(1)}`,px:s.vw/2,py:hero.y+hero.h+34,title:ad.title,words:ad.beats[beatIdx][1],time:`${fmt(s.t)} / ${fmt(total)}`,playing:s.playing,paused:!s.playing};
+    // drawer
+    const dr={ty:s.drawer&&mode==='edit'?'0':'calc(100% + 40px)',op:s.drawer&&mode==='edit'?1:0,pe:s.drawer&&mode==='edit'?'auto':'none',meta:`${ad.title} · ${fmt(total)} · ${curAR}`,
+      ticks:Array.from({length:n*3+1},(_,i)=>({x:(i/(n*3)*100).toFixed(2),label:i%3===0?fmt(i*1000):'',h:i%3===0?6:3})),
+      clips:ad.beats.map((b,j)=>{const id=c.ad+'-'+j;const o=s.order[id]||ORD0;return {bg:this.bg(b[0]),flt:this.flt(id,o),words:b[1],bw:j===c.j?'2px':'0px',on:()=>this.go('edit',id)};}),wave:WAVE,play:((c.j+.5)/n).toFixed(3)};
+    // ambient
+    const acx=hero.x+hero.w/2,acy=hero.y+hero.h/2,AR2=Math.max(hero.w,hero.h)*.6;
+    const ambV={x:acx,y:acy,d:Math.max(hero.w,hero.h)*2.8,tint:sc.tint,warm:mode!=='board'&&!sc.night?amb:0,night:mode!=='board'&&sc.night?amb:0,nightBg:`radial-gradient(circle at ${acx}px ${acy}px,rgba(22,14,10,.05) 0,rgba(22,14,10,.2) ${AR2}px,rgba(22,14,10,.5) ${AR2*2.4}px)`};
+    const gbf=(p.refraction??true)&&typeof window!=='undefined'&&window.chrome?'url(#eyRefract) blur(14px) saturate(1.9) brightness(1.05)':'blur(20px) saturate(1.9) brightness(1.05)';
+    const hud=[['Board','board'],['Edit','edit'],['Theater','theater']].map(([label,m])=>({label,color:m===mode?'#1A1A1A':'#6B6B6B',bg:m===mode?'rgba(255,255,255,.9)':'transparent',sh:m===mode?'0 0 0 .5px rgba(26,26,26,.12),0 2px 6px -2px rgba(26,26,26,.2)':'none',go:()=>this.go(m)}));
+    const proj=PROJ.find(x=>x.id===s.project);
+    return {
+      rootRef:this.rootRef,waveRef:this.waveRef,pDown:this.pDown,onCtx:this.onCtx,onDragOver:this.onDragOver,onDrop:this.onDrop,takeDown:this.takeDown,
+      rootCursor:this.drag&&this.drag.moved?'grabbing':'default',
+      camTx:cam.tx,camTy:cam.ty,camS:cam.s,camTr:`transform ${s.camAnim?D:0}ms ${E},filter .8s ease,opacity .8s ease`,
+      worldFx:mode==='edit'?'blur(7px) saturate(.85)':mode==='theater'?'blur(18px) saturate(.7)':'none',worldOp:mode==='edit'?.5:mode==='theater'?.14:1,
+      projects:PROJ.map(x=>({x:0,y:x.y,name:x.name,meta:`${x.ads.length} ${x.ads.length>1?'ads':'ad'}`})),rows:ROWS,arrows:ARROWS,stickies:STICKY,cards,hair,ring,
+      amb:ambV,heroOn:s.heroOn,hero,heroTr:s.heroAnim?`left ${D}ms ${E},top ${D}ms ${E},width ${D}ms ${E},height ${D}ms ${E},border-radius ${D}ms ${E}`:'none',
+      heroLayers,curScene:curKey,R,heroCursor:mode==='edit'?'crosshair':'pointer',
+      heroDbl:()=>{if(this.state.mode==='edit'){this.resetTalk();this.go('theater');}},
+      uiTr,showBeads:mode==='edit'&&!s.drawer&&s.heroOn,beads,thread,showTakes:mode==='edit'&&s.heroOn,tk,stack,
+      showDock:mode==='edit'&&s.heroOn,dock:{x:hero.x-80,y:hero.y+hero.h/2-100},drawerBtnBg:s.drawer?'rgba(26,26,26,.08)':'transparent',
+      B,bars:BARS,keep:this.keep,undo:this.undo,cmpDown:()=>this.setState({compare:true}),cmpUp:()=>this.state.compare&&this.setState({compare:false}),
+      demo:this.demo,menuDemo:()=>{this.setState({menu:null});this.demo();},goTheater:()=>this.go('theater'),toggleDrawer:this.toggleDrawer,
+      openStyleDock:()=>this.setState({menu:{x:hero.x-20,y:hero.y+hero.h/2-120,sub:'style'}}),
+      showTheater:mode==='theater'&&s.heroOn,th,togglePlay:()=>this.setState({playing:!this.state.playing}),
+      dr,M,aspects,styles,subAspect:()=>this.setState({menu:{...this.state.menu,sub:'aspect'}}),subStyle:()=>this.setState({menu:{...this.state.menu,sub:'style'}}),subNone:()=>this.setState({menu:{...this.state.menu,sub:null}}),
+      gbf,hud,projectName:proj.name,switcher:s.switcher,toggleSwitcher:()=>this.setState({switcher:!this.state.switcher}),
+      projList:PROJ.map(x=>({name:x.name,meta:x.ads.map(a=>ADS[a].title).join(' · '),check:x.id===s.project?1:0,pick:()=>this.setProject(x.id)})),
+      et:{op:mode==='edit'?1:0,title:ad.title,meta:`${PROJ.find(x=>x.id===c.pid).name} · beat ${c.j+1} of ${n} · ${curAR}`},
+      chromeOp:mode==='theater'?.45:1,showHint:mode==='edit'&&!s.hinted&&ph==='idle'&&s.heroOn,hintL:s.vw<1180?'50%':'50%',hintT:s.vw<1180?(Math.round(hero.y+hero.h+(s.vh<720?152:182))+'px'):'22px',hintTf:'translateX(-50%)',hintLong:s.vw>=1180,showHint:mode==='edit'&&!s.hinted&&ph==='idle'&&s.heroOn&&(s.vw>=1180||!s.drawer),boardHintOp:mode==='board'?1:0,
+      showGrain:p.showGrain??true
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,63 @@
+/* Eyelore colour. Paper is default; Night (theater mode) via [data-theme="night"]. */
+:root {
+  --paper-canvas: #F7F5F0;
+  --paper-surface-raised: #FFFFFF;
+  --paper-surface-sunken: #EFECE5;
+  --paper-ink: #111111;
+  --paper-ink-secondary: #5E5E5E;
+  --paper-ink-tertiary: #8E8B85;
+  --paper-hairline: #DAD6CD;
+
+  --night-canvas: #0F0F10;
+  --night-surface-raised: #1A1A1C;
+  --night-surface-sunken: #08080A;
+  --night-ink: #F2F0EA;
+  --night-ink-secondary: #A6A39D;
+  --night-ink-tertiary: #6F6C67;
+  --night-hairline: #2A2A2D;
+
+  --chrome-hi: #FFFFFF;
+  --chrome-mid: #C9CCD1;
+  --chrome-lo: #9EA3AA;
+  --chrome-edge: linear-gradient(180deg, var(--chrome-hi) 0%, var(--chrome-mid) 50%, var(--chrome-lo) 100%);
+
+  --blue-500: #5B7CFA;
+  --blue-text-paper: #3D5BD9;
+  --blue-text-night: #8EA4FF;
+  --green-ready: #2F9E5F;
+  --amber-attention: #D9822B;
+
+  /* semantic — Paper */
+  --canvas: var(--paper-canvas);
+  --surface-raised: var(--paper-surface-raised);
+  --surface-sunken: var(--paper-surface-sunken);
+  --ink: var(--paper-ink);
+  --ink-secondary: var(--paper-ink-secondary);
+  --ink-tertiary: var(--paper-ink-tertiary);
+  --hairline: var(--paper-hairline);
+  --accent: var(--blue-500);
+  --accent-text: var(--blue-text-paper);
+  --accent-glow: rgba(91, 124, 250, 0.35);
+  --status-ready: var(--green-ready);
+  --status-working: var(--accent);
+  --status-attention: var(--amber-attention);
+  --glass-fill: rgba(255, 255, 255, 0.62);
+  --glass-edge: rgba(255, 255, 255, 0.85);
+  --text-on-ink: var(--paper-canvas);
+  --scrim-video: rgba(17, 17, 17, 0.0);
+}
+
+[data-theme="night"] {
+  --canvas: var(--night-canvas);
+  --surface-raised: var(--night-surface-raised);
+  --surface-sunken: var(--night-surface-sunken);
+  --ink: var(--night-ink);
+  --ink-secondary: var(--night-ink-secondary);
+  --ink-tertiary: var(--night-ink-tertiary);
+  --hairline: var(--night-hairline);
+  --accent-text: var(--blue-text-night);
+  --accent-glow: rgba(91, 124, 250, 0.5);
+  --glass-fill: rgba(26, 26, 28, 0.55);
+  --glass-edge: rgba(255, 255, 255, 0.14);
+  --text-on-ink: var(--night-canvas);
+}

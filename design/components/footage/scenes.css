@@ -1,0 +1,168 @@
+/* Eyelore footage scenes — photographic stand-ins built from layered light.
+   Markup: <div class="el-scene" data-scene="bed"><b></b><i></i></div>
+   Real stills: add class "has-image" and an <img class="el-scene__img"> child. */
+.el-scene { position: absolute; inset: 0; overflow: hidden; container-type: size; background: #2a2622; box-shadow: inset 0 0 18cqmin rgba(10,8,6,.28); }
+.el-scene > b, .el-scene > i, .el-scene::before, .el-scene::after { content: ""; position: absolute; display: block; pointer-events: none; }
+.el-scene__img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 2; }
+.el-scene.has-image > b, .el-scene.has-image > i, .el-scene.has-image::before, .el-scene.has-image::after { display: none; }
+.el-scene--live { animation: el-drift 16s cubic-bezier(.45,.05,.55,.95) infinite alternate; }
+@keyframes el-drift { from { transform: scale(1) translate(0,0); } to { transform: scale(1.07) translate(-1.2%, -1%); } }
+@media (prefers-reduced-motion: reduce) { .el-scene--live { animation: none; } }
+
+/* ambient glow colour, readable by the Lens */
+[data-scene="bed"]        { --scene-glow: rgba(196,210,232,.9); --scene-glow-2: rgba(255,214,160,.7); }
+[data-scene="nightstand"] { --scene-glow: rgba(226,140,58,.9);  --scene-glow-2: rgba(120,60,20,.8); }
+[data-scene="gym"]        { --scene-glow: rgba(96,128,196,.85); --scene-glow-2: rgba(150,160,172,.8); }
+[data-scene="case"]       { --scene-glow: rgba(222,150,150,.85); --scene-glow-2: rgba(232,186,110,.8); }
+[data-scene="sofa"]       { --scene-glow: rgba(236,160,84,.9);  --scene-glow-2: rgba(150,80,50,.8); }
+[data-scene="booth"]      { --scene-glow: rgba(120,140,128,.8); --scene-glow-2: rgba(200,184,160,.7); }
+[data-scene="void"]       { --scene-glow: rgba(255,255,255,.95); --scene-glow-2: rgba(230,226,218,.8); }
+
+/* the ring — shared shape */
+.el-scene > b.ring, [data-scene="bed"] > b, [data-scene="nightstand"] > b, [data-scene="gym"] > b {
+  border-radius: 50%; transform: translate(-50%,-50%) rotate(-8deg); }
+
+/* 1 · bed — black ring on white sheets, morning window light */
+[data-scene="bed"] {
+  background:
+    radial-gradient(55% 42% at 84% 8%, rgba(255,226,184,.95), rgba(255,226,184,0) 70%),
+    linear-gradient(118deg, rgba(255,255,255,0) 28%, rgba(255,246,228,.6) 36%, rgba(255,255,255,0) 47%, rgba(255,246,228,.42) 56%, rgba(255,255,255,0) 64%),
+    radial-gradient(70% 14% at 28% 34%, rgba(112,128,156,.32), rgba(112,128,156,0) 70%),
+    radial-gradient(50% 9% at 62% 46%, rgba(255,255,255,.9), rgba(255,255,255,0) 70%),
+    radial-gradient(64% 12% at 72% 74%, rgba(112,128,156,.28), rgba(112,128,156,0) 70%),
+    radial-gradient(80% 10% at 36% 90%, rgba(112,128,156,.24), rgba(112,128,156,0) 70%),
+    linear-gradient(174deg, #f6f6f5 0%, #e4e8ed 52%, #cdd4dd 100%);
+  box-shadow: inset 0 0 22cqmin rgba(80,92,112,.18);
+}
+[data-scene="bed"] > b { left: 50%; top: 58%; width: 30cqmin; height: 14cqmin; border: 4cqmin solid #17171a; border-top-width: 3cqmin;
+  box-shadow: 0 3cqmin 5cqmin -1cqmin rgba(40,52,74,.5), inset 0 .6cqmin .5cqmin rgba(255,255,255,.4); }
+[data-scene="bed"] > i { left: 50%; top: 66%; width: 40cqmin; height: 8cqmin; transform: translate(-50%,-50%); border-radius: 50%; background: radial-gradient(closest-side, rgba(52,64,88,.32), rgba(52,64,88,0)); }
+[data-scene="bed"]::after { left: calc(50% - 10cqmin); top: calc(58% - 7.4cqmin); width: 11cqmin; height: 1.1cqmin; border-radius: 1cqmin; transform: rotate(-12deg); background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,.85), rgba(255,240,215,0)); }
+[data-scene="bed"]::before { inset: 0; background: radial-gradient(30% 22% at 88% 4%, rgba(255,250,236,.9), rgba(255,250,236,0)); mix-blend-mode: screen; }
+
+/* 2 · nightstand — walnut under a warm lamp at night */
+[data-scene="nightstand"] {
+  background:
+    radial-gradient(36% 30% at 80% 16%, rgba(255,206,134,1) 0%, rgba(255,150,62,.6) 34%, rgba(255,140,40,0) 72%),
+    radial-gradient(90% 44% at 74% 66%, rgba(168,84,24,.55), rgba(168,84,24,0) 70%),
+    repeating-linear-gradient(178.5deg, rgba(30,12,4,0) 0 1.3cqmin, rgba(30,12,4,.2) 1.3cqmin 1.6cqmin),
+    linear-gradient(180deg, #120b08 0%, #1e130c 54%, #7a4823 54.4%, #52301a 74%, #22130a 100%);
+  box-shadow: inset 0 0 26cqmin rgba(0,0,0,.55);
+}
+[data-scene="nightstand"]::before { left: 0; right: 0; top: 54%; height: .9cqmin; background: linear-gradient(90deg, rgba(255,190,110,0) 10%, rgba(255,190,110,.55) 60%, rgba(255,214,150,.95) 80%, rgba(255,190,110,0)); }
+[data-scene="nightstand"] > i { left: 74%; top: 68%; width: 44cqmin; height: 10cqmin; transform: translate(-50%,-50%); border-radius: 50%; background: radial-gradient(closest-side, rgba(255,176,90,.45), rgba(255,176,90,0)); }
+[data-scene="nightstand"] > b { left: 44%; top: 66%; width: 24cqmin; height: 9cqmin; border: 3.2cqmin solid #0c0c0d; border-top-width: 2.4cqmin;
+  box-shadow: 0 2.4cqmin 3cqmin rgba(0,0,0,.65), inset 0 .5cqmin .4cqmin rgba(255,196,120,.6); }
+[data-scene="nightstand"]::after { left: calc(44% + 4cqmin); top: calc(66% - 5.2cqmin); width: 8cqmin; height: .9cqmin; border-radius: 1cqmin; transform: rotate(6deg); background: linear-gradient(90deg, rgba(255,210,140,0), rgba(255,214,150,.95), rgba(255,210,140,0)); }
+
+/* 3 · gym — ring beside a blue dumbbell on grey rubber floor */
+[data-scene="gym"] {
+  background:
+    radial-gradient(64% 44% at 14% 0%, rgba(214,228,246,.85), rgba(214,228,246,0) 70%),
+    radial-gradient(circle, rgba(255,255,255,.14) 0 .22cqmin, rgba(255,255,255,0) .32cqmin) 0 0 / 2.2cqmin 2.2cqmin,
+    radial-gradient(circle, rgba(0,0,0,.16) 0 .22cqmin, rgba(0,0,0,0) .32cqmin) 1.1cqmin 1.3cqmin / 2.7cqmin 2.7cqmin,
+    linear-gradient(170deg, #a3adb8 0%, #7c858f 44%, #5a626b 100%);
+  box-shadow: inset 0 0 24cqmin rgba(20,28,40,.35);
+}
+[data-scene="gym"]::before { left: 56%; top: 38%; width: 52cqmin; height: 17cqmin; transform: translate(-50%,-50%) rotate(-16deg); border-radius: 2.6cqmin;
+  background: linear-gradient(180deg,#5677e6,#1f3a9a) 0 0/25% 100% no-repeat, linear-gradient(180deg,#5677e6,#1f3a9a) 100% 0/25% 100% no-repeat, linear-gradient(180deg,#eef1f4,#8a929c) 50% 50%/54% 30% no-repeat;
+  filter: drop-shadow(0 2.4cqmin 2cqmin rgba(18,26,44,.5)); }
+[data-scene="gym"] > i { left: 56%; top: 48%; width: 56cqmin; height: 10cqmin; transform: translate(-50%,-50%) rotate(-16deg); border-radius: 50%; background: radial-gradient(closest-side, rgba(18,26,44,.4), rgba(18,26,44,0)); }
+[data-scene="gym"] > b { left: 34%; top: 70%; width: 22cqmin; height: 10cqmin; border: 3cqmin solid #141518; border-top-width: 2.4cqmin;
+  box-shadow: 0 2cqmin 3cqmin rgba(18,26,44,.55), inset 0 .5cqmin .4cqmin rgba(214,228,246,.6); }
+[data-scene="gym"]::after { left: calc(34% - 8cqmin); top: calc(70% - 5cqmin); width: 8cqmin; height: .9cqmin; border-radius: 1cqmin; transform: rotate(-14deg); background: linear-gradient(90deg, rgba(220,234,255,0), rgba(230,240,255,.9), rgba(220,234,255,0)); }
+
+/* 4 · case — dusty-rose velvet case open on a sunlit oak dresser */
+[data-scene="case"] {
+  background:
+    linear-gradient(122deg, rgba(255,236,190,0) 18%, rgba(255,236,190,.6) 30%, rgba(255,236,190,0) 44%),
+    radial-gradient(52% 40% at 84% 14%, rgba(255,228,172,.95), rgba(255,228,172,0) 70%),
+    repeating-linear-gradient(177deg, rgba(120,70,20,0) 0 1.7cqmin, rgba(120,70,20,.13) 1.7cqmin 2cqmin),
+    linear-gradient(180deg, #ecd3a6 0%, #d8a86c 42%, #b47a41 100%);
+  box-shadow: inset 0 0 22cqmin rgba(110,60,20,.3);
+}
+[data-scene="case"]::before { left: 50%; top: 34%; width: 50cqmin; height: 25cqmin; transform: translate(-50%,-50%); border-radius: 4cqmin 4cqmin 1.4cqmin 1.4cqmin; box-sizing: border-box;
+  border: 2.2cqmin solid #cf9499; background: radial-gradient(80% 80% at 50% 70%, #b8707a, #87495a); box-shadow: 0 1.6cqmin 3cqmin rgba(90,46,20,.35), inset 0 -1cqmin 2cqmin rgba(60,20,30,.4); }
+[data-scene="case"] > b { left: 50%; top: 58%; width: 54cqmin; height: 22cqmin; transform: translate(-50%,-50%); border-radius: 1.6cqmin 1.6cqmin 4cqmin 4cqmin;
+  background: radial-gradient(32% 26% at 50% 40%, #5c2a35 0 62%, rgba(92,42,53,0) 66%), linear-gradient(180deg, #dca2a6 0%, #b46f79 100%);
+  box-shadow: 0 3cqmin 5cqmin -1cqmin rgba(90,46,20,.55), inset 0 .6cqmin 0 rgba(255,220,220,.45); }
+[data-scene="case"] > i { left: 50%; top: 54%; width: 17cqmin; height: 7cqmin; transform: translate(-50%,-50%); border-radius: 50%; border: 2.4cqmin solid #131315; border-top-width: 1.8cqmin; box-shadow: inset 0 .4cqmin .3cqmin rgba(255,226,180,.7), 0 1cqmin 1.4cqmin rgba(40,10,20,.5); }
+[data-scene="case"]::after { left: calc(50% - 22cqmin); top: calc(34% - 12.6cqmin); width: 30cqmin; height: .9cqmin; border-radius: 1cqmin; background: linear-gradient(90deg, rgba(255,240,220,0), rgba(255,244,228,.9), rgba(255,240,220,0)); }
+
+/* 5 · sofa — creator filming a selfie under string lights */
+[data-scene="sofa"], [data-scene="booth"], [data-scene="void"] { --skin-hi: #f1c4a2; --skin: #cf946e; --skin-sh: #9c6448; --hair: #241610; --top-hi: #e2d6c4; --top: #b9a990; }
+[data-scene="sofa"] {
+  background:
+    radial-gradient(2.4cqmin 2.4cqmin at 8% 12%, rgba(255,214,140,.95), rgba(255,214,140,0)),
+    radial-gradient(3.4cqmin 3.4cqmin at 22% 8%, rgba(255,200,120,.75), rgba(255,200,120,0)),
+    radial-gradient(2.2cqmin 2.2cqmin at 36% 13%, rgba(255,222,160,.95), rgba(255,222,160,0)),
+    radial-gradient(4.6cqmin 4.6cqmin at 52% 7%, rgba(255,190,110,.55), rgba(255,190,110,0)),
+    radial-gradient(2.4cqmin 2.4cqmin at 66% 12%, rgba(255,214,140,.95), rgba(255,214,140,0)),
+    radial-gradient(3.6cqmin 3.6cqmin at 80% 6%, rgba(255,200,120,.7), rgba(255,200,120,0)),
+    radial-gradient(2.2cqmin 2.2cqmin at 93% 11%, rgba(255,222,160,.95), rgba(255,222,160,0)),
+    radial-gradient(5.4cqmin 5.4cqmin at 88% 30%, rgba(255,180,100,.4), rgba(255,180,100,0)),
+    radial-gradient(4.4cqmin 4.4cqmin at 10% 34%, rgba(255,180,100,.42), rgba(255,180,100,0)),
+    radial-gradient(70% 44% at 50% 26%, rgba(255,166,86,.38), rgba(255,166,86,0) 70%),
+    radial-gradient(46% 20% at 16% 72%, #8d6a55, rgba(141,106,85,0) 72%),
+    radial-gradient(46% 20% at 84% 72%, #8d6a55, rgba(141,106,85,0) 72%),
+    linear-gradient(180deg, #24170f 0%, #3b2618 58%, #5a4030 70%, #2c1d14 100%);
+}
+[data-scene="sofa"]::before { left: -4%; right: -4%; top: 4%; height: 12%; border-radius: 0 0 50% 50%; border-bottom: .3cqmin solid rgba(40,26,16,.7); }
+.el-scene > b.person, [data-scene="sofa"] > b, [data-scene="booth"] > b, [data-scene="void"] > b {
+  left: 50%; bottom: -6cqmin; width: 112cqmin; height: max(104cqmin, 82cqh); transform: translateX(-50%);
+  --skin-sh: #9c6448;
+  background:
+    radial-gradient(4.5% 3.5% at 42% 26%, rgba(255,232,210,.7), rgba(255,232,210,0)),
+    radial-gradient(2.3% 1.1% at 42.5% 28.6%, rgba(36,20,12,.6), rgba(36,20,12,0)),
+    radial-gradient(2.1% 1.1% at 50.2% 28.8%, rgba(36,20,12,.55), rgba(36,20,12,0)),
+    radial-gradient(3.2% 1.1% at 46.6% 36.4%, rgba(140,62,52,.6), rgba(140,62,52,0)),
+    radial-gradient(6.5% 12% at 54% 32%, rgba(80,44,26,.5), rgba(80,44,26,0)),
+    radial-gradient(15% 6.5% at 51% 19.5%, var(--hair) 0 55%, rgba(0,0,0,0) 100%),
+    radial-gradient(10.5% 12.5% at 46% 30%, var(--skin-hi) 0%, var(--skin) 50%, var(--skin-sh) 82%, rgba(0,0,0,0) 100%),
+    radial-gradient(6.5% 11% at 47.5% 48%, var(--skin-sh) 0 55%, rgba(0,0,0,0) 100%),
+    radial-gradient(8% 24% at 36.5% 50%, var(--hair) 0 55%, rgba(0,0,0,0) 95%),
+    radial-gradient(17% 11% at 49% 21%, var(--hair) 0 62%, rgba(0,0,0,0) 100%),
+    radial-gradient(19% 27% at 51% 38%, var(--hair) 0 58%, rgba(0,0,0,0) 92%),
+    radial-gradient(66% 54% at 49% 106%, var(--top-hi) 0%, var(--top) 74%, rgba(0,0,0,0) 90%);
+}
+[data-scene="sofa"] { --skin-hi: #e9b48f; --skin: #c4855f; --skin-sh: #8a543a; --hair: #1e130d; --top-hi: #d6c6ae; --top: #8f7d66; }
+[data-scene="sofa"] > b { filter: blur(1.5cqmin) drop-shadow(-.9cqmin -.8cqmin 1.6cqmin rgba(255,188,104,.75)); opacity: .96; }
+[data-scene="booth"] > b, [data-scene="void"] > b { filter: blur(.6cqmin) drop-shadow(-.5cqmin -.5cqmin 1.1cqmin rgba(255,250,240,.55)); }
+/* sofa foreground: the ring held up to the lens, sharp; the creator falls out of focus behind */
+[data-scene="sofa"] > i { left: 57%; top: 63%; width: 36cqmin; height: 16cqmin; z-index: 3; border-radius: 50%; transform: translate(-50%,-50%) rotate(-12deg); border: 4.6cqmin solid #141416; border-top-width: 3.4cqmin;
+  box-shadow: 0 2cqmin 4cqmin rgba(20,10,4,.55), inset 0 .7cqmin .6cqmin rgba(255,206,140,.65), inset 0 -.4cqmin .4cqmin rgba(255,170,90,.25); }
+[data-scene="sofa"]::after { left: 60%; top: 66%; width: 24cqmin; height: 44cqmin; z-index: 2; transform: rotate(-24deg); transform-origin: 30% 0;
+  background:
+    radial-gradient(14% 7% at 30% 8%, rgba(255,226,200,.75), rgba(255,226,200,0)),
+    radial-gradient(22% 52% at 30% 46%, #dca07a 0 80%, rgba(220,160,122,0) 96%),
+    radial-gradient(24% 40% at 66% 64%, #c88a64 0 80%, rgba(200,138,100,0) 96%),
+    radial-gradient(60% 40% at 50% 100%, #b97a56 0 70%, rgba(185,122,86,0) 92%);
+  filter: blur(.35cqmin) drop-shadow(-.4cqmin -.3cqmin .8cqmin rgba(255,190,110,.5)); }
+
+/* 6 · booth — static clip, person in an office phone booth */
+[data-scene="booth"] { --top-hi: #4d5a72; --top: #2f3a4f;
+  background:
+    radial-gradient(60% 30% at 50% 0%, rgba(255,250,236,.55), rgba(255,250,236,0) 70%),
+    repeating-linear-gradient(90deg, #707c76 0 3cqmin, #616c66 3cqmin 3.5cqmin),
+    #6a7570;
+  box-shadow: inset 0 0 24cqmin rgba(20,24,22,.45);
+}
+[data-scene="booth"] > i { left: 0; right: 0; bottom: 0; height: 11%; background: linear-gradient(180deg, #d4c3a8, #a8957a); box-shadow: 0 -.4cqmin 0 rgba(255,245,225,.6); z-index: 1; }
+[data-scene="booth"]::after { left: 6%; top: 8%; width: 18cqmin; height: 12cqmin; border-radius: 1.4cqmin; background: linear-gradient(160deg, #e8ecef, #b7c0c7); box-shadow: 0 1cqmin 2cqmin rgba(0,0,0,.25); }
+
+/* 7 · void — a generated white set */
+[data-scene="void"] { --top-hi: #4d5a72; --top: #2f3a4f;
+  background: radial-gradient(90% 64% at 50% 42%, #ffffff 0%, #f3f1ec 56%, #dedad2 100%);
+  box-shadow: inset 0 0 26cqmin rgba(150,140,120,.18);
+}
+[data-scene="void"] > i { left: 50%; bottom: 2%; width: 80cqmin; height: 10cqmin; transform: translateX(-50%); border-radius: 50%; background: radial-gradient(closest-side, rgba(120,110,90,.3), rgba(120,110,90,0)); }
+
+/* grades (looks) — apply to any scene */
+.el-scene[data-grade="warm"]   { filter: sepia(.22) saturate(1.2) hue-rotate(-6deg); }
+.el-scene[data-grade="golden"] { filter: sepia(.38) saturate(1.45) contrast(1.06) brightness(1.06) hue-rotate(-10deg); }
+.el-scene[data-grade="film"]   { filter: contrast(1.12) saturate(.82) sepia(.12); }
+.el-scene[data-grade="clean"]  { filter: brightness(1.08) contrast(.96) saturate(.95); }
+.el-scene[data-grade="moody"]  { filter: brightness(.82) contrast(1.18) saturate(.86) hue-rotate(8deg); }
+.el-scene[data-grade="cool"]   { filter: saturate(.9) hue-rotate(12deg) brightness(1.03); }
+.el-scene[data-grade="punch"]  { filter: contrast(1.22) saturate(1.3); }
+.el-scene[data-grade="mono"]   { filter: grayscale(1) contrast(1.1); }

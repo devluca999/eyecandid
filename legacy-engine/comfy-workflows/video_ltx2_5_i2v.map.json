@@ -1,0 +1,16 @@
+{
+ "template": "video_ltx2_5_i2v",
+ "notes": "Image to video: the image becomes the first frame. width/height override the ResolutionSelector link; width/2 and height/2 must be multiples of 32. frames = duration*fps+1.",
+ "defaults": {"width": 704, "height": 1280, "duration": 5, "fps": 24, "prompt_enhance": false},
+ "params": [
+  {"param": "prompt", "node": "398:376", "input": "value", "required": true},
+  {"param": "image", "node": "395", "input": "image", "required": true},
+  {"param": "prompt_enhance", "node": "398:383", "input": "value"},
+  {"param": "duration", "node": "398:362", "input": "value"},
+  {"param": "fps", "node": "398:361", "input": "value"},
+  {"param": "seed", "node": "398:339", "input": "noise_seed"},
+  {"param": "width", "node": "398:372", "input": "value"},
+  {"param": "height", "node": "398:360", "input": "value"},
+  {"param": "filename_prefix", "node": "75", "input": "filename_prefix"}
+ ]
+}
