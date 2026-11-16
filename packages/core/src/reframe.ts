@@ -1,4 +1,4 @@
-import type { ReframeKeyframe } from "@eyelore/core";
+import type { ReframeKeyframe } from "./editModel";
 
 /** Face position at source time `ms`, linearly interpolated between keyframes (centre if none). */
 export function faceAt(kfs: ReframeKeyframe[] | undefined, ms: number): { cx: number; cy: number; scale: number } {

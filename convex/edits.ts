@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { Change, invertOps } from "@eyelore/core";
+import { Change, invertOps, isSpellingFix } from "@eyelore/core";
+import { headDoc } from "./lib/docs";
 import type { EditOp } from "@eyelore/core";
 import { commitChanges } from "./lib/docs";
 import { ownedProject } from "./projects";
@@ -11,6 +12,18 @@ export const apply = mutation({
   handler: async (ctx, a) => {
     await ownedProject(ctx, a.projectId, a.anonId);
     const change = Change.parse({ actor: "user", reason: a.reason, ops: a.ops });
+    // captions keep the speaker's words: overrides may only fix spelling (enforced here, not just in the UI)
+    const overrides = change.ops.filter((o) => o.path.startsWith("/captions/overrides"));
+    if (overrides.length) {
+      const head = await headDoc(ctx, a.projectId);
+      const words = new Map(head!.doc.beads.flatMap((b) => b.words).map((w) => [w.id, w.text]));
+      for (const o of overrides) {
+        const v = (o as { value?: { wordId?: string; text?: string } }).value;
+        if (o.op === "remove") continue;
+        const original = v?.wordId ? words.get(v.wordId) : undefined;
+        if (!original || !v?.text || !isSpellingFix(original, v.text)) throw new Error("captions keep your words · fix spelling only");
+      }
+    }
     return await commitChanges(ctx, a.projectId, [change], a.baseVersion);
   },
 });

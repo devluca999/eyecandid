@@ -144,3 +144,21 @@ export function cutdownChange(doc: EditDoc, maxMs: number): Change | null {
   if (!ops.length) return null;
   return { actor: "autopilot:cutdown", reason: `cutdown · ${Math.round(maxMs / 1000)}s, kept hook and call to action`, ops };
 }
+
+/**
+ * Captions keep the speaker's words: an inline edit may fix spelling, casing or punctuation, not swap the word.
+ * Allowed if the letters are within a small edit distance of the original.
+ */
+export function isSpellingFix(from: string, to: string): boolean {
+  const norm = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}']/gu, "");
+  const a = norm(from);
+  const b = norm(to);
+  if (a === b) return true;
+  if (!a || !b) return false;
+  const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)] as number[]);
+  for (let j = 1; j <= b.length; j++) d[0]![j] = j;
+  for (let i = 1; i <= a.length; i++)
+    for (let j = 1; j <= b.length; j++)
+      d[i]![j] = Math.min(d[i - 1]![j]! + 1, d[i]![j - 1]! + 1, d[i - 1]![j - 1]! + (a[i - 1] === b[j - 1] ? 0 : 1));
+  return d[a.length]![b.length]! <= Math.max(1, Math.floor(Math.max(a.length, b.length) * 0.34));
+}

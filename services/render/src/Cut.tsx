@@ -1,7 +1,6 @@
 import { AbsoluteFill, OffthreadVideo, Sequence, useCurrentFrame, useVideoConfig } from "remotion";
 import type { EditDoc } from "@eyelore/core";
-import { toTimeline, type Segment } from "./timeline";
-import { coverBox, faceAt } from "./reframe";
+import { toTimeline, coverBox, faceAt, type Segment } from "@eyelore/core";
 
 export type CutProps = { doc: EditDoc; media: Record<string, string>; watermark: boolean };
 
