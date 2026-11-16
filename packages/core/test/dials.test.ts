@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   Actor, addClipChange, applyChange, beadChanges, BROLL_NOTE, Change, dialChanges, EditDoc, emptyEditDoc, pauseLimitMs,
-  punchAt, punchScale, toTimeline, type DialValues,
+  punchAt, punchScale, toTimeline, withDials, type DialValues,
 } from "../src";
 
 const word = (text: string, s: number, e: number, conf = 0.9) => ({ text, startMs: s, endMs: e, conf });
@@ -136,6 +136,16 @@ describe("dials", () => {
     // turning energy down re-scales, then removes
     expect(dialChanges(hi, D({ energy: 0.6 })).every((c) => /punch-in/.test(c.reason))).toBe(true);
     expect(run(hi, D({ energy: 0.5 })).effects).toEqual([]);
+  });
+
+  it("withDials previews exactly what the server will commit, keeping the server's version", () => {
+    const doc = fresh();
+    const d = D({ pace: 1, energy: 0.9 });
+    const p = withDials(doc, d);
+    expect(p.version).toBe(doc.version);
+    expect(p.style.dials).toEqual(d);
+    expect(strip({ ...run(doc, d), style: p.style })).toEqual(strip(p));
+    expect(withDials(doc, D())).toEqual({ ...doc, style: { ...doc.style, dials: D() } });
   });
 
   it("b-roll density decides nothing until there is b-roll, and says so", () => {

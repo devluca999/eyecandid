@@ -1,5 +1,5 @@
 import type { Bead, Cut, EditDoc, Effect, Moment } from "./editModel";
-import { isPinned, type Change, type EditOp } from "./ops";
+import { applyChange, isPinned, type Change, type EditOp } from "./ops";
 
 /**
  * The dials (pace, b-roll density, energy) re-edit the whole cut. Pure: `dialChanges(doc, dials)` returns the
@@ -180,4 +180,14 @@ export function punchForBead(doc: EditDoc, bead: Bead): number {
 export function punchAt(doc: EditDoc, clipId: string, srcMs: number): number {
   const bead = doc.beads.find((b) => b.clipId === clipId && !b.struck && srcMs >= b.inMs && srcMs < b.outMs);
   return bead ? punchForBead(doc, bead) : 1;
+}
+
+/**
+ * The doc as it will be once the dials land: the same changes the server commits, applied locally, so the
+ * preview re-edits live while the mutation is in flight. Keeps the server's version (it's an overlay).
+ */
+export function withDials(doc: EditDoc, dials: DialValues): EditDoc {
+  let next = doc;
+  for (const c of dialChanges(doc, dials)) next = applyChange(next, c)?.doc ?? next;
+  return { ...next, version: doc.version, style: { ...next.style, dials: { ...dials } } };
 }
