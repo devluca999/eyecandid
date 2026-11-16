@@ -59,3 +59,11 @@ appId: app.eyelore
     timeout: 90000
 - assertVisible:
     id: "share"
+# delete for good: confirm natively, land back on home with the edit gone
+- tapOn:
+    id: "delete"
+# the native confirm: "Delete" is its positive button
+- tapOn:
+    id: "android:id/button1"
+- assertVisible: "Making real people look great."
+- assertNotVisible: "recent"
