@@ -84,10 +84,13 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: start a local convex backend
         run: |
-          npx convex dev --once
-          npx convex env set CLERK_JWT_ISSUER_DOMAIN https://clerk-not-configured.invalid
+          # the first push fails until the Clerk issuer env var exists, but the backend stays up; set it, then re-push
           (npx convex dev > convex.log 2>&1 &)
-          curl -s --retry 30 --retry-connrefused --retry-delay 2 $EYELORE_CONVEX_SITE_URL/worker/hello
+          curl -s -o /dev/null --retry 60 --retry-connrefused --retry-delay 2 $NEXT_PUBLIC_CONVEX_URL/version
+          npx convex env set CLERK_JWT_ISSUER_DOMAIN https://clerk-not-configured.invalid
+          touch convex/schema.ts
+          for i in $(seq 1 60); do curl -sf $EYELORE_CONVEX_SITE_URL/worker/hello && break; sleep 2; done
+          curl -sf $EYELORE_CONVEX_SITE_URL/worker/hello || (cat convex.log; exit 1)
       - name: start a cpu-stub worker
         run: |
           cd services/engine && uv venv --python 3.12 && uv pip install -e .
