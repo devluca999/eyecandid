@@ -12,6 +12,7 @@ import type * as crons from "../crons.js";
 import type * as edits from "../edits.js";
 import type * as events from "../events.js";
 import type * as flags from "../flags.js";
+import type * as funnel from "../funnel.js";
 import type * as http from "../http.js";
 import type * as jobs from "../jobs.js";
 import type * as lib_docs from "../lib/docs.js";
@@ -34,6 +35,7 @@ declare const fullApi: ApiFromModules<{
   edits: typeof edits;
   events: typeof events;
   flags: typeof flags;
+  funnel: typeof funnel;
   http: typeof http;
   jobs: typeof jobs;
   "lib/docs": typeof lib_docs;
