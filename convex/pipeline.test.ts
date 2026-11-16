@@ -105,3 +105,20 @@ describe("core-loop pipeline", () => {
     await expect(t.mutation(api.edits.apply, { anonId: other, projectId, baseVersion: 0, reason: "x", ops: [{ op: "set", path: "/aspect", value: "1:1" }] })).rejects.toThrow();
   });
 });
+
+describe("undo and pauses", () => {
+  it("undo walks back through your own changes, newest first, and skips autopilot ones", async () => {
+    const t = convexTest(schema, modules);
+    const projectId = await t.mutation(api.projects.create, { anonId: ANON });
+    const v0 = (await t.query(api.projects.get, { projectId, anonId: ANON }))!.doc!.version;
+    await t.mutation(api.edits.apply, { anonId: ANON, projectId, baseVersion: v0, reason: "aspect · 4:5", ops: [{ op: "set", path: "/aspect", value: "4:5" }] });
+    await t.mutation(api.edits.apply, { anonId: ANON, projectId, baseVersion: v0 + 1, reason: "aspect · 1:1", ops: [{ op: "set", path: "/aspect", value: "1:1" }] });
+    const doc = async () => (await t.query(api.projects.get, { projectId, anonId: ANON }))!.doc!;
+    await t.mutation(api.edits.undo, { anonId: ANON, projectId, baseVersion: (await doc()).version });
+    expect((await doc()).aspect).toBe("4:5");
+    await t.mutation(api.edits.undo, { anonId: ANON, projectId, baseVersion: (await doc()).version });
+    expect((await doc()).aspect).toBe("9:16");
+    const r = await t.mutation(api.edits.undo, { anonId: ANON, projectId, baseVersion: (await doc()).version });
+    expect(r.ok).toBe(false);
+  });
+});

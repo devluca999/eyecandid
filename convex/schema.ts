@@ -47,6 +47,8 @@ export default defineSchema({
     reason: v.string(),
     actor: v.string(),
     at: v.number(),
+    /** set when a user change has been undone (undo walks back through these, newest first) */
+    undone: v.optional(v.boolean()),
   }).index("by_project_version", ["projectId", "version"]),
 
   media: defineTable({

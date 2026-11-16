@@ -120,12 +120,13 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
 
   const latestExport = data?.exports[0];
   const exporting = latestExport && (latestExport.status === "queued" || latestExport.status === "leased" || latestExport.status === "running");
-  const doExport = async () => {
+  const doExport = async (cutOverride?: string | null) => {
+    const useCut = cutOverride === undefined ? cut : cutOverride;
     if (!doc || !data || data.project.stage !== "ready") return;
     const aspect = (view === "source" ? doc.aspect : view) as Aspect;
     track("export_clicked", { aspect });
     // Clerk signup at export arrives with keys (PLAN: Needs keys); until then exports are anonymous and watermarked
-    await startExport({ anonId, projectId, aspect, requestId: `${Date.now()}-${exportReq}`, ...(cut ? { maxDurationMs: Number(cut) * 1000 as 15000 | 30000 | 60000 } : {}) });
+    await startExport({ anonId, projectId, aspect, requestId: `${Date.now()}-${exportReq}`, ...(useCut ? { maxDurationMs: (Number(useCut) * 1000) as 15000 | 30000 | 60000 } : {}) });
     setExportReq((n) => n + 1);
   };
   const doneSent = useRef<string | null>(null);
@@ -225,7 +226,7 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
     else if (it.value.startsWith("export:")) {
       const c = it.value.slice(7);
       setCut(c === "full" ? null : c);
-      setTimeout(() => void doExport(), 0);
+      void doExport(c === "full" ? null : c);
     }
   };
 

@@ -28,15 +28,21 @@ export const apply = mutation({
   },
 });
 
-/** Undo the most recent change (user or autopilot) by applying its inverse, logged as its own change. */
+/**
+ * Undo your most recent change that isn't already undone (repeat to walk further back). Autopilot changes are not
+ * undone by ⌘Z: they are restored one by one in place (click a struck word). The undo itself is logged.
+ */
 export const undo = mutation({
   args: { anonId: v.string(), projectId: v.id("projects"), baseVersion: v.number() },
   handler: async (ctx, a) => {
     await ownedProject(ctx, a.projectId, a.anonId);
-    const last = await ctx.db.query("editOps").withIndex("by_project_version", (q) => q.eq("projectId", a.projectId)).order("desc").first();
-    if (!last || last.reason.startsWith("undo · ")) return { ok: false as const, nothing: true };
+    const recent = await ctx.db.query("editOps").withIndex("by_project_version", (q) => q.eq("projectId", a.projectId)).order("desc").take(200);
+    const last = recent.find((r) => r.actor === "user" && !r.undone && !r.reason.startsWith("undo · "));
+    if (!last) return { ok: false as const, nothing: true };
     const change = { actor: "user", reason: `undo · ${last.reason}`.slice(0, 120), ops: invertOps(last.ops as EditOp[]) };
-    return await commitChanges(ctx, a.projectId, [change], a.baseVersion);
+    const r = await commitChanges(ctx, a.projectId, [change], a.baseVersion);
+    if (r.ok) await ctx.db.patch(last._id, { undone: true });
+    return r;
   },
 });
 
