@@ -1,0 +1,8 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+  - "services/render"
+allowBuilds:
+  esbuild: true
+nodeLinker: hoisted
+autoInstallPeers: true

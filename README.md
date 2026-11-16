@@ -10,7 +10,6 @@
 ```sh
 pnpm install
 pnpm convex:dev                         # local Convex backend (anonymous until `npx convex login`)
-npx convex env set CLERK_JWT_ISSUER_DOMAIN https://clerk-not-configured.invalid   # until Clerk keys exist
 cp .env.example apps/web/.env.local     # NEXT_PUBLIC_CONVEX_URL=http://127.0.0.1:3210
 pnpm --filter @eyelore/web dev          # http://localhost:3000, /hello runs the engine round-trip
 ```

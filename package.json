@@ -1,0 +1,39 @@
+{
+  "name": "eyelore",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.14.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "e2e": "turbo run e2e",
+    "format": "prettier --write .",
+    "convex:dev": "convex dev",
+    "convex:test": "vitest run --config convex/vitest.config.ts",
+    "schema:emit": "pnpm --filter @eyelore/core schema:emit"
+  },
+  "devDependencies": {
+    "@edge-runtime/vm": "5.0.0",
+    "@eslint/js": "10.0.1",
+    "convex": "1.50.0",
+    "convex-test": "0.0.71",
+    "eslint": "10.15.0",
+    "globals": "17.14.0",
+    "prettier": "3.10.1",
+    "turbo": "2.11.11",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.72.2",
+    "vitest": "5.1.0",
+    "zod": "4.6.7"
+  },
+  "dependencies": {
+    "@eyelore/core": "workspace:*",
+    "@types/node": "22.20.5"
+  }
+}

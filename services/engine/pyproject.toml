@@ -1,0 +1,28 @@
+[project]
+name = "eyelore-engine"
+version = "0.1.0"
+description = "Eyelore GPU worker: pulls jobs from Convex over HTTPS (outbound only)."
+requires-python = ">=3.11"
+dependencies = ["httpx>=0.28", "jsonschema>=4.23"]
+
+[project.optional-dependencies]
+gpu = ["faster-whisper>=1.1", "huggingface_hub>=0.30"]
+dev = ["pytest>=8.3", "respx>=0.22"]
+
+[project.scripts]
+eyelore-worker = "eyelore_engine.worker:main"
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["eyelore_engine"]
+artifacts = ["eyelore_engine/jobs.schema.json"]
+
+[tool.hatch.build.targets.sdist]
+artifacts = ["eyelore_engine/jobs.schema.json"]
+
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
