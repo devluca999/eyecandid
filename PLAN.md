@@ -171,24 +171,26 @@ Integration is built behind a labelled stub until the key exists. Set them in Ve
 
 - The design-system readme gives the tagline as "cringe in, cinema out". The brief overrides it: the tagline is **Making real people look great**; "From cringe to cinema" is a playful secondary line only.
 - Design fonts (Geist, Geist Mono, Caveat) are self-hosted woff2 in the design project; the binaries don't export via the connector, so the apps load the same families from the `geist` npm package and `@fontsource/caveat`.
+- **Verify:** `brand/` holds your 3 marks untouched. The 4 extra files (`eyelore-mark-small-inverse.svg`, `favicon.svg`, `eyelore-app-icon-paper.svg`, `eyelore-app-icon-night.svg`) came from the design project; the connector stamps SVGs with provenance metadata, so the export agent reassembled them from the small mark and matched the listed byte sizes exactly. Same artwork by size and path data, but please re-export these four from Claude Design to be certain.
+- Visual-regression baselines are generated on Linux in CI (first run uploads them as an artifact; commit them to make the check strict). Local macOS baselines are ignored.
 
 ## 9. Milestones
 
 ### Phase 1 — foundation, CI/CD, harness
 - [x] Inputs collected: product notes, engine assessment, brand marks, design system export, legacy engine
-- [ ] PLAN.md (this file) and ADRs 0001–0008
-- [ ] Monorepo: pnpm + Turborepo, TS strict, ESLint, Prettier
-- [ ] `packages/core`: edit model + ops (apply/invert/pins), job contract, analytics events, flags; Vitest
-- [ ] JSON Schema emitted from the contract; Python contract test reads it
-- [ ] `packages/ui`: token generator (CSS → TS) → Tailwind preset + RN tokens; primitives (Lens, StatusDot, PillButton, Lockup)
-- [ ] `convex/`: schema, jobs queue with leases, worker HTTP actions, lease-requeue cron, flags, events; convex-test
-- [ ] `services/engine`: worker loop, GpuProvider, CPU stub, `hello` job; pytest; Dockerfile (CUDA)
-- [ ] `services/render`: Remotion skeleton
-- [ ] `apps/web`: landing + hello-job page with live progress; Playwright e2e
-- [ ] `apps/mobile`: Expo shell with Convex + live job status; Maestro flow
-- [ ] GitHub Actions: lint, typecheck, unit, convex tests, Playwright, pytest + contract, visual regression, Vercel/Convex/EAS previews, engine image to GHCR, release package
-- [ ] `.env.example`, secret scanning
-- [ ] **Exit:** PR goes green, previews deploy, hello job round-trips web → Convex → worker → live progress → result
+- [x] PLAN.md (this file) and ADRs 0001–0008
+- [x] Monorepo: pnpm + Turborepo, TS strict, ESLint, Prettier — repo `devluca999/eyelore` (private)
+- [x] `packages/core`: edit model + ops (apply/invert/pins), job contract, analytics events, flags — 12 tests
+- [x] JSON Schema emitted from the contract; Python contract test reads it; CI fails on drift
+- [x] `packages/ui`: token generator (design CSS → Tailwind v4 theme + RN tokens + component CSS + icons); web primitives Lens, Footage, StatusDot, PillButton, Lockup, Icon; AA contrast test
+- [x] `convex/`: schema, jobs queue with leases, worker HTTP actions, lease-requeue cron, flags, events, MediaStore — 9 tests
+- [x] `services/engine`: worker loop, GpuProvider, CPU stub, `hello` + `autocut` + `transcribe` handlers, ffmpeg QC port; Dockerfile (CUDA) — 9 tests
+- [x] `services/render`: Remotion `Cut` composition from the edit model; tested timeline (struck words skipped, captions verbatim)
+- [x] `apps/web`: landing (A/B hero line, funnel event) + `/hello` with live progress and honest cold-GPU status; Playwright e2e + visual
+- [x] `apps/mobile`: Expo shell (expo-router, Convex, haptics, keychain anon id) + live hello; Maestro flow; iOS bundle builds
+- [~] GitHub Actions: checks, convex, engine, e2e + visual run keyless; Vercel/Convex/EAS previews, production deploy and EAS Update wired but **need keys**; GHCR image + release package on main/tags
+- [x] `.env.example`, gitleaks in CI
+- [~] **Exit:** hello job round-trips web → Convex → worker → live progress → result (proven locally and in CI e2e). Web and mobile previews wait on keys.
 
 ### Phase 2 — the core loop *(not started)*
 ### Phase 3 — autopilots and AI editing *(not started)*
