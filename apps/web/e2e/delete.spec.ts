@@ -22,7 +22,10 @@ test("an edit can be found again from the landing and deleted for good", async (
   await expect(page).toHaveURL(editUrl);
 
   // one quiet verb, then an in-app step that says it is final; no browser dialog
-  page.on("dialog", () => {
+  page.on("dialog", (d) => {
+    // the hard navigation at the end can meet Convex's "unsaved changes" guard while a funnel event is still
+    // in flight; that is not a delete confirmation. Any alert / confirm / prompt is.
+    if (d.type() === "beforeunload") return void d.accept();
     throw new Error("no native dialogs");
   });
   await page.getByTestId("delete").click();
