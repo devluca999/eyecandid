@@ -13,6 +13,7 @@ import { usePlayer } from "./usePlayer";
 import { Thread, type Hover } from "./Thread";
 import { Captions } from "./Captions";
 import { useThumbs } from "./useThumbs";
+import { useExportGate } from "./ExportGate"; // [around-the-loop] signup + paywall + presence live in ExportGate.tsx
 
 const STAGE_WORD: Record<string, string> = {
   empty: "waiting for your clip",
@@ -33,7 +34,6 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
   const presence = useQuery(api.jobs.workerPresence, {});
   const apply = useMutation(api.edits.apply);
   const undo = useMutation(api.edits.undo);
-  const startExport = useMutation(api.pipeline.startExport);
   const track = useTrack();
   const pending = useSyncExternalStore(session.subscribe, () => session.get(projectId), () => undefined);
 
@@ -120,13 +120,14 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
 
   const latestExport = data?.exports[0];
   const exporting = latestExport && (latestExport.status === "queued" || latestExport.status === "leased" || latestExport.status === "running");
+  const gate = useExportGate(projectId, anonId, data?.project.stage === "ready"); // [around-the-loop]
   const doExport = async (cutOverride?: string | null) => {
     const useCut = cutOverride === undefined ? cut : cutOverride;
     if (!doc || !data || data.project.stage !== "ready") return;
     const aspect = (view === "source" ? doc.aspect : view) as Aspect;
     track("export_clicked", { aspect });
-    // Clerk signup at export arrives with keys (PLAN: Needs keys); until then exports are anonymous and watermarked
-    await startExport({ anonId, projectId, aspect, requestId: `${Date.now()}-${exportReq}`, ...(useCut ? { maxDurationMs: (Number(useCut) * 1000) as 15000 | 30000 | 60000 } : {}) });
+    // [around-the-loop] signup (Clerk), paywall and the export call itself: see ExportGate.tsx
+    await gate.run({ aspect, requestId: `${Date.now()}-${exportReq}`, ...(useCut ? { maxDurationMs: (Number(useCut) * 1000) as 15000 | 30000 | 60000 } : {}) });
     setExportReq((n) => n + 1);
   };
   const doneSent = useRef<string | null>(null);
@@ -323,6 +324,7 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
           />
         )}
         {latestExport?.status === "failed" && <StatusDot status="attention" label={`export failed · ${latestExport.error ?? ""}`.slice(0, 120)} />}
+        {gate.element /* [around-the-loop] */}
       </div>
 
       {menu && (
