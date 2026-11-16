@@ -209,7 +209,14 @@ jobs:
         with: { cache-read-only: false } # PR branches save the Gradle cache too: a cold native build is ~29 min
       - uses: astral-sh/setup-uv@v6
       - run: pnpm install --frozen-lockfile
+      # the APK only changes with the app's inputs: flow and CI edits reuse it instead of a ~29 min native build
+      - uses: actions/cache/restore@v4
+        id: apk
+        with:
+          path: app.apk
+          key: apk-x86_64-${{ hashFiles('apps/mobile/**', '!apps/mobile/.maestro/**', 'packages/**', 'convex/_generated/**', 'pnpm-lock.yaml') }}
       - name: release apk for the emulator (x86_64 only, signed with the debug key)
+        if: steps.apk.outputs.cache-hit != 'true'
         working-directory: apps/mobile
         run: |
           npx expo prebuild --platform android --no-install
@@ -220,6 +227,15 @@ jobs:
           rm -rf app/build app/.cxx build
           find "$GITHUB_WORKSPACE/node_modules" -type d \( -name .cxx -o -path '*/android/build' \) -prune -exec rm -rf {} + || true
           df -h /
+      - if: steps.apk.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: app.apk
+          key: ${{ steps.apk.outputs.cache-primary-key }}
+      - name: what this runner has; warm the renderer's headless browser before the emulator takes the cores
+        run: |
+          nproc; free -g; df -h /
+          cd services/render && npx remotion browser ensure
       - name: start a local convex backend
         run: |
           (npx convex dev > convex.log 2>&1 &)
