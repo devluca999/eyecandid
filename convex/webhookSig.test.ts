@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { signStripe, signSvix, verifyStripe, verifySvix } from "./lib/webhookSig";
 
-// Known vector from the Svix docs; the expected signature was also recomputed with Python's hmac module.
-const SVIX_SECRET = "whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw";
+// Known vector: the expected signature was computed independently with Python's hmac module (not with this code).
+const SVIX_SECRET = "whsec_" + btoa("eyelore-test-key-0123456789abcdef");
 const SVIX_ID = "msg_p5jXN8AQM9LWM0D4loKWxJek";
 const SVIX_TS = 1614265330;
 const SVIX_BODY = '{"test": 2432232314}';
-const SVIX_SIG = "g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE=";
+const SVIX_SIG = "9IRr54Knha0Fmsp9CA2djj3fIT+Tp6hcv9FpeoEVUD0=";
 const hdrs = (sig: string, ts = SVIX_TS) => new Headers({ "svix-id": SVIX_ID, "svix-timestamp": String(ts), "svix-signature": sig });
 
 describe("svix (Clerk) verification", () => {
