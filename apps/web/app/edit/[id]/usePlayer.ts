@@ -51,8 +51,16 @@ export function usePlayer(segments: Segment[] | null, clipId: string | null) {
   }, [clipId]);
 
   const seekSrc = useCallback((ms: number) => {
-    if (video.current) video.current.currentTime = ms / 1000;
+    const v = video.current;
+    if (!v) return;
+    const max = Number.isFinite(v.duration) ? v.duration * 1000 : ms;
+    v.currentTime = Math.max(0, Math.min(max, ms)) / 1000;
+    setSrcMs(v.currentTime * 1000);
   }, []);
+  const play = useCallback(() => {
+    if (video.current?.paused) toggle();
+  }, [toggle]);
+  const pause = useCallback(() => video.current?.pause(), []);
 
-  return { video, playing, setPlaying, srcMs, toggle, seekSrc };
+  return { video, playing, setPlaying, srcMs, toggle, play, pause, seekSrc };
 }
