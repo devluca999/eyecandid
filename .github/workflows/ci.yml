@@ -193,6 +193,11 @@ jobs:
       EYELORE_CONVEX_SITE_URL: http://127.0.0.1:3211
       EYELORE_E2E: "1"
     steps:
+      - name: free disk space (the native build, the worker and the emulator image do not fit otherwise)
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /usr/local/share/boost /usr/share/swift /opt/hostedtoolcache/CodeQL
+          sudo docker image prune -af > /dev/null || true
+          df -h /
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
         with: { version: "${{ env.PNPM_VERSION }}" }
@@ -209,6 +214,11 @@ jobs:
           npx expo prebuild --platform android --no-install
           cd android && ./gradlew assembleRelease -PreactNativeArchitectures=x86_64 --console=plain
           cp app/build/outputs/apk/release/app-release.apk "$GITHUB_WORKSPACE/app.apk"
+          # build intermediates are several GB: drop them before the emulator image is installed
+          ./gradlew --stop || true
+          rm -rf app/build app/.cxx build
+          find "$GITHUB_WORKSPACE/node_modules" -type d \( -name .cxx -o -path '*/android/build' \) -prune -exec rm -rf {} + || true
+          df -h /
       - name: start a local convex backend
         run: |
           (npx convex dev > convex.log 2>&1 &)
