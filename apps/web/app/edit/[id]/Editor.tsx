@@ -88,6 +88,8 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
   const [activeDial, setActiveDial] = useState<DialKey | null>(null);
   const frame = useRef<HTMLDivElement>(null);
   const [frameSize, setFrameSize] = useState({ w: 0, h: 0 });
+  const [dialsInside, setDialsInside] = useState(false);
+  const dialHide = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const night = (themeOverride ?? (mode === "theater" ? "night" : "paper")) === "night";
   useEffect(() => {
@@ -115,7 +117,11 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
   useEffect(() => {
     const el = frame.current;
     if (!el) return;
-    const ro = new ResizeObserver(([e]) => setFrameSize({ w: e!.contentRect.width, h: e!.contentRect.height }));
+    const ro = new ResizeObserver(([e]) => {
+      setFrameSize({ w: e!.contentRect.width, h: e!.contentRect.height });
+      // the dial pill sits left of the Lens when there's room (it needs ~100px), else over its left edge
+      setDialsInside(el.getBoundingClientRect().left < 104);
+    });
     ro.observe(el);
     return () => ro.disconnect();
   }, [data]);
@@ -396,9 +402,16 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
             onPointerMove={(e) => {
               if (mode !== "edit" || !ready) return;
               const r = e.currentTarget.getBoundingClientRect();
-              setNearDials(e.clientX - r.left < Math.max(110, Math.min(160, r.width * 0.32)));
+              const near = e.clientX - r.left < Math.max(110, Math.min(160, r.width * 0.32));
+              clearTimeout(dialHide.current);
+              if (near) setNearDials(true);
+              else dialHide.current = setTimeout(() => setNearDials(false), 500);
             }}
-            onPointerLeave={() => setNearDials(false)}
+            onPointerLeave={() => {
+              // a beat before hiding, so the pointer can cross from the Lens to the dials
+              clearTimeout(dialHide.current);
+              dialHide.current = setTimeout(() => setNearDials(false), 500);
+            }}
           >
             <Lens
               shape={mode === "theater" ? "circle" : mode === "board" ? "card" : "rect"}
@@ -447,7 +460,7 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
               </svg>
             )}
             {mode === "edit" && ready && (
-              <div className={"eyl-dialbox" + (dialsShown ? " is-shown" : "")} data-tour="dials">
+              <div className={"eyl-dialbox" + (dialsShown ? " is-shown" : "") + (dialsInside ? " is-inside" : "")} data-tour="dials">
                 <DialStrip dials={dialState.dials} onChange={turnDial} busy={dialState.busy} onActive={setActiveDial} />
               </div>
             )}

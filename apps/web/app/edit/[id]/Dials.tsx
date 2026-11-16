@@ -103,7 +103,12 @@ export function DialStrip({
         ] as const
       ).map(([k, label, low, high]) => (
         <div key={k} onMouseEnter={() => onActive(k)} onFocus={() => onActive(k)} data-dial={k} title={k === "brollDensity" ? BROLL_NOTE : undefined}>
-          <Dial label={label} value={dials[k]} low={low} high={high} onChange={(v) => { onActive(k); onChange(k, v); }} />
+          {k === "brollDensity" ? (
+            // nothing to weave yet: the dial keeps its value for later and says so, instead of a fake "sparse"
+            <Dial label={label} value={dials[k]} format={() => "none yet"} valueText={BROLL_NOTE} onChange={(v) => { onActive(k); onChange(k, v); }} />
+          ) : (
+            <Dial label={label} value={dials[k]} low={low} high={high} onChange={(v) => { onActive(k); onChange(k, v); }} />
+          )}
         </div>
       ))}
       <StatusDot status={busy ? "working" : "ready"} label={busy ? "re-editing" : "live"} showLabel={false} />
