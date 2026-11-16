@@ -50,7 +50,15 @@ def run(inp: dict, ctx) -> dict:
             gap_after = words[i + 1]["startMs"] - w["endMs"] if i + 1 < len(words) else 10_000
             if gap_before > 250 and gap_after > 250:
                 strikes.append({"startMs": w["startMs"], "endMs": w["endMs"], "kind": "filler", "reason": f"trimmed filler · '{n}'"})
-        elif i and n and n == _norm(words[i - 1]["text"]):
+        elif (
+            i
+            and n
+            and n == _norm(words[i - 1]["text"])
+            # a repeat is a stutter: same word, back to back, within one sentence ("it it"), not "…take it. It tracks"
+            and not _SENTENCE_END.search(words[i - 1]["text"].strip())
+            and not words[i - 1]["text"].rstrip().endswith(",")
+            and w["startMs"] - words[i - 1]["endMs"] < 400
+        ):
             strikes.append({"startMs": w["startMs"], "endMs": w["endMs"], "kind": "repeat", "reason": f"trimmed repeat · '{n}'"})
         i += 1
 

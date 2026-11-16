@@ -21,7 +21,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends python3.12 pyth
 COPY --from=ghcr.io/astral-sh/uv:0.13.5 /uv /usr/local/bin/uv
 COPY --from=render /repo /repo
 WORKDIR /app
-COPY services/engine/pyproject.toml services/engine/README.md* ./
+COPY services/engine/pyproject.toml services/engine/README.md ./
 COPY services/engine/eyelore_engine ./eyelore_engine
 COPY packages/core/schema/jobs.schema.json ./eyelore_engine/jobs.schema.json
 RUN uv venv /venv --python 3.12 && uv pip install --python /venv/bin/python ".[gpu]"
