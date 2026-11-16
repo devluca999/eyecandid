@@ -43,6 +43,9 @@ export function beadChanges(doc: EditDoc, clipId: string, transcript: Transcript
     struck: false,
   }));
   if (beads.length === 0) return [];
+  // beads tile the spoken span: the gap after a sentence belongs to its bead, so a pause between sentences is
+  // either kept or struck as a restorable cut with a reason, never dropped silently
+  for (let i = 0; i < beads.length - 1; i++) beads[i]!.outMs = Math.max(beads[i]!.outMs, beads[i + 1]!.inMs);
 
   // keep other clips' beads; replace this clip's
   const others = doc.beads.filter((b) => b.clipId !== clipId);
