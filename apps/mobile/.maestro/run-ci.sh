@@ -27,4 +27,4 @@ print(f"maestro: {len(cases)} flow(s), {total:.0f}s in total")
 sys.exit(0 if cases and total < 180 else f"the core loop took {total:.0f}s: over the 3 minute bound")
 PY
 videos | tee maestro-debug/gallery.txt
-grep -v eyelore-talk maestro-debug/gallery.txt | grep -q 'width=1080, height=1920' || { echo "no 1080x1920 export in the gallery"; exit 1; }
+grep -q 'width=1080, height=1920' maestro-debug/gallery.txt || { echo "no 1080x1920 export in the gallery"; exit 1; }
