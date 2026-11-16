@@ -17,6 +17,15 @@ adb reverse tcp:3211 tcp:3211
 adb install -r app.apk
 mkdir -p apps/mobile/.maestro/media && cp services/engine/tests/fixtures/talk.mp4 apps/mobile/.maestro/media/talk.mp4
 
+# let the freshly booted emulator settle (it has two software-rendered cores): launching into a busy system raises ANR dialogs
+for i in $(seq 1 30); do
+  load=$(adb shell cat /proc/loadavg | cut -d. -f1)
+  [ "${load:-9}" -lt 2 ] && break
+  sleep 4
+done
+adb shell cat /proc/loadavg
+adb shell am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS > /dev/null || true
+
 maestro test apps/mobile/.maestro --format junit --output maestro-report.xml --debug-output maestro-debug --flatten-debug-output
 
 # the proof, measured: the flow's own duration, and the exported video sitting in the gallery

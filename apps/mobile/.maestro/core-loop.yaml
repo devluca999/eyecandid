@@ -9,6 +9,12 @@ appId: app.eyelore
     - "media/talk.mp4"
 - launchApp:
     clearState: true
+# a software-rendered emulator can raise "System UI isn't responding" while it settles: wait it out
+- runFlow:
+    when:
+      visible: "Wait"
+    commands:
+      - tapOn: "Wait"
 - assertVisible: "Making real people look great."
 - tapOn:
     id: "import"
@@ -40,6 +46,11 @@ appId: app.eyelore
     index: 0
 - tapOn:
     id: "aspect-9x16"
+- runFlow:
+    when:
+      visible: "Wait"
+    commands:
+      - tapOn: "Wait"
 - tapOn:
     id: "export"
 - extendedWaitUntil:
