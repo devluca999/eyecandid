@@ -158,9 +158,9 @@ Integration is built behind a labelled stub until the key exists. Set them in Ve
 
 | service | env vars | where | status |
 |---|---|---|---|
-| Convex | `CONVEX_DEPLOY_KEY` (CI), `NEXT_PUBLIC_CONVEX_URL`, `EXPO_PUBLIC_CONVEX_URL` | GitHub, Vercel, EAS | needs `npx convex login` + project |
-| Vercel | `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID` | GitHub | needs `vercel login` + project |
-| Expo / EAS | `EXPO_TOKEN` | GitHub | needs `eas login` + project |
+| Convex | `CONVEX_DEPLOY_KEY` (prod), `CONVEX_PREVIEW_DEPLOY_KEY` | GitHub | project `SQco/eyelore` created (dev `deafening-hedgehog-824`, prod `hushed-heron-814`); **deploy keys needed** |
+| Vercel | `VERCEL_TOKEN` (`VERCEL_ORG_ID`, `VERCEL_PROJECT_ID` set) | GitHub | project `everstock/eyelore` created, root `apps/web`, no git link (CI deploys); **token needed** |
+| Expo / EAS | `EXPO_TOKEN` (`EXPO_PUBLIC_CONVEX_URL[_PREVIEW]` set) | GitHub | project `@devluca999/eyelore` linked; **token needed** |
 | Clerk | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_JWT_ISSUER_DOMAIN`, `CLERK_WEBHOOK_SECRET` | Vercel, Convex, EAS | stub: anonymous-only |
 | Stripe | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Convex, Vercel | stub: free tier only |
 | SendPulse | `SENDPULSE_CLIENT_ID`, `SENDPULSE_CLIENT_SECRET` | Convex | stub: logs the email |
