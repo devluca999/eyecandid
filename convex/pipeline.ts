@@ -8,6 +8,7 @@ import { commitChanges, headDoc } from "./lib/docs";
 import { enqueueJob } from "./jobs";
 import { ownedProject } from "./projects";
 import { caller } from "./lib/owner";
+import { flagOn } from "./lib/flags";
 import { anonHashOf, usageFor } from "./lib/entitle";
 
 /**
@@ -96,14 +97,13 @@ export const startExport = mutation({
     if (!head) throw new Error("nothing to export");
     let doc: EditDoc = { ...head.doc, aspect: a.aspect as Aspect };
     const usage = await usageFor(ctx, who);
-    const decision = decideExport({
-      plan: usage.plan,
-      mode: a.mode ?? "best",
-      requestedMs: a.maxDurationMs,
-      fullMs: toTimeline(head.doc).durationMs,
-      minutesUsed: usage.minutesUsed,
-      minutesLimit: usage.minutesLimit,
-    });
+    const input = { requestedMs: a.maxDurationMs, fullMs: toTimeline(head.doc).durationMs };
+    // Paywall rules bite only when payments can actually be taken: the `billing` flag is on for this caller AND
+    // Stripe is configured. Otherwise behave as before: watermark, silent clamp to the free cap, no minutes block,
+    // no `paid_required`. Usage is still recorded either way. A paid plan keeps its benefits in both modes.
+    const enforce = !!process.env.STRIPE_SECRET_KEY && (await flagOn(ctx, "billing", who.userId ?? a.anonId));
+    let decision = decideExport({ ...input, plan: usage.plan, mode: a.mode ?? "best", minutesUsed: usage.minutesUsed, minutesLimit: usage.minutesLimit });
+    if (!decision.ok && !enforce) decision = decideExport({ ...input, plan: "free", mode: "free", minutesUsed: 0 });
     if (!decision.ok) throw new ConvexError({ code: "paid_required", reason: decision.reason, freeAvailable: decision.freeAvailable });
     const plan = { watermark: decision.watermark, capMs: decision.capMs };
     const maxMs = Math.min(a.maxDurationMs ?? plan.capMs, plan.capMs);

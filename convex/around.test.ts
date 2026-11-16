@@ -108,9 +108,23 @@ describe("account claim", () => {
   });
 });
 
-describe("export entitlements (server-side)", () => {
-  it("anonymous: watermarked, capped at 60s; a long edit needs a paid plan or the free choice", async () => {
+describe("export entitlements (server-side), billing on and Stripe configured", () => {
+  const saved = process.env.STRIPE_SECRET_KEY;
+  beforeEach(() => {
+    process.env.STRIPE_SECRET_KEY = "sk_test_enforce";
+  });
+  afterEach(() => {
+    if (saved === undefined) delete process.env.STRIPE_SECRET_KEY;
+    else process.env.STRIPE_SECRET_KEY = saved;
+  });
+  const enforced = async () => {
     const t = mk();
+    await t.mutation(internal.flags.set, { key: "billing", enabled: true });
+    return t;
+  };
+
+  it("anonymous: watermarked, capped at 60s; a long edit needs a paid plan or the free choice", async () => {
+    const t = await enforced();
     const short = await seed(t, { anonId: ANON }, 30_000);
     expect(await renderInput(t, await exp(t, short))).toMatchObject({ watermark: true, maxDurationMs: 60_000 });
 
@@ -121,7 +135,7 @@ describe("export entitlements (server-side)", () => {
   });
 
   it("no argument can lift the watermark or the cap", async () => {
-    const t = mk();
+    const t = await enforced();
     const long = await seed(t, { anonId: ANON }, 150_000);
     await expect(exp(t, long, { watermark: false })).rejects.toThrow(); // unknown argument
     await expect(exp(t, long, { plan: "studio" })).rejects.toThrow();
@@ -134,7 +148,7 @@ describe("export entitlements (server-side)", () => {
   });
 
   it("a signed-out holder of a claimed project's anon id does not inherit the owner's paid plan", async () => {
-    const t = mk();
+    const t = await enforced();
     const p = await seed(t, { anonId: ANON }, 150_000);
     const uid = await t.withIdentity(ALICE).mutation(api.users.ensure, {});
     await t.withIdentity(ALICE).mutation(api.account.claim, { anonId: ANON });
@@ -144,7 +158,7 @@ describe("export entitlements (server-side)", () => {
   });
 
   it("paid: no watermark and the plan's cap; choosing free still watermarks", async () => {
-    const t = mk();
+    const t = await enforced();
     const uid = await t.withIdentity(ALICE).mutation(api.users.ensure, {});
     await setPaid(t, uid, "creator");
     const p = await seed(t, { anonId: ANON, as: ALICE }, 150_000);
@@ -157,7 +171,7 @@ describe("export entitlements (server-side)", () => {
   });
 
   it("counts minutes once when a render succeeds, and blocks at the monthly allowance", async () => {
-    const t = mk();
+    const t = await enforced();
     const p = await seed(t, { anonId: ANON }, 30_000);
     const jobId = await exp(t, p);
     const succeed = (ms: number) =>
@@ -174,13 +188,57 @@ describe("export entitlements (server-side)", () => {
   });
 
   it("a user's minutes reset in a new month", async () => {
-    const t = mk();
+    const t = await enforced();
     const uid = await t.withIdentity(ALICE).mutation(api.users.ensure, {});
     await t.run(async (ctx) => {
       const e = await ctx.db.query("entitlements").withIndex("by_user", (q) => q.eq("userId", uid)).unique();
       await ctx.db.patch(e!._id, { minutesUsed: 99, period: "2020-01" });
     });
     expect((await t.withIdentity(ALICE).query(api.entitlements.mine, {})).minutesUsed).toBe(0);
+  });
+});
+
+describe("export entitlements while payments are not connected (billing off or no Stripe key)", () => {
+  const saved = process.env.STRIPE_SECRET_KEY;
+  afterEach(() => {
+    if (saved === undefined) delete process.env.STRIPE_SECRET_KEY;
+    else process.env.STRIPE_SECRET_KEY = saved;
+  });
+
+  it("billing flag off: a 90s edit exports clamped to 60s and watermarked, with no error (mobile path, no mode)", async () => {
+    process.env.STRIPE_SECRET_KEY = "sk_test_x"; // key alone is not enough
+    const t = mk();
+    const p = await seed(t, { anonId: ANON }, 90_000);
+    expect(await renderInput(t, await exp(t, p))).toMatchObject({ watermark: true, maxDurationMs: 60_000 });
+  });
+
+  it("no Stripe key: the flag alone does not turn the paywall on", async () => {
+    delete process.env.STRIPE_SECRET_KEY;
+    const t = mk();
+    await t.mutation(internal.flags.set, { key: "billing", enabled: true });
+    const p = await seed(t, { anonId: ANON }, 90_000);
+    expect(await renderInput(t, await exp(t, p))).toMatchObject({ watermark: true, maxDurationMs: 60_000 });
+  });
+
+  it("an anon past the monthly allowance can still export, and usage is still recorded", async () => {
+    delete process.env.STRIPE_SECRET_KEY;
+    const t = mk();
+    const p = await seed(t, { anonId: ANON }, 30_000);
+    const jobId = await exp(t, p);
+    await t.run((ctx) => ctx.db.patch(jobId, { status: "succeeded", output: { durationMs: 11 * 60_000 } }));
+    await t.mutation(internal.entitlements.recordExportDone, { jobId });
+    expect((await t.query(api.entitlements.mine, { anonId: ANON })).minutesUsed).toBe(11);
+    expect(await renderInput(t, await exp(t, p))).toMatchObject({ watermark: true });
+  });
+
+  it("still no argument can lift the watermark or the cap", async () => {
+    delete process.env.STRIPE_SECRET_KEY;
+    const t = mk();
+    const p = await seed(t, { anonId: ANON }, 150_000);
+    await expect(exp(t, p, { watermark: false })).rejects.toThrow();
+    await expect(exp(t, p, { maxDurationMs: 600_000 })).rejects.toThrow();
+    await expect(exp(t, p, { mode: "studio" })).rejects.toThrow();
+    expect(await renderInput(t, await exp(t, p))).toMatchObject({ watermark: true, maxDurationMs: 60_000 });
   });
 });
 
