@@ -152,7 +152,7 @@ Primary metric: **time from `drop_started` to `first_preview`** (target ≤ 60 s
 | No always-on host for the CPU worker yet | the core loop only runs while a worker is up (today: a laptop) | pick a host (Modal CPU, Fly.io, a small VPS); the same worker runs unchanged |
 | OpenCV 5 dropped the Haar face detector | reframe pinned to OpenCV 4 | move to YuNet (`cv2.FaceDetectorYN`) with a vendored model |
 | Many external accounts not yet connected | can't prove CI exit criterion | stubs + "Needs keys" list; local anonymous Convex for development |
-| Mobile e2e (Maestro on EAS) is slow/expensive | CI time | run on preview builds only when `apps/mobile` or `packages/*` change |
+| EAS cloud builds never left the queue on the free tier | mobile e2e could not run | the APK is built on the CI runner (x86_64 release) and Maestro runs against a local Convex + CPU worker; runs only when mobile-relevant paths change. Cloud builds by hand: `eas build --profile preview` |
 
 ## 7. Needs keys
 
@@ -162,7 +162,7 @@ Integration is built behind a labelled stub until the key exists. Set them in Ve
 |---|---|---|---|
 | Convex | `CONVEX_DEPLOY_KEY` (prod), `CONVEX_PREVIEW_DEPLOY_KEY` | GitHub | project `SQco/eyelore` created (dev `deafening-hedgehog-824`, prod `hushed-heron-814`); **deploy keys needed** |
 | Vercel | `VERCEL_TOKEN` (`VERCEL_ORG_ID`, `VERCEL_PROJECT_ID` set) | GitHub | project `everstock/eyelore` created, root `apps/web`, no git link (CI deploys); **token needed** |
-| Expo / EAS | `EXPO_TOKEN` (`EXPO_PUBLIC_CONVEX_URL[_PREVIEW]` set) | GitHub | project `@devluca999/eyelore` linked; **token needed** |
+| Expo / EAS | `EXPO_TOKEN` (`EXPO_PUBLIC_CONVEX_URL[_PREVIEW]` set) | GitHub | project `@devluca999/eyelore` linked; `EXPO_TOKEN` is only used for EAS Update on main. PR CI no longer needs it |
 | Clerk | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_JWT_ISSUER_DOMAIN`, `CLERK_WEBHOOK_SECRET` | Vercel, Convex, EAS | web: provider wired, switches on with the publishable key; Convex `auth.config.ts` is an empty-provider stub (anonymous-only); mobile Clerk and the anon→account claim are **not built yet** (Phase 2) |
 | Stripe | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Convex, Vercel | **not built yet** (Phase 2: paywall at export, webhooks into Convex, server-side entitlements) |
 | SendPulse | `SENDPULSE_CLIENT_ID`, `SENDPULSE_CLIENT_SECRET` | Convex | **not built yet** (Phase 2: "your edit is ready") |
@@ -219,6 +219,16 @@ Where work runs (decided 2026-11-16): one worker codebase behind `GpuProvider`. 
 - [x] Playwright: landing → exported 9:16 in **55–62s** locally (real CPU worker), CI runs it with a real worker
 - [ ] Resumable upload (chunked storage behind MediaStore) and an uploaded proxy for other devices
 **2.2b Web, rest** — theater (Night, circle Lens) and board modes; dials that re-edit live; timeline drawer with the five tracks; "?" shortcut sheet + skippable tour; Clerk signup at export with the anonymous work carried over
-**2.3 Mobile** — capture + teleprompter (line-by-line retakes), camera-roll import + background upload, theater review, light edits, export to camera roll + share sheet, Maestro under-3-minutes test
+**2.3 Mobile** — branch `phase-2/mobile` (native screens, no webview)
+- [x] Home: record or import, no signup; recent edits (`projects.mine`)
+- [x] Capture with a teleprompter: script one line per row, one continuous recording, the current line under the lens, tap for the next; a line said twice keeps the last take (`retakeChanges`, restorable). Not exercised on a device yet: simulators have no camera
+- [x] Camera-roll import through the system picker (original file, no re-encode); upload with real progress and three tries. iOS starts a background `URLSession` and falls back to an in-app upload if it has not sent a byte in 8s (the simulator never starts one); Android uploads in-process
+- [x] Review in the theater: Night, circle Lens, plays the edit from the source skipping struck words, pauses and lines (shared `toTimeline`); captions on the footage; the Lens morphs to the frame at the chosen ratio, face-centred (`coverBox`)
+- [x] Light edits: tap a word or pause to cut/restore, cut/keep a line, hold a word to fix its caption spelling (server rejects meaning changes), aspect, undo
+- [x] Export → saved to the camera roll, then the share sheet; funnel events with `platform`
+- [x] Haptics on every action and result; VoiceOver/TalkBack labels, hints, states and live regions; 44pt targets on controls
+- [x] iOS simulator, dev deployment + Modal worker: import → ready → exported 1080×1920 h264 in the camera roll in under 60s
+- [~] Maestro `core-loop.yaml` (import through the real picker → ready → edit → export saved, waits sum to under 3 min) on the Android emulator in CI
+- [ ] Geist fonts in the native app (system font today); Clerk and the paywall on mobile (needs keys and an in-app-purchase decision); Android foreground service for long uploads; Sentry
 **2.4 Around the loop** — idea engine empty state (needs an LLM key), paywall at export (Stripe), "your edit is ready" (SendPulse), Sentry
 ### Phase 3 — autopilots and AI editing *(not started)*
