@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { EditDoc, emptyEditDoc } from "@eyelore/core";
-import { toTimeline } from "../src/timeline";
+import { toTimeline } from "@eyelore/core";
 
 const w = (id: string, text: string, s: number, e: number, struck = false) => ({ id, text, startMs: s, endMs: e, conf: 1, struck });
 
@@ -32,7 +32,7 @@ describe("toTimeline", () => {
   });
 });
 
-import { coverBox, faceAt } from "../src/reframe";
+import { coverBox, faceAt } from "@eyelore/core";
 
 describe("silences and reframe", () => {
   it("drops struck silences and keeps restored ones", () => {

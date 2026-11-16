@@ -6,3 +6,7 @@ export { Lens, type LensShape } from "./web/Lens";
 export { StatusDot, type Status } from "./web/StatusDot";
 export { PillButton } from "./web/PillButton";
 export { Lockup } from "./web/Lockup";
+export { DropZone } from "./web/DropZone";
+export { ContextMenu, RatioGlyph, RATIOS, type MenuItem } from "./web/ContextMenu";
+export { ExportPill } from "./web/ExportPill";
+export { Dial } from "./web/Dial";

@@ -206,7 +206,19 @@ Where work runs (decided 2026-11-16): one worker codebase behind `GpuProvider`. 
 - [x] Renderer: silences dropped, face-centred cover crop for any aspect, watermark
 - [x] Live run on the dev deployment (CPU worker on a laptop, 9s clip): **ready 7.8s after the drop** (upload 1.6s, transcribe ~5.5s warm, autocut <1s); reframe +6s; 9:16 export 1080×1920 captioned and watermarked. Render is slow on CPU (~65s for 7s of output): first target for 2.2
 - [~] Engine image with Node + renderer: Dockerfile updated, built by CI on PRs (no push)
-**2.2 Web core loop** — drop zone on the landing, resumable upload + client proxy, editor (Lens theater/edit/board, bead thread, struck words restorable, inline captions, right-click aspect morph, dials, export pill with ring + cutdowns, timeline drawer), signup at export (Clerk), Playwright under-3-minutes test
+**2.2a Web core loop** — branch `phase-2/web-loop`
+- [x] Drop zone on the landing (drag anywhere or "choose a clip"); no signup; editor opens at once on the local file while it uploads (XHR progress, 3 retries)
+- [x] Live pipeline in the Lens: shimmer + an honest stage line (uploading %, listening, trimming, cold engine, failures with the reason)
+- [x] Player previews the edit from the raw source, skipping struck words/pauses/beads exactly as the render does (shared `toTimeline`)
+- [x] Bead thread on real beads: stills per bead, words above (struck faint, click to restore; click any word to cut), pauses as "· 1.4s", moment ticks; select a bead to keep/cut it
+- [x] Captions on the footage, verbatim; click a word to fix spelling (server rejects anything that changes the word)
+- [x] Explain-on-hover from the change log; summary line ("4 fillers trimmed · 1 pause cut")
+- [x] Right-click Lens: aspect morph (face-centred crop), true aspect, moments only, export cutdowns; ⌘Z undo, space play, delete cuts a bead
+- [x] Export pill: ratio + 15/30/60 cutdowns, ring on the Lens edge, download
+- [x] Funnel events: drop_started, upload_done, first_preview (time-to-wow), edit_interaction, export_clicked, export_done
+- [x] Playwright: landing → exported 9:16 in **55–62s** locally (real CPU worker), CI runs it with a real worker
+- [ ] Resumable upload (chunked storage behind MediaStore) and an uploaded proxy for other devices
+**2.2b Web, rest** — theater (Night, circle Lens) and board modes; dials that re-edit live; timeline drawer with the five tracks; "?" shortcut sheet + skippable tour; Clerk signup at export with the anonymous work carried over
 **2.3 Mobile** — capture + teleprompter (line-by-line retakes), camera-roll import + background upload, theater review, light edits, export to camera roll + share sheet, Maestro under-3-minutes test
 **2.4 Around the loop** — idea engine empty state (needs an LLM key), paywall at export (Stripe), "your edit is ready" (SendPulse), Sentry
 ### Phase 3 — autopilots and AI editing *(not started)*

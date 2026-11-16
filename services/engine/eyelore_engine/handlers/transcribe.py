@@ -1,6 +1,8 @@
 """Word-level transcription with faster-whisper (ported from the legacy engine's word timing step)."""
 from __future__ import annotations
 
+import os
+
 
 def run(inp: dict, ctx) -> dict:
     from faster_whisper import WhisperModel  # optional dependency: pip install eyelore-engine[gpu]
@@ -8,7 +10,9 @@ def run(inp: dict, ctx) -> dict:
     path = ctx.download(inp["mediaId"])
     ctx.progress(0.1, "loading model")
     device = "cuda" if ctx.provider in {"colab", "modal", "runpod"} else "cpu"
-    model = WhisperModel(inp.get("model", "small"), device=device, compute_type="float16" if device == "cuda" else "int8")
+    # a host may cap model size (e.g. CI runs "tiny"); the job's request is the default
+    name = os.environ.get("EYELORE_TRANSCRIBE_MODEL") or inp.get("model", "small")
+    model = WhisperModel(name, device=device, compute_type="float16" if device == "cuda" else "int8")
     ctx.progress(0.2, "listening")
     segments, info = model.transcribe(path, language=inp.get("language"), word_timestamps=True, vad_filter=False)
     words = []

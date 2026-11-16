@@ -58,3 +58,15 @@ describe("pipeline changes", () => {
     expect(cutdownChange(doc, total + 1)).toBeNull();
   });
 });
+
+import { isSpellingFix } from "../src";
+describe("captions keep the speaker's words", () => {
+  it("allows spelling, casing and punctuation fixes, not new words", () => {
+    expect(isSpellingFix("ring", "Ring.")).toBe(true);
+    expect(isSpellingFix("recieve", "receive")).toBe(true);
+    expect(isSpellingFix("nightstand", "night-stand")).toBe(true);
+    expect(isSpellingFix("love", "hate")).toBe(false);
+    expect(isSpellingFix("week", "month")).toBe(false);
+    expect(isSpellingFix("it", "")).toBe(false);
+  });
+});

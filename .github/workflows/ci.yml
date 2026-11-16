@@ -67,7 +67,7 @@ jobs:
       - run: .venv/bin/pytest -q
 
   e2e:
-    name: web e2e + visual (local convex + cpu-stub worker)
+    name: web e2e + visual (local convex + real cpu worker)
     runs-on: ubuntu-latest
     needs: [checks]
     env:
@@ -87,17 +87,18 @@ jobs:
           (npx convex dev > convex.log 2>&1 &)
           for i in $(seq 1 60); do curl -sf $EYELORE_CONVEX_SITE_URL/worker/hello && break; sleep 2; done
           curl -sf $EYELORE_CONVEX_SITE_URL/worker/hello || (cat convex.log; exit 1)
-      - name: start a cpu-stub worker
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+      - name: start a real cpu worker (transcribe, autocut, reframe, render)
         run: |
-          TOKEN=$(npx convex run workers:register '{"name":"ci","provider":"cpu-stub"}' | python3 -c 'import sys,json;print(json.load(sys.stdin)["token"])')
+          TOKEN=$(npx convex run workers:register '{"name":"ci","provider":"cpu"}' | python3 -c 'import sys,json;print(json.load(sys.stdin)["token"])')
           echo "::add-mask::$TOKEN"
-          cd services/engine && uv venv --python 3.12 && uv pip install -e .
-          (EYELORE_WORKER_TOKEN=$TOKEN EYELORE_PROVIDER=cpu-stub EYELORE_WORKER_NAME=ci EYELORE_HELLO_STEP_S=0.4 .venv/bin/eyelore-worker > ../../worker.log 2>&1 &)
+          cd services/engine && uv venv --python 3.12 && uv pip install -e '.[cpu]'
+          (EYELORE_WORKER_TOKEN=$TOKEN EYELORE_PROVIDER=cpu EYELORE_WORKER_NAME=ci EYELORE_HELLO_STEP_S=0.4 EYELORE_TRANSCRIBE_MODEL=base .venv/bin/eyelore-worker > ../../worker.log 2>&1 &)
       - run: pnpm --filter @eyelore/web build
       - run: pnpm --filter @eyelore/web exec playwright install --with-deps chromium
       - name: playwright (functional + visual regression)
         run: pnpm --filter @eyelore/web exec playwright test --update-snapshots=missing
-        env: { E2E_WORKER: "1", CI: "1" }
+        env: { E2E_WORKER: "1", E2E_REAL_WORKER: "1", CI: "1" }
       - if: always()
         uses: actions/upload-artifact@v4
         with:
