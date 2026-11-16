@@ -16,8 +16,8 @@ export async function ownedProject(ctx: QueryCtx | MutationCtx, projectId: Id<"p
 
 /** Start a project with no signup (ADR 0006). */
 export const create = mutation({
-  args: { anonId: v.string(), title: v.optional(v.string()) },
-  handler: async (ctx, { anonId, title }) => {
+  args: { anonId: v.string(), title: v.optional(v.string()), script: v.optional(v.array(v.string())) },
+  handler: async (ctx, { anonId, title, script }) => {
     const who = await caller(ctx, anonId);
     const projectId = await ctx.db.insert("projects", {
       ownerUserId: who.userId,
@@ -28,6 +28,10 @@ export const create = mutation({
       createdAt: Date.now(),
     });
     await createDoc(ctx, projectId);
+    const lines = (script ?? []).map((l) => l.trim().slice(0, 300)).filter(Boolean).slice(0, 60);
+    if (lines.length) {
+      await commitChanges(ctx, projectId, [{ actor: "user", reason: `script · ${lines.length} line${lines.length === 1 ? "" : "s"}`, ops: [{ op: "set", path: "/script", value: lines }] }]);
+    }
     return projectId;
   },
 });

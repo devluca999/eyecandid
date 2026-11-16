@@ -4,6 +4,7 @@ on:
   pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -128,7 +129,7 @@ jobs:
           echo "expo=${EXPO_TOKEN:+yes}" >> $GITHUB_OUTPUT
           [ -n "$VERCEL_TOKEN" ] || echo "::notice::web preview skipped · needs VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID"
           [ -n "$CONVEX_PREVIEW_DEPLOY_KEY" ] || echo "::notice::convex preview skipped · needs CONVEX_PREVIEW_DEPLOY_KEY"
-          [ -n "$EXPO_TOKEN" ] || echo "::notice::mobile preview + maestro skipped · needs EXPO_TOKEN"
+          [ -n "$EXPO_TOKEN" ] || echo "::notice::eas update on main skipped · needs EXPO_TOKEN"
 
   preview-web:
     name: preview · convex + vercel
@@ -156,37 +157,98 @@ jobs:
         run: echo "url=$(npx vercel@latest deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }})" >> $GITHUB_OUTPUT
       - run: echo "::notice::web preview · ${{ steps.deploy.outputs.url }}"
 
-  preview-mobile:
-    name: preview · eas build + maestro
-    if: github.event_name == 'pull_request' && needs.keys.outputs.expo == 'yes'
-    needs: [keys, checks]
+  mobile-changes:
+    name: mobile paths changed?
+    runs-on: ubuntu-latest
+    permissions: { contents: read, pull-requests: read }
+    outputs:
+      mobile: ${{ steps.f.outputs.mobile }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: f
+        with:
+          filters: |
+            mobile:
+              - 'apps/mobile/**'
+              - 'packages/**'
+              - 'convex/**'
+              - 'services/**'
+              - 'pnpm-lock.yaml'
+              - '.github/workflows/ci.yml'
+
+  # The APK is built on this runner, not in the EAS cloud: a free-tier cloud build waits ~17 min in the queue and then
+  # builds for 14-26 min, so `eas build --wait` outlived every push (and each cancelled run left its build queued).
+  # Hermetic like the web e2e: a local Convex backend and a real CPU worker; the emulator reaches them over
+  # `adb reverse`. Needs no secrets. Installable builds for real devices: `eas build --profile preview`.
+  mobile-e2e:
+    name: mobile e2e · android build + maestro (local convex + real cpu worker)
+    needs: [checks, mobile-changes]
+    if: needs.mobile-changes.outputs.mobile == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    env:
+      CONVEX_AGENT_MODE: anonymous
+      EXPO_PUBLIC_CONVEX_URL: http://127.0.0.1:3210
+      EYELORE_CONVEX_SITE_URL: http://127.0.0.1:3211
+      EYELORE_E2E: "1"
     steps:
+      - name: free disk space (the native build, the worker and the emulator image do not fit otherwise)
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /usr/local/share/boost /usr/share/swift /opt/hostedtoolcache/CodeQL
+          sudo docker image prune -af > /dev/null || true
+          df -h /
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
         with: { version: "${{ env.PNPM_VERSION }}" }
       - uses: actions/setup-node@v4
         with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - uses: gradle/actions/setup-gradle@v4
+        with: { cache-read-only: false } # PR branches save the Gradle cache too: a cold native build is ~29 min
       - uses: astral-sh/setup-uv@v6
       - run: pnpm install --frozen-lockfile
-      - uses: expo/expo-github-action@v8
-        with: { eas-version: latest, token: "${{ secrets.EXPO_TOKEN }}" }
-      - name: eas preview build (android apk, points at the dev deployment via eas.json)
-        id: build
+      # the APK only changes with the app's inputs: flow and CI edits reuse it instead of a ~29 min native build
+      - uses: actions/cache/restore@v4
+        id: apk
+        with:
+          path: app.apk
+          key: apk-x86_64-${{ hashFiles('apps/mobile/**', '!apps/mobile/.maestro/**', 'packages/**', 'convex/_generated/**', 'pnpm-lock.yaml') }}
+      - name: release apk for the emulator (x86_64 only, signed with the debug key)
+        if: steps.apk.outputs.cache-hit != 'true'
         working-directory: apps/mobile
         run: |
-          eas build --profile preview --platform android --non-interactive --wait --json > build.json
-          echo "apk=$(python3 -c 'import json;print(json.load(open("build.json"))[0]["artifacts"]["buildUrl"])')" >> $GITHUB_OUTPUT
-      - name: a worker answering on the dev deployment
-        env:
-          EYELORE_CONVEX_SITE_URL: https://deafening-hedgehog-824.convex.site
-          EYELORE_WORKER_TOKEN: ${{ secrets.EYELORE_DEV_WORKER_TOKEN }}
+          npx expo prebuild --platform android --no-install
+          cd android && ./gradlew assembleRelease -PreactNativeArchitectures=x86_64 --console=plain
+          cp app/build/outputs/apk/release/app-release.apk "$GITHUB_WORKSPACE/app.apk"
+          # build intermediates are several GB: drop them before the emulator image is installed
+          ./gradlew --stop || true
+          rm -rf app/build app/.cxx build
+          find "$GITHUB_WORKSPACE/node_modules" -type d \( -name .cxx -o -path '*/android/build' \) -prune -exec rm -rf {} + || true
+          df -h /
+      - if: steps.apk.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: app.apk
+          key: ${{ steps.apk.outputs.cache-primary-key }}
+      - name: what this runner has; warm the renderer's headless browser before the emulator takes the cores
         run: |
-          cd services/engine && uv venv --python 3.12 && uv pip install -e .
-          (EYELORE_PROVIDER=cpu EYELORE_WORKER_NAME=ci-preview-${{ github.run_id }} .venv/bin/eyelore-worker > ../../worker.log 2>&1 &)
+          nproc; free -g; df -h /
+          cd services/render && npx remotion browser ensure
+      - name: start a local convex backend
+        run: |
+          (npx convex dev > convex.log 2>&1 &)
+          for i in $(seq 1 60); do curl -sf $EYELORE_CONVEX_SITE_URL/worker/hello && break; sleep 2; done
+          curl -sf $EYELORE_CONVEX_SITE_URL/worker/hello || (cat convex.log; exit 1)
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+      - name: start a real cpu worker (transcribe, autocut, reframe, render)
+        run: |
+          TOKEN=$(npx convex run workers:register '{"name":"ci","provider":"cpu"}' | python3 -c 'import sys,json;print(json.load(sys.stdin)["token"])')
+          echo "::add-mask::$TOKEN"
+          cd services/engine && uv venv --python 3.12 && uv pip install -e '.[cpu]'
+          (EYELORE_WORKER_TOKEN=$TOKEN EYELORE_PROVIDER=cpu EYELORE_WORKER_NAME=ci EYELORE_HELLO_STEP_S=0.4 EYELORE_TRANSCRIBE_MODEL=base .venv/bin/eyelore-worker > ../../worker.log 2>&1 &)
       - run: curl -Ls "https://get.maestro.mobile.dev" | bash && echo "$HOME/.maestro/bin" >> $GITHUB_PATH
-      - run: curl -L -o app.apk "${{ steps.build.outputs.apk }}"
       - name: enable kvm
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -197,14 +259,18 @@ jobs:
           api-level: 34
           arch: x86_64
           target: google_apis
-          script: adb install app.apk && maestro test apps/mobile/.maestro --format junit --output maestro-report.xml
+          profile: pixel_6
+          disable-animations: true
+          script: bash apps/mobile/.maestro/run-ci.sh
       - if: always()
         uses: actions/upload-artifact@v4
         with:
           name: maestro
           path: |
             maestro-report.xml
+            maestro-debug
             worker.log
+            convex.log
 
   engine-image:
     name: engine image builds (no push)

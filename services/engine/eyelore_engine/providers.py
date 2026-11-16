@@ -72,7 +72,9 @@ class ColabProvider(GpuProvider):
         return LocalCpuProvider().capabilities()
 
 
-class ModalProvider(ColabProvider):
+class ModalProvider(LocalCpuProvider):
+    """Modal container from the engine image: real CPU work (transcribe, autocut, reframe, render)."""
+
     name = "modal"
 
 
