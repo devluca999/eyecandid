@@ -1,7 +1,9 @@
 "use client";
 import { useRef } from "react";
 
-/** design/components/dial/Dial: drag vertically, scroll, or arrow keys. 0–1. */
+const STEPS = { ArrowUp: 0.05, ArrowRight: 0.05, ArrowDown: -0.05, ArrowLeft: -0.05, PageUp: 0.2, PageDown: -0.2 };
+
+/** design/components/dial/Dial: drag vertically, scroll, or arrow keys (page up / down, home / end). 0–1. */
 export function Dial({ label, value, onChange, low, high, size = 44 }: { label: string; value: number; onChange: (v: number) => void; low?: string; high?: string; size?: number }) {
   const ref = useRef<HTMLDivElement>(null);
   const set = (v: number) => onChange(Math.max(0, Math.min(1, Math.round(v * 100) / 100)));
@@ -27,8 +29,12 @@ export function Dial({ label, value, onChange, low, high, size = 44 }: { label: 
         aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(value * 100)}
         onPointerDown={down} onWheel={(e) => set(value - e.deltaY / 800)}
         onKeyDown={(e) => {
-          if (e.key === "ArrowUp" || e.key === "ArrowRight") set(value + 0.05);
-          if (e.key === "ArrowDown" || e.key === "ArrowLeft") set(value - 0.05);
+          const step = (STEPS as Record<string, number | undefined>)[e.key];
+          if (step !== undefined) set(value + step);
+          else if (e.key === "Home") set(0);
+          else if (e.key === "End") set(1);
+          else return;
+          e.preventDefault();
         }}>
         <svg viewBox={`0 0 ${size} ${size}`}>
           <circle className="el-dial__track" cx={size / 2} cy={size / 2} r={r} strokeDasharray={`${c * arc} ${c}`} transform={`rotate(135 ${size / 2} ${size / 2})`} />
