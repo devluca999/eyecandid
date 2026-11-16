@@ -1,9 +1,11 @@
 # Phase 2 exit check on mobile: a new user imports a clip and ends with an exported, captioned, reframed video
 # saved to the camera roll, in under 3 minutes. Everything is real: the system photo picker, the upload, the pipeline
-# on a CPU worker and the render. (Simulators have no camera, so the clip is imported; run-ci.sh puts the fixture in
-# the gallery.) The waits below add up to 175s, so a pass means the whole loop took less than 3 minutes.
+# on a CPU worker and the render. (Simulators have no camera, so the clip is imported.) The waits below add up to 175s, so a pass means the whole loop took less than 3 minutes.
 appId: app.eyelore
 ---
+# the clip a new user would have in their camera roll
+- addMedia:
+    - "../../../services/engine/tests/fixtures/talk.mp4"
 - launchApp:
     clearState: true
 - assertVisible: "Making real people look great."
