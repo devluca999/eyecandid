@@ -1,0 +1,72 @@
+name: deploy
+# main → production (Convex, Vercel, EAS Update). main + tags → engine image on GHCR. tags → engine package release.
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+permissions: { contents: write, packages: write }
+
+jobs:
+  production:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 12.14.0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - name: convex + vercel production
+        env:
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          if [ -z "$CONVEX_DEPLOY_KEY" ] || [ -z "$VERCEL_TOKEN" ]; then echo "::warning::production deploy skipped · needs CONVEX_DEPLOY_KEY and VERCEL_TOKEN"; exit 0; fi
+          npx vercel@latest pull --yes --environment=production --token=$VERCEL_TOKEN
+          npx convex deploy --cmd "npx vercel@latest build --prod --token=$VERCEL_TOKEN" --cmd-url-env-var-name NEXT_PUBLIC_CONVEX_URL
+          npx vercel@latest deploy --prebuilt --prod --token=$VERCEL_TOKEN
+      - name: eas update (over the air)
+        env: { EXPO_TOKEN: "${{ secrets.EXPO_TOKEN }}", EXPO_PUBLIC_CONVEX_URL: "${{ secrets.EXPO_PUBLIC_CONVEX_URL }}" }
+        working-directory: apps/mobile
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then echo "::warning::eas update skipped · needs EXPO_TOKEN"; exit 0; fi
+          npx eas-cli@latest update --channel production --auto --non-interactive
+
+  engine-image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with: { registry: ghcr.io, username: "${{ github.actor }}", password: "${{ secrets.GITHUB_TOKEN }}" }
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/eyelore-engine
+          tags: |
+            type=sha
+            type=ref,event=tag
+            type=raw,value=main,enable=${{ github.ref == 'refs/heads/main' }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: services/engine/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  engine-package:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: cp packages/core/schema/jobs.schema.json services/engine/eyelore_engine/ && cd services/engine && uv build
+      - name: attach the wheel to the release (the Colab bootstrap pip-installs it)
+        env: { GH_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
+        run: gh release create "${{ github.ref_name }}" services/engine/dist/* --generate-notes || gh release upload "${{ github.ref_name }}" services/engine/dist/* --clobber

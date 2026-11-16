@@ -1,0 +1,20 @@
+{
+  "name": "@eyelore/render",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "studio": "remotion studio src/index.ts",
+    "render": "remotion render src/index.ts Cut",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src test",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@eyelore/core": "workspace:*",
+    "@remotion/cli": "4.0.543",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "remotion": "4.0.543"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "expo": {
+    "name": "eyelore",
+    "slug": "eyelore",
+    "scheme": "eyelore",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "runtimeVersion": { "policy": "appVersion" },
+    "updates": { "url": "https://u.expo.dev/REPLACE_WITH_EAS_PROJECT_ID" },
+    "ios": { "bundleIdentifier": "app.eyelore", "supportsTablet": false },
+    "android": { "package": "app.eyelore" },
+    "plugins": ["expo-router", "expo-status-bar", "expo-font", "expo-secure-store"],
+    "experiments": { "typedRoutes": true }
+  }
+}
