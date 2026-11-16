@@ -1,11 +1,14 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
+import { internal } from "./_generated/api";
 import { internalMutation, mutation } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
-import { applyChange, beadChanges, cutdownChange, JOB_SPECS, reframeChange } from "@eyelore/core";
+import { applyChange, beadChanges, cutdownChange, decideExport, JOB_SPECS, reframeChange, toTimeline } from "@eyelore/core";
 import type { Aspect, EditDoc, JobOutput } from "@eyelore/core";
 import { commitChanges, headDoc } from "./lib/docs";
 import { enqueueJob } from "./jobs";
 import { ownedProject } from "./projects";
+import { caller } from "./lib/owner";
+import { anonHashOf, usageFor } from "./lib/entitle";
 
 /**
  * The core-loop pipeline, advanced each time a project job finishes:
@@ -24,6 +27,12 @@ export const onJobDone = internalMutation({
       if (job.type === "reframe") return; // reframe is an enhancement: the edit stays usable, centred
       if (job.type === "render") return; // export failures show on the export, not the project
       await ctx.db.patch(projectId, { stage: "failed", stageDetail: `${job.type} failed · ${job.error ?? "unknown"}`.slice(0, 160) });
+      return;
+    }
+    if (job.status === "succeeded" && job.type === "render") {
+      // count the minutes once, then tell the owner if they are away (ADR 0009)
+      await ctx.scheduler.runAfter(0, internal.entitlements.recordExportDone, { jobId });
+      await ctx.scheduler.runAfter(0, internal.notify.onExportDone, { jobId });
       return;
     }
     if (job.status !== "succeeded" || !clipId) return;
@@ -65,11 +74,11 @@ export const onJobDone = internalMutation({
   },
 });
 
-const FREE_MAX_EXPORT_MS = 60_000;
-
 /**
- * Export (render) the current edit. Entitlements are checked here, on the server: anonymous and free exports carry
- * a watermark and are capped at 60s. The signup/paywall step lives in the client flow before this call (Phase 2b).
+ * Export (render) the current edit. Entitlements are decided here, on the server, from the caller's identity
+ * (ADR 0009): nothing in the arguments can lift the watermark or the cap. `mode: "free"` is the person choosing
+ * the free watermarked export (e.g. after dismissing the paywall); "best" is what their plan allows and throws
+ * `paid_required` (with a reason) when that needs a paid plan.
  */
 export const startExport = mutation({
   args: {
@@ -78,13 +87,25 @@ export const startExport = mutation({
     aspect: v.union(v.literal("9:16"), v.literal("4:5"), v.literal("1:1"), v.literal("16:9")),
     maxDurationMs: v.optional(v.union(v.literal(15_000), v.literal(30_000), v.literal(60_000))),
     requestId: v.string(),
+    mode: v.optional(v.union(v.literal("best"), v.literal("free"))),
   },
   handler: async (ctx, a) => {
     const project = await ownedProject(ctx, a.projectId, a.anonId);
+    const who = await caller(ctx, a.anonId);
     const head = await headDoc(ctx, a.projectId);
     if (!head) throw new Error("nothing to export");
     let doc: EditDoc = { ...head.doc, aspect: a.aspect as Aspect };
-    const plan = { watermark: true, capMs: FREE_MAX_EXPORT_MS }; // entitlements: paid plans arrive with Stripe
+    const usage = await usageFor(ctx, who);
+    const decision = decideExport({
+      plan: usage.plan,
+      mode: a.mode ?? "best",
+      requestedMs: a.maxDurationMs,
+      fullMs: toTimeline(head.doc).durationMs,
+      minutesUsed: usage.minutesUsed,
+      minutesLimit: usage.minutesLimit,
+    });
+    if (!decision.ok) throw new ConvexError({ code: "paid_required", reason: decision.reason, freeAvailable: decision.freeAvailable });
+    const plan = { watermark: decision.watermark, capMs: decision.capMs };
     const maxMs = Math.min(a.maxDurationMs ?? plan.capMs, plan.capMs);
     const cut = cutdownChange(doc, maxMs);
     if (cut) doc = applyChange(doc, cut)!.doc; // a variant: the main edit is untouched
@@ -97,7 +118,7 @@ export const startExport = mutation({
       ownerUserId: project.ownerUserId,
       ownerAnonId: project.ownerAnonId,
     });
-    await ctx.db.insert("exports", { projectId: a.projectId, jobId, aspect: a.aspect, maxDurationMs: a.maxDurationMs, watermark: plan.watermark, docVersion: head.doc.version, createdAt: Date.now() });
+    await ctx.db.insert("exports", { projectId: a.projectId, jobId, aspect: a.aspect, maxDurationMs: a.maxDurationMs, watermark: plan.watermark, docVersion: head.doc.version, createdAt: Date.now(), plan: decision.plan, chargedUserId: who.userId, chargedAnonHash: who.userId || !a.anonId ? undefined : await anonHashOf(a.anonId) });
     return jobId;
   },
 });
