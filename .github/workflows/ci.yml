@@ -177,10 +177,10 @@ jobs:
               - 'pnpm-lock.yaml'
               - '.github/workflows/ci.yml'
 
-  # The APK is built on this runner, not in the EAS cloud: on the free tier the cloud queue never started a build
-  # (every `eas build --wait` sat IN_QUEUE until the job timed out, and cancelled runs left their builds queued).
+  # The APK is built on this runner, not in the EAS cloud: a free-tier cloud build waits ~17 min in the queue and then
+  # builds for 14-26 min, so `eas build --wait` outlived every push (and each cancelled run left its build queued).
   # Hermetic like the web e2e: a local Convex backend and a real CPU worker; the emulator reaches them over
-  # `adb reverse`. Needs no secrets. Installable EAS builds: `eas build --profile preview` by hand (see HANDOFF).
+  # `adb reverse`. Needs no secrets. Installable builds for real devices: `eas build --profile preview`.
   mobile-e2e:
     name: mobile e2e · android build + maestro (local convex + real cpu worker)
     needs: [checks, mobile-changes]

@@ -152,7 +152,7 @@ Primary metric: **time from `drop_started` to `first_preview`** (target ≤ 60 s
 | No always-on host for the CPU worker yet | the core loop only runs while a worker is up (today: a laptop) | pick a host (Modal CPU, Fly.io, a small VPS); the same worker runs unchanged |
 | OpenCV 5 dropped the Haar face detector | reframe pinned to OpenCV 4 | move to YuNet (`cv2.FaceDetectorYN`) with a vendored model |
 | Many external accounts not yet connected | can't prove CI exit criterion | stubs + "Needs keys" list; local anonymous Convex for development |
-| EAS cloud builds never left the queue on the free tier | mobile e2e could not run | the APK is built on the CI runner (x86_64 release) and Maestro runs against a local Convex + CPU worker; runs only when mobile-relevant paths change. Cloud builds by hand: `eas build --profile preview` |
+| EAS cloud builds are slow for a per-PR check (free tier: ~17 min in the queue, then 14–26 min to build) | the mobile e2e outlived its pushes and never finished | the APK is built on the CI runner (x86_64 release, cached on the app's inputs) and Maestro runs against a local Convex + CPU worker; runs only when mobile-relevant paths change. EAS cloud builds work and are for real-device previews and store submission: `eas build --profile preview` |
 
 ## 7. Needs keys
 
