@@ -8,7 +8,7 @@ const SEQ: { t: string; b: string; chip: string; dot: Status }[] = [
   { t: "You film it. Awkwardly.", b: "Three takes, two ums, one long look at the ceiling. Normal.", chip: "raw · take 3 · 2 ums", dot: "attention" },
   { t: "We cut the ums.", b: "Fillers and dead air come out. Every cut says why, so you can put any of it back.", chip: "removed 2 fillers · 1 pause · 1.8s", dot: "working" },
   { t: "We say it back, clearly.", b: "Word-timed captions, spelled right. We polish how you said it, never what you said.", chip: "captions · word-timed", dot: "working" },
-  { t: "We weave in the b-roll.", b: "You said ‘nightstand’, so we cut to the nightstand.", chip: "cut away · you said ‘nightstand’", dot: "working" },
+  { t: "We weave in the b-roll.", b: "You said ‘routine’, so we cut to the routine.", chip: "cut away · you said ‘routine’", dot: "working" },
   { t: "We fix the light.", b: "One grade across every clip, so your face and the b-roll share the same afternoon.", chip: "grade · warm afternoon", dot: "working" },
   { t: "We find the beat.", b: "Music under your voice. It ducks when you talk and comes back up on the cut.", chip: "music ducks under your voice", dot: "working" },
   { t: "From cringe to cinema.", b: "Cut, captioned, woven, graded, scored. About a minute.", chip: "ready · 0:31", dot: "ready" },
@@ -75,12 +75,17 @@ export function Sequence() {
       <div className="ec-seq__pin">
         <div className="ec-seq__media">
           <div className="ec-seq__tilt" style={{ transform: s === 0 ? "rotate(-3deg)" : "none" }}>
+            {/* the take on top of a pile of earlier takes; the pile tidies away once it becomes the finished edit */}
+            <div className={"ec-seq__stack" + (shape === "circle" ? " is-gone" : "")} aria-hidden="true">
+              <span className="ec-seq__take ec-seq__take--1"><span className="ec-seq__takeno">take 01</span></span>
+              <span className="ec-seq__take ec-seq__take--2"><span className="ec-seq__takeno">take 02</span></span>
+            </div>
             <Lens shape={shape} aspect="4 / 5" width={`var(--w-${shape})`} state={s === 1 ? "generating" : "rest"} label="one take, from raw to finished edit">
               <Clip id={SLOT.walkthrough} filter={filter} style={{ transition: "filter .7s var(--ease-out)" }} />
               <Clip id={SLOT.walkthroughBroll} filter={WARM} style={{ opacity: s === 3 ? 1 : 0, transition: "opacity .45s var(--ease-out)" }} />
               <span className="ec-cine" style={{ opacity: s === 6 ? 1 : 0, transition: "opacity .7s var(--ease-out)" }} />
               <span className="ec-cap ec-cap--seq" style={{ bottom: shape === "circle" ? "20%" : "10%", opacity: s >= 2 ? 1 : 0 }}>
-                it lives on my nightstand
+                this is my whole night routine
               </span>
             </Lens>
           </div>

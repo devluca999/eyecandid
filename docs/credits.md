@@ -22,7 +22,7 @@ The landing page (apps/web/app/page.tsx) uses demo edits made from stock footage
 | 42306 | Happy woman dancing happily in a colorful spot | [mixkit.co](https://mixkit.co/free-stock-video/happy-woman-dancing-happily-in-a-colorful-spot-42306/) | hero (blurred tile) |
 | 32800 | Young woman getting into position for sprinting | [mixkit.co](https://mixkit.co/free-stock-video/young-woman-getting-into-position-for-sprinting-32800/) | hero (runner) |
 | 2168 | Bright orange sunset on beach | [mixkit.co](https://mixkit.co/free-stock-video/bright-orange-sunset-on-beach-2168/) | hero |
-| 236 | Filling a white cup of coffee | [mixkit.co](https://mixkit.co/free-stock-video/filling-a-white-cup-of-coffee-236/) | hero (b-roll tile) |
+| 2300 | Woman opens a box | [mixkit.co](https://mixkit.co/free-stock-video/woman-opens-a-box-2300/) | hero (b-roll tile, unboxing; replaced the coffee pour, since the hero already has a drink) |
 | 40865 | A person riding a bicycle to the side of a cycling track | [mixkit.co](https://mixkit.co/free-stock-video/a-person-riding-a-bicycle-to-the-side-of-a-40865/) | hero (cyclist) |
 | 41290 | Face of a vlogger speaking to the camera | [mixkit.co](https://mixkit.co/free-stock-video/face-of-a-vlogger-speaking-to-the-camera-41290/) | hero (small circle) |
 | 810 | Latte art | [mixkit.co](https://mixkit.co/free-stock-video/latte-art-810/) | hero (small tile) |
