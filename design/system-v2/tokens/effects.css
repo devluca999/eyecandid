@@ -1,0 +1,21 @@
+:root{
+  --shadow-lens-rest:0 1px 2px rgba(17,17,17,.08),0 12px 32px rgba(17,17,17,.10);
+  --shadow-lens-lift:0 2px 4px rgba(17,17,17,.10),0 24px 56px rgba(17,17,17,.16);
+  --shadow-glass:inset 0 1px 0 rgba(255,255,255,.9),0 8px 24px rgba(17,17,17,.10);
+  --glass-blur:blur(28px) saturate(1.6);/* @kind other */
+  --recede-blur:blur(12px);/* @kind other */--recede-opacity:.4;/* @kind other */
+  --grain:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .07 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");/* @kind other */
+  /* springs — CSS approximations of the Lens spring */
+  --spring:cubic-bezier(.34,1.36,.64,1);/* @kind other */
+  --spring-soft:cubic-bezier(.22,1.12,.36,1);/* @kind other */
+  --ease-out:cubic-bezier(.2,.8,.2,1);/* @kind other */
+  --dur-morph:450ms;/* @kind other */
+  --dur-lift:260ms;/* @kind other */
+  --dur-quick:160ms;/* @kind other */
+  --hover-lift:-4px;/* @kind spacing */
+}
+[data-theme="night"]{
+  --shadow-lens-rest:0 1px 2px rgba(0,0,0,.4),0 12px 32px rgba(0,0,0,.45);
+  --shadow-lens-lift:0 2px 4px rgba(0,0,0,.45),0 24px 56px rgba(0,0,0,.6);
+  --shadow-glass:inset 0 1px 0 rgba(255,255,255,.14),0 8px 24px rgba(0,0,0,.4);
+}

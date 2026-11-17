@@ -2,7 +2,7 @@
 
 A video editor for creators and UGC ads. Tagline: **Making real people look great.** ("From cringe to cinema" is a playful secondary line only.)
 
-Read before any work: `docs/BUILD_PROMPT.md` (the full brief and phases), `docs/product-notes.md`, `docs/engine-assessment.md`. Track progress in `PLAN.md`; record decisions in `docs/adr/`.
+Read before any work: `docs/mvp-spec.md` (the Eyecandid MVP spec: what ships, access model, cost limits, phases — it takes precedence over older phase plans), `docs/BUILD_PROMPT.md` (the original full brief), `docs/product-notes.md`, `docs/engine-assessment.md`. Track progress in `PLAN.md`; record decisions in `docs/adr/`.
 
 ## Stack (fixed; do not substitute)
 GitHub · Vercel · Convex (data, realtime, queue with leases, file storage behind `MediaStore`, HTTP actions for workers) · Clerk · Stripe · SendPulse · Sentry · Expo/EAS · Next.js App Router · pnpm + Turborepo. Neon only via an ADR for a clearly relational, non-realtime need. Google Drive is an import source only. No Supabase, Resend, PostHog or Higgsfield.
