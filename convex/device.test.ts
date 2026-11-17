@@ -89,3 +89,13 @@ describe("on-device export (ADR 0012)", () => {
     await expect(t.mutation(api.pipeline.authorizeDeviceExport, { anonId: ANON, projectId, aspect: "9:16", requestId: "x" })).rejects.toThrow();
   });
 });
+
+describe("on-device clips keep the free length cap", () => {
+  it("refuses a free clip over 60 s with the one-line reason", async () => {
+    const t = convexTest(schema, modules);
+    const projectId = await t.mutation(api.projects.create, { anonId: ANON });
+    await expect(
+      t.mutation(api.projects.addDeviceSource, { anonId: ANON, projectId, contentType: "video/mp4", w: 1080, h: 1920, durationMs: 61_000, bytes: 1 }),
+    ).rejects.toThrow(/60 s/);
+  });
+});
