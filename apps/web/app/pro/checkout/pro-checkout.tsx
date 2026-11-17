@@ -3,13 +3,15 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useAction, useConvexAuth, useMutation, useQuery } from "convex/react";
-import { SignIn, useAuth } from "@clerk/nextjs";
+import { SignIn, SignUp, useAuth } from "@clerk/nextjs";
 import { api } from "@convex/_generated/api";
 import type { ProCheckoutResult } from "@convex/access";
 import { Lockup, PillButton, StatusDot } from "@eyelore/ui";
 import { env } from "@/lib/env";
 
 const TOKEN_KEY = "eyelore.proInvite";
+/** after sign-up / sign-in Clerk comes back here; the invite token waits in session storage */
+const HERE = "/pro/checkout";
 
 /** The invite token from ?token=, kept in this tab's session so a sign-in round-trip can't lose it. */
 function useInviteToken(): string | null {
@@ -89,12 +91,26 @@ function WithClerk({ token, email, canceled }: { token: string; email: string; c
   const start = useAction(api.access.proCheckout);
   const [busy, setBusy] = useState(false);
   const [said, setSaid] = useState<string | null>(null);
+  const [mode, setMode] = useState<"new" | "existing">("new");
 
   if (!isSignedIn) {
+    // most approved people have no account yet (Free needs none): sign-up first, sign-in one tap away; both come back here
+    const look = { elements: { card: { boxShadow: "none", background: "transparent" } } };
     return (
       <>
-        <p className="text-ink-secondary">sign in or create an account with {email}, the address you asked with.</p>
-        <SignIn routing="hash" appearance={{ elements: { card: { boxShadow: "none", background: "transparent" } } }} />
+        <p className="text-ink-secondary">create an account (or sign in) with {email}, the address you asked with.</p>
+        <div className="el-seg self-start" role="group" aria-label="account">
+          {(["new", "existing"] as const).map((m) => (
+            <button key={m} type="button" className={"el-seg__opt" + (mode === m ? " is-on" : "")} aria-pressed={mode === m} onClick={() => setMode(m)}>
+              {m === "new" ? "new here" : "i have an account"}
+            </button>
+          ))}
+        </div>
+        {mode === "new" ? (
+          <SignUp routing="hash" forceRedirectUrl={HERE} signInForceRedirectUrl={HERE} appearance={look} />
+        ) : (
+          <SignIn routing="hash" forceRedirectUrl={HERE} signUpForceRedirectUrl={HERE} appearance={look} />
+        )}
       </>
     );
   }

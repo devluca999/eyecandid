@@ -8,6 +8,8 @@ export const forSubject = query({
   handler: async (ctx, { subject }) => {
     const out: Record<string, boolean> = {};
     for (const key of Object.keys(FLAGS)) {
+      // `pro` is an allow list of approved emails: never answer "is this email approved?" to any caller
+      if (key === "pro") continue;
       const row = await ctx.db.query("flags").withIndex("by_key", (q) => q.eq("key", key)).unique();
       // hello_job defaults on so a fresh deployment can prove the round-trip; everything else defaults off
       out[key] = row ? evaluateFlag(row, subject) : key === "hello_job";
