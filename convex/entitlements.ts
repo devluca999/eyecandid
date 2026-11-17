@@ -30,7 +30,7 @@ export const recordExportDone = internalMutation({
     const exp = await ctx.db.query("exports").withIndex("by_job", (q) => q.eq("jobId", jobId)).unique();
     if (!exp || exp.usageCounted) return;
     const job = await ctx.db.get(jobId);
-    if (job?.status !== "succeeded") return;
+    if (job?.status !== "succeeded") return; // gone, or a canceled shell: nothing to count
     const ms = (job.output as { durationMs?: number } | undefined)?.durationMs ?? 0;
     await addUsage(ctx, { userId: exp.chargedUserId, anonHash: exp.chargedAnonHash }, ms / 60_000);
     await ctx.db.patch(exp._id, { usageCounted: true });

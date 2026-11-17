@@ -21,6 +21,7 @@ export const onExportDone = internalMutation({
   handler: async (ctx, { jobId }) => {
     const job = await ctx.db.get(jobId);
     if (!job?.projectId || !job.ownerUserId || job.status !== "succeeded") return;
+    if (!(await ctx.db.get(job.projectId))) return; // the edit was deleted
     const user = await ctx.db.get(job.ownerUserId);
     if (!user?.email || user.deletedAt) return;
     if (!(await flagOn(ctx, "ready_email", user._id))) return;

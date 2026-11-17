@@ -187,5 +187,7 @@ export default defineSchema({
     detail: v.optional(v.string()),
     createdAt: v.number(),
     finishedAt: v.optional(v.number()),
-  }).index("by_job", ["jobId"]),
+  })
+    .index("by_job", ["jobId"])
+    .index("by_project", ["projectId"]),
 });
