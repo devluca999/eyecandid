@@ -1,26 +1,15 @@
 "use client";
-import { ConvexProvider, ConvexReactClient } from "convex/react";
-import { ConvexProviderWithClerk } from "convex/react-clerk";
-import { ClerkProvider, useAuth } from "@clerk/nextjs";
-import { useMemo, type ReactNode } from "react";
-import { env } from "@/lib/env";
+import dynamic from "next/dynamic";
+import { usePathname } from "next/navigation";
+import type { ReactNode } from "react";
+
+// Clerk and the Convex client are ~100+ KB of JS that the landing's first paint does not need. Every other route
+// gets them exactly as before (in a chunk preloaded by the HTML); the landing ("/") loads them lazily from
+// landing-backend.tsx, on first interaction or when the browser is idle.
+const FullProviders = dynamic(() => import("./providers-full").then((m) => m.FullProviders));
 
 export function Providers({ children }: { children: ReactNode }) {
-  const client = useMemo(() => (env.convexUrl ? new ConvexReactClient(env.convexUrl) : null), []);
-  if (!client) {
-    return (
-      <div className="el-status" role="status" style={{ padding: 24 }}>
-        <span className="el-dot el-dot--attention" />
-        backend not configured · set NEXT_PUBLIC_CONVEX_URL
-      </div>
-    );
-  }
-  if (!env.clerkKey) return <ConvexProvider client={client}>{children}</ConvexProvider>;
-  return (
-    <ClerkProvider publishableKey={env.clerkKey}>
-      <ConvexProviderWithClerk client={client} useAuth={useAuth}>
-        {children}
-      </ConvexProviderWithClerk>
-    </ClerkProvider>
-  );
+  const path = usePathname();
+  if (path === "/") return <>{children}</>;
+  return <FullProviders>{children}</FullProviders>;
 }

@@ -1,11 +1,11 @@
 "use client";
-import * as Sentry from "@sentry/nextjs";
 import { useEffect } from "react";
+import { startSentry } from "@/lib/sentry-lazy";
 
 /** Last-resort boundary: reports the error (a no-op without a DSN) and offers a reload. Lowercase, plain. */
 export default function GlobalError({ error }: { error: Error & { digest?: string } }) {
   useEffect(() => {
-    Sentry.captureException(error);
+    void startSentry().then((S) => S?.captureException(error));
   }, [error]);
   return (
     <html lang="en">
