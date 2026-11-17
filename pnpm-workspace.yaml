@@ -3,6 +3,9 @@ packages:
   - "packages/*"
   - "services/render"
 allowBuilds:
+  # Node-only ONNX runtime pulled in by @huggingface/transformers; the browser engine uses onnxruntime-web
+  onnxruntime-node: false
+  protobufjs: false
   esbuild: true
 nodeLinker: hoisted
 autoInstallPeers: true
