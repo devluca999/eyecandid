@@ -40,8 +40,14 @@ def _load():
 
             if not torch.cuda.is_available():
                 raise RuntimeError("no CUDA device: stills only run on the GPU worker")
-            pipe = ZImagePipeline.from_pretrained(MODEL_ID, torch_dtype=torch.bfloat16, low_cpu_mem_usage=False)
-            _pipe = pipe.to("cuda")
+            pipe = ZImagePipeline.from_pretrained(MODEL_ID, torch_dtype=torch.bfloat16)
+            # bf16: ~12 GB transformer + ~8 GB text encoder, inside an L4's 24 GB. If a GPU turns out too small, set
+            # EYELORE_STILL_OFFLOAD=1 (slower: modules move to the GPU only while they run) rather than a bigger card.
+            if os.environ.get("EYELORE_STILL_OFFLOAD") == "1":
+                pipe.enable_model_cpu_offload()
+            else:
+                pipe = pipe.to("cuda")
+            _pipe = pipe
         return _pipe
 
 
