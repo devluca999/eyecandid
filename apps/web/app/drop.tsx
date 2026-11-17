@@ -229,7 +229,7 @@ export function DropWell({ title, hint, height, testId, id }: { title: string; h
           </span>
         </span>
       </button>
-      {error && <StatusDot status="attention" label={error} />}
+      {error && <StatusDot status="attention" label={error} style={{ whiteSpace: "normal", maxWidth: "100%" }} />}
     </div>
   );
 }

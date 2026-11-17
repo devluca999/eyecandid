@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { fileURLToPath } from "node:url";
+import { unnamedControls } from "./a11y";
 
 /**
  * The UX crawl (docs/ux/flows.md): every route on desktop and phone, with no console errors, no broken links or
@@ -42,32 +43,6 @@ function watchErrors(page: Page) {
   return errors;
 }
 
-/** Visible controls with no accessible name (text, aria-label, aria-labelledby, title, alt, or a label). */
-function unnamedControls(page: Page) {
-  return page.evaluate(() => {
-    const sel = 'a[href], button, input:not([type=hidden]), select, textarea, [role=button], [role=radio], [role=slider], [role=link], [role=tab]';
-    const visible = (el: Element) => {
-      const r = el.getBoundingClientRect();
-      const s = getComputedStyle(el);
-      return r.width > 0 && r.height > 0 && s.visibility !== "hidden" && s.display !== "none";
-    };
-    const named = (el: Element) => {
-      const by = el.getAttribute("aria-labelledby");
-      const id = el.getAttribute("id");
-      const candidates = [
-        el.getAttribute("aria-label"),
-        by ? by.split(/\s+/).map((x) => document.getElementById(x)?.textContent ?? "").join(" ") : "",
-        (el as HTMLElement).innerText,
-        el.getAttribute("title"),
-        el.querySelector("img[alt], svg[aria-label]")?.getAttribute("alt") ?? el.querySelector("svg[aria-label]")?.getAttribute("aria-label"),
-        id ? document.querySelector(`label[for="${id}"]`)?.textContent : "",
-        el.closest("label")?.textContent,
-      ];
-      return candidates.some((c) => c && c.trim());
-    };
-    return [...document.querySelectorAll(sel)].filter((el) => visible(el) && !named(el)).map((el) => el.outerHTML.slice(0, 140));
-  });
-}
 
 for (const r of ROUTES) {
   test(`crawl ${r.path}: renders its state, no errors, named controls, links resolve`, async ({ page, request }) => {
@@ -137,22 +112,15 @@ test("refusal: a clip over the free 60 s cap gets the one-line reason", async ({
   await landingReady(page);
   await page.getByTestId("file-input").setInputFiles(LONG);
   await expect(page.getByText("free clips are up to 60 s · trim it or request pro").first()).toBeVisible({ timeout: 45_000 });
-  await expect(page.getByTestId("recent")).toHaveCount(0); // nothing half-made is left behind in "your edits"
-});
-
-test("editor: every control has a name while the clip is working", async ({ page }, info) => {
-  test.skip(info.project.name !== "desktop", "one pipeline at a time on the single CI worker");
-  page.on("dialog", (d) => void (d.type() === "beforeunload" ? d.accept() : d.dismiss()));
-  await landingReady(page);
-  await page.getByTestId("file-input").setInputFiles(TALK);
-  await expect(page).toHaveURL(/\/edit\//);
-  await expect(page.getByTestId("explain")).not.toBeEmpty();
-  expect(await unnamedControls(page)).toEqual([]);
-  // clean up: delete it once it's registered (never under a live upload)
-  await page.getByTestId("delete").click({ timeout: 45_000 });
-  await page.getByTestId("delete-yes").click();
   await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByTestId("recent")).toHaveCount(0); // nothing half-made is left behind in "your edits"
+  // the whole line is on screen, phones included (it wraps; it isn't cut off)
+  const line = page.locator(".ec-hero .el-status").first();
+  const box = (await line.boundingBox())!;
+  expect(box.x).toBeGreaterThanOrEqual(0);
+  expect(box.x + box.width).toBeLessThanOrEqual(page.viewportSize()!.width);
 });
+// the editor's controls are checked for names where its pipelines already run: core-loop (ready), delete (working)
 
 test("refusal: a paused free day is said before any upload @paused", async ({ page }, info) => {
   test.skip(process.env.E2E_PAUSED !== "1", "needs the free_paused flag on (CI runs this alone, then turns it off)");
