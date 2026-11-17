@@ -3,7 +3,8 @@ import type { EditDoc } from "./editModel";
 /** ms of breathing room kept either side of a struck word */
 export const WORD_HANDLE_MS = 40;
 
-export type Segment = { clipId: string; mediaId: string; fromMs: number; toMs: number };
+/** one kept range of a clip; `beadId` names the bead it came from (b-roll anchors to it) */
+export type Segment = { clipId: string; mediaId: string; fromMs: number; toMs: number; beadId?: string };
 export type CaptionWord = { id?: string; text: string; startMs: number; endMs: number };
 export type CaptionChunk = { startMs: number; endMs: number; text: string; words: CaptionWord[] };
 
@@ -51,7 +52,7 @@ export function toTimeline(doc: EditDoc): { segments: Segment[]; captions: Capti
         if (w.struck || w.startMs < from || w.endMs > to) continue;
         words.push({ id: w.id, text: overrides.get(w.id) ?? w.text, startMs: outMs + (w.startMs - from), endMs: outMs + (w.endMs - from) });
       }
-      segments.push({ clipId: clip.id, mediaId: clip.mediaId, fromMs: from, toMs: to });
+      segments.push({ clipId: clip.id, mediaId: clip.mediaId, fromMs: from, toMs: to, beadId: bead.id });
       outMs += to - from;
     }
   }
