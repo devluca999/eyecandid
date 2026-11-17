@@ -208,6 +208,8 @@ Where work runs (decided 2026-11-16): one worker codebase behind `GpuProvider`. 
 - [x] Renderer: silences dropped, face-centred cover crop for any aspect, watermark
 - [x] Live run on the dev deployment (CPU worker on a laptop, 9s clip): **ready 7.8s after the drop** (upload 1.6s, transcribe ~5.5s warm, autocut <1s); reframe +6s; 9:16 export 1080×1920 captioned and watermarked. Render is slow on CPU (~65s for 7s of output): first target for 2.2
 - [~] Engine image with Node + renderer: Dockerfile updated, built by CI on PRs (no push)
+**Launch (2026-11-17, docs/mvp-spec.md):** merged #14 #13 #10 #7 #12 #15 #16 #18 #19 #17. Rename to Eyecandid live (ADR 0011); landing v2 live (mobile LCP 3.8 s simulated — see HANDOFF 1b); on-device engine spike at /lab/local. Blocked: Modal cap (no worker on prod), eyecandid.co not bought.
+
 **2.2a Web core loop** — branch `phase-2/web-loop`
 - [x] Drop zone on the landing (drag anywhere or "choose a clip"); no signup; editor opens at once on the local file while it uploads (XHR progress, 3 retries)
 - [x] Live pipeline in the Lens: shimmer + an honest stage line (uploading %, listening, trimming, cold engine, failures with the reason)

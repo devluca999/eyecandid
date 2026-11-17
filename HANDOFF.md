@@ -1,17 +1,38 @@
-# Eyelore: handoff
+# Eyecandid: handoff
 
-*Making real people look great.* State of the build on 2026-11-16. Scope and status by milestone: [`PLAN.md`](PLAN.md). Decisions: [`docs/adr/`](docs/adr). Brief: [`docs/BUILD_PROMPT.md`](docs/BUILD_PROMPT.md).
+*Making real people look great.* (Formerly Eyelore; ADR 0011.) State of the build on 2026-11-17. Scope and status by milestone: [`PLAN.md`](PLAN.md). Decisions: [`docs/adr/`](docs/adr). Brief: [`docs/BUILD_PROMPT.md`](docs/BUILD_PROMPT.md).
 
 ## 1. Live
 
 | what | where |
 |---|---|
-| Web | https://eyelore.vercel.app (Vercel project `everstock/eyelore`, root `apps/web`; `main` deploys through `.github/workflows/deploy.yml`) |
+| Web | https://eyecandid.vercel.app (also https://eyelore.vercel.app; Vercel project `everstock/eyelore`, root `apps/web`; `main` deploys through `.github/workflows/deploy.yml`). eyecandid.co: not bought yet |
+| Repo | github.com/devluca999/eyecandid (public since 2026-11-17, so Actions minutes are free) |
 | Backend, production | Convex `hushed-heron-814` (team `SQco`, project `eyelore`) |
 | Backend, development | Convex `deafening-hedgehog-824` |
-| Workers | Modal apps `eyelore-worker-prod` and `eyelore-worker` (CPU: transcribe, autocut, reframe, render). **Stopped on 2026-11-16 22:10 UTC: the Modal workspace reached its spend cap.** New clips wait until the cap is raised and the workers are redeployed (section 3) |
+| Workers | Modal apps `eyelore-worker-prod` and `eyelore-worker` (CPU: transcribe, autocut, reframe, render). **Stopped on 2026-11-16 22:10 UTC: the Modal workspace reached its spend cap.** Scale-to-zero (#13, ADR 0010) is merged and live in Convex but not deployed to Modal, so **the live site cannot process clips** until the cap is raised (needs a card) or the on-device engine (below) is wired into the drop flow. Cold start: not measured yet |
+| On-device engine (spike) | https://eyecandid.vercel.app/lab/local (PR #18): Whisper on WebGPU + TS autocut + `@remotion/web-renderer`, nothing uploaded. Mac/Chrome, model cached: 21 s portrait clip in ~12 s (transcribe 2.8 s, render 7.4 s); first visit downloads `base.en`, 206 MB. Phone numbers pending |
 | Mobile | Expo project `@devluca999/eyelore`; EAS Update publishes the JS on `main`. No store or TestFlight build exists yet |
 | Funnel | `/funnel` on the web app, once `EYELORE_ADMIN_TOKEN` is set on the Convex deployment (section 5) |
+
+## 1b. Landing (Eyecandid v2, PR #17) — measured on production, 2026-11-17
+
+Lighthouse 12 against https://eyecandid.vercel.app:
+
+| | performance | LCP | CLS | TBT | accessibility | bytes |
+|---|---|---|---|---|---|---|
+| mobile (default simulation) | 89 | **3.8 s** (target < 2.5 s: missed) | 0 | 50 ms | 100 | 1.48 MB |
+| desktop | 100 | 0.8 s | 0 | 0 ms | 100 | 2.86 MB |
+
+The mobile LCP element is the hero h1, which is in the server HTML and painted at first paint (FCP 0.9–1.0 s); the
+simulation charges the ~318 KB (gzip) of scripts requested before it. Ruled out: the web font (a system-font h1
+scored the same) and render-blocking CSS (`experimental.inlineCss` made it worse). Applied throttling (slow 4G,
+4× CPU) measured 2.3 s. Next lever: load the Clerk and Convex clients on the landing only on first interaction
+(or idle), keeping the drop zone instant.
+
+Hidden in production (checked in the live HTML): the founder-letter placeholder and the proof strip.
+Hero video weight before scroll: desktop 2.2–2.5 MB, phone 0.94 MB. 22 self-hosted Mixkit clips, no repeats
+(enforced by a test); credits at /credits and docs/credits.md.
 
 ## 2. Run it locally
 
