@@ -9,8 +9,8 @@ const GENRES = ["comedy", "horror", "thriller", "sports"] as const;
 type Genre = (typeof GENRES)[number];
 const G: Record<Genre, { label: string; f: string; cue: string; line: string; vig: number }> = {
   comedy: { label: "comedy", f: "saturate(1.4) brightness(1.1) contrast(1.04)", cue: "[laugh track]", line: "bright · snappy cuts · a laugh after every line", vig: 0 },
-  horror: { label: "horror", f: "grayscale(.75) contrast(1.45) brightness(.62) sepia(.25) hue-rotate(150deg)", cue: "[a door creaks somewhere]", line: "cold · slow push-in · the nightstand is suspicious now", vig: 1 },
-  thriller: { label: "thriller", f: "saturate(.55) contrast(1.3) brightness(.82) hue-rotate(-12deg)", cue: "[heartbeat, getting louder]", line: "teal · tight cuts · someone knows about the nightstand", vig: 0.6 },
+  horror: { label: "horror", f: "grayscale(.75) contrast(1.45) brightness(.62) sepia(.25) hue-rotate(150deg)", cue: "[a door creaks somewhere]", line: "cold · slow push-in · the cereal is suspicious now", vig: 1 },
+  thriller: { label: "thriller", f: "saturate(.55) contrast(1.3) brightness(.82) hue-rotate(-12deg)", cue: "[heartbeat, getting louder]", line: "teal · tight cuts · someone knows about the cereal", vig: 0.6 },
   sports: { label: "sports ad", f: WARM, cue: "[crowd goes wild]", line: "same words · now it’s a shoe ad", vig: 0 },
 };
 
@@ -46,7 +46,7 @@ export function Genre() {
             <Clip id={SLOT.genreSports} filter={CINE} style={{ opacity: sports ? 1 : 0, transition: "opacity .4s var(--ease-out)" }} />
             <span className="ec-cine" style={{ opacity: sports ? 1 : 0 }} />
             <span className="ec-vignette" style={{ opacity: g.vig }} />
-            <span className="ec-cap ec-cap--big">it lives on my nightstand</span>
+            <span className="ec-cap ec-cap--big">this cereal is my whole personality</span>
             <span className="ec-chip ec-chip--tl">{g.cue}</span>
           </Lens>
         </div>
