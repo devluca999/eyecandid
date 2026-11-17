@@ -10,7 +10,7 @@ export const forSubject = query({
     for (const key of Object.keys(FLAGS)) {
       const row = await ctx.db.query("flags").withIndex("by_key", (q) => q.eq("key", key)).unique();
       // hello_job defaults on so a fresh deployment can prove the round-trip; everything else defaults off
-      out[key] = row ? evaluateFlag(row, subject) : key === "hello_job";
+      out[key] = row ? evaluateFlag(row, subject) : key === "hello_job" || key === "on_device";
     }
     return out;
   },

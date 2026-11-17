@@ -10,6 +10,8 @@ import { ContextMenu, ExportPill, Icon, Lens, Lockup, StatusDot, RATIOS, type Me
 import { getAnonId } from "@/lib/anon";
 import { session } from "@/lib/session";
 import { useTrack } from "@/lib/track";
+import { renderOnDevice } from "@/lib/device-engine";
+import { ReadyEmail } from "./ReadyEmail";
 import { usePlayer } from "./usePlayer";
 import { Thread, type Hover } from "./Thread";
 import { Captions } from "./Captions";
@@ -78,7 +80,9 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
   const sourceMedia = data?.media.find((m) => m.kind === "source");
   const src = pending?.url ?? sourceMedia?.url ?? undefined;
   const tl = useMemo(() => (doc && doc.beads.length ? toTimeline(doc) : null), [doc]);
-  const player = usePlayer(tl?.segments ?? null, clip?.id ?? null);
+  // before/after: "raw" plays the untouched take straight through (ums, pauses and all), "edit" plays the cut
+  const [raw, setRaw] = useState(false);
+  const player = usePlayer(raw ? null : tl?.segments ?? null, clip?.id ?? null);
   const thumbs = useThumbs(src, useMemo(() => serverDoc?.beads.map((b) => b.inMs) ?? [], [serverDoc?.beads]));
 
   const [mode, setModeState] = useState<Mode>("edit");
@@ -227,13 +231,39 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
   const latestExport = data?.exports[0];
   const exporting = latestExport && (latestExport.status === "queued" || latestExport.status === "leased" || latestExport.status === "running");
   const gate = useExportGate(projectId, anonId, data?.project.stage === "ready", mode === "edit"); // [around-the-loop]
+  // on-device engine (ADR 0012): the clip lives in this browser; exports are authorized by the server, rendered here
+  const isDevice = data?.project.engine === "device";
+  const authorizeDeviceExport = useMutation(api.pipeline.authorizeDeviceExport);
+  const [devExport, setDevExport] = useState<{ phase: "idle" | "rendering" | "done" | "failed"; progress: number; url?: string; error?: string }>({ phase: "idle", progress: 0 });
+  const deviceExporter = async (x: { aspect: Aspect; requestId: string; maxDurationMs?: 15000 | 30000 | 60000; mode: "best" | "free" }) => {
+    const local = session.get(projectId)?.url;
+    if (!local) throw new Error("this clip stays on the device you dropped it on · drop it again here to export");
+    const auth = await authorizeDeviceExport({ anonId, projectId, ...x });
+    setDevExport({ phase: "rendering", progress: 0 });
+    try {
+      const { blob, durationMs } = await renderOnDevice(auth.doc as EditDoc, local, x.aspect, auth.watermark, (p) => setDevExport({ phase: "rendering", progress: p }));
+      setDevExport({ phase: "done", progress: 1, url: URL.createObjectURL(blob) });
+      track("export_done", { durationMs, watermark: auth.watermark });
+    } catch (e) {
+      setDevExport({ phase: "failed", progress: 0, error: e instanceof Error ? e.message : String(e) });
+    }
+  };
   const doExport = async (cutOverride?: string | null) => {
     const useCut = cutOverride === undefined ? cut : cutOverride;
     if (!serverDoc || !data || data.project.stage !== "ready") return;
     const aspect = (view === "source" ? serverDoc.aspect : view) as Aspect;
     track("export_clicked", { aspect });
     // [around-the-loop] signup (Clerk), paywall and the export call itself: see ExportGate.tsx
-    await gate.run({ aspect, requestId: `${Date.now()}-${exportReq}`, ...(useCut ? { maxDurationMs: (Number(useCut) * 1000) as 15000 | 30000 | 60000 } : {}) });
+    const exportArgs = { aspect, requestId: `${Date.now()}-${exportReq}`, ...(useCut ? { maxDurationMs: (Number(useCut) * 1000) as 15000 | 30000 | 60000 } : {}) };
+    if (isDevice && !session.get(projectId)?.url) {
+      setNotice("this clip stays on the device you dropped it on · drop it again here to export");
+      return;
+    }
+    try {
+      await gate.run(exportArgs, isDevice ? deviceExporter : undefined);
+    } catch (e) {
+      setNotice(e instanceof Error ? e.message.replace(/^.*Uncaught Error: /, "").split("\n")[0]! : "couldn't export");
+    }
     setExportReq((n) => n + 1);
   };
   const doDelete = async () => {
@@ -249,11 +279,11 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
   };
   const doneSent = useRef<string | null>(null);
   useEffect(() => {
-    if (latestExport?.status === "succeeded" && doneSent.current !== latestExport._id) {
+    if (!isDevice && latestExport?.status === "succeeded" && doneSent.current !== latestExport._id) {
       doneSent.current = latestExport._id;
       track("export_done", { durationMs: latestExport.durationMs ?? 0, watermark: latestExport.watermark });
     }
-  }, [latestExport, track]);
+  }, [isDevice, latestExport, track]);
 
   // every shortcut here is listed in Help.tsx KEYS
   useEffect(() => {
@@ -329,7 +359,12 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
 
   // where we are, honestly
   const uploading = pending && pending.uploadProgress < 1 && !pending.error;
-  const cold = presence && presence.live === 0 && stage !== "ready" && stage !== "failed" && !uploading;
+  const cold = !isDevice && presence && presence.live === 0 && stage !== "ready" && stage !== "failed" && !uploading;
+  const deviceLine = isDevice && stage !== "ready" && stage !== "failed"
+    ? pending
+      ? pending.deviceStage ?? data?.project.stageDetail ?? "on this device"
+      : "this edit runs in the browser it was dropped in · keep that tab open, or drop the clip again here"
+    : null;
   const activeJob = data?.jobs.find((j) => j.status === "running" || j.status === "leased" || j.status === "queued");
   const stageLine = pending?.error
     ? pending.error
@@ -337,8 +372,10 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
       ? `uploading · ${Math.round((pending?.uploadProgress ?? 0) * 100)}%`
       : stage === "failed"
         ? data?.project.stageDetail ?? "something went wrong"
-        : cold
-          ? coldLine(presence?.wake)
+        : deviceLine
+          ? deviceLine
+          : cold
+            ? coldLine(presence?.wake)
           : stage === "ready"
             ? null
             : `${STAGE_WORD[stage] ?? stage}${activeJob?.status === "running" ? ` · ${Math.round(activeJob.progress * 100)}%` : ""}`;
@@ -371,7 +408,7 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
   const face = clip ? faceAt(doc?.reframe[clip.id], player.srcMs) : { cx: 0.5, cy: 0.5, scale: 1 };
   // energy punch-ins: the same resolver the renderer uses (services/render shotBox)
   const punch = doc && clip ? punchAt(doc, clip.id, player.srcMs) : 1;
-  const trueAspect = mode === "edit" && view === "source";
+  const trueAspect = (mode === "edit" && view === "source") || raw;
   const box =
     clip && frameSize.w
       ? coverBox(clip.w, clip.h, frameSize.w, frameSize.h, trueAspect ? { cx: 0.5, cy: 0.5, scale: punch } : { ...face, scale: face.scale * punch })
@@ -471,7 +508,7 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
               scene="void"
               glow={mode !== "board"}
               state={selected && mode === "edit" ? "selected" : stage !== "ready" && !pending?.error ? "generating" : "rest"}
-              progress={exporting && mode === "edit" ? latestExport!.progress : null}
+              progress={mode !== "edit" ? null : isDevice ? (devExport.phase === "rendering" ? devExport.progress : null) : exporting ? latestExport!.progress : null}
               label="your clip"
               style={{ width: "100%" }}
             >
@@ -494,7 +531,7 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
                     style={box ? { position: "absolute", left: box.left, top: box.top, width: box.width, height: box.height, maxWidth: "none", transition: "left 120ms linear, top 120ms linear" } : { width: "100%", height: "100%", objectFit: "cover" }}
                   />
                 )}
-                {doc?.captions.enabled && mode !== "board" && <Captions chunk={chunk} outMs={outMs ?? 0} look={doc.captions.look} onRetype={retype} readOnly={mode === "theater"} />}
+                {doc?.captions.enabled && mode !== "board" && !raw && <Captions chunk={chunk} outMs={outMs ?? 0} look={doc.captions.look} onRetype={retype} readOnly={mode === "theater"} />}
                 {!player.playing && src && stage === "ready" && mode === "edit" && (
                   <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", pointerEvents: "none" }}>
                     <span className="el-glass" style={{ width: 52, height: 52, borderRadius: 999, display: "grid", placeItems: "center" }}>
@@ -557,6 +594,13 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
           </div>
         )}
 
+        {data && !isDevice && <ReadyEmail projectId={projectId} anonId={anonId} working={stage !== "ready" && stage !== "failed" && !pending?.error} />}
+        {mode === "edit" && stage === "ready" && (
+          <div className="el-seg" role="radiogroup" aria-label="before and after" data-testid="before-after">
+            <button className={"el-seg__opt" + (!raw ? " is-on" : "")} role="radio" aria-checked={!raw} onClick={() => setRaw(false)}>edit</button>
+            <button className={"el-seg__opt" + (raw ? " is-on" : "")} role="radio" aria-checked={raw} onClick={() => { setRaw(true); track("edit_interaction", { kind: "raw" }); }}>raw take</button>
+          </div>
+        )}
         {mode !== "theater" && (
           <div className="el-explain" style={{ minHeight: 22 }} aria-live="polite" data-testid="explain">
             {notice ? (
@@ -583,13 +627,14 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
             cut={cut}
             onCut={setCut}
             onExport={() => void doExport()}
-            phase={exporting ? "rendering" : latestExport?.status === "succeeded" ? "done" : "idle"}
-            progress={exporting ? latestExport!.progress : undefined}
-            stage={exporting ? latestExport!.stage : undefined}
-            downloadUrl={latestExport?.url}
+            phase={isDevice ? (devExport.phase === "failed" ? "idle" : devExport.phase) : exporting ? "rendering" : latestExport?.status === "succeeded" ? "done" : "idle"}
+            progress={isDevice ? (devExport.phase === "rendering" ? devExport.progress : undefined) : exporting ? latestExport!.progress : undefined}
+            stage={isDevice ? (devExport.phase === "rendering" ? "rendering on this device" : undefined) : exporting ? latestExport!.stage : undefined}
+            downloadUrl={isDevice ? devExport.url : latestExport?.url}
           />
         )}
-        {latestExport?.status === "failed" && mode === "edit" && <StatusDot status="attention" label={`export failed · ${latestExport.error ?? ""}`.slice(0, 120)} />}
+        {isDevice && devExport.phase === "failed" && mode === "edit" && <StatusDot status="attention" label={`export failed · ${devExport.error ?? ""}`.slice(0, 120)} />}
+        {!isDevice && latestExport?.status === "failed" && mode === "edit" && <StatusDot status="attention" label={`export failed · ${latestExport.error ?? ""}`.slice(0, 120)} />}
         {gate.element /* [around-the-loop] modals work in every mode; the meta line only shows in edit */}
       </div>
 

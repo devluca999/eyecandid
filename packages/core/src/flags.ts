@@ -1,6 +1,7 @@
 /** Feature flags (ADR 0007). Stable bucketing so a subject always lands in the same arm. */
 export const FLAGS = {
   hello_job: "Phase 1 round-trip demo",
+  on_device: "free tier: transcribe and render on the visitor's device when it can (ADR 0012)",
   core_loop: "Phase 2 drop → cut → export",
   accounts: "Phase 2.4 Clerk signup at export + anonymous claim",
   billing: "Phase 2.4 paywall and Stripe checkout",
