@@ -1,8 +1,19 @@
 "use client";
 import { useRef } from "react";
 
-/** design/components/dial/Dial: drag vertically, scroll, or arrow keys. 0–1. */
-export function Dial({ label, value, onChange, low, high, size = 44 }: { label: string; value: number; onChange: (v: number) => void; low?: string; high?: string; size?: number }) {
+const STEPS = { ArrowUp: 0.05, ArrowRight: 0.05, ArrowDown: -0.05, ArrowLeft: -0.05, PageUp: 0.2, PageDown: -0.2 };
+
+/** design/components/dial/Dial: drag vertically, scroll, or arrow keys (page up / down, home / end). 0–1. */
+export function Dial({
+  label, value, onChange, low, high, format, valueText, size = 44,
+}: {
+  label: string; value: number; onChange: (v: number) => void; low?: string; high?: string;
+  /** what the value line says (the design Dial's `format`); default: low / number / high */
+  format?: (v: number) => string;
+  /** spoken value for screen readers, when the number alone would mislead */
+  valueText?: string;
+  size?: number;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   const set = (v: number) => onChange(Math.max(0, Math.min(1, Math.round(v * 100) / 100)));
   const down = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -24,11 +35,15 @@ export function Dial({ label, value, onChange, low, high, size = 44 }: { label: 
   return (
     <div className="el-dial" style={{ width: size + 20 }}>
       <div ref={ref} className="el-dial__knob" style={{ width: size, height: size }} role="slider" tabIndex={0} aria-label={label}
-        aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(value * 100)}
+        aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(value * 100)} aria-valuetext={valueText}
         onPointerDown={down} onWheel={(e) => set(value - e.deltaY / 800)}
         onKeyDown={(e) => {
-          if (e.key === "ArrowUp" || e.key === "ArrowRight") set(value + 0.05);
-          if (e.key === "ArrowDown" || e.key === "ArrowLeft") set(value - 0.05);
+          const step = (STEPS as Record<string, number | undefined>)[e.key];
+          if (step !== undefined) set(value + step);
+          else if (e.key === "Home") set(0);
+          else if (e.key === "End") set(1);
+          else return;
+          e.preventDefault();
         }}>
         <svg viewBox={`0 0 ${size} ${size}`}>
           <circle className="el-dial__track" cx={size / 2} cy={size / 2} r={r} strokeDasharray={`${c * arc} ${c}`} transform={`rotate(135 ${size / 2} ${size / 2})`} />
@@ -37,7 +52,7 @@ export function Dial({ label, value, onChange, low, high, size = 44 }: { label: 
         <div className="el-dial__cap" style={{ transform: `rotate(${-135 + value * 270}deg)` }} />
       </div>
       <span className="el-dial__label">{label}</span>
-      <span className="el-dial__value">{(value < 0.34 && low) || (value > 0.66 && high) || Math.round(value * 100)}</span>
+      <span className="el-dial__value">{format ? format(value) : (value < 0.34 && low) || (value > 0.66 && high) || Math.round(value * 100)}</span>
     </div>
   );
 }
