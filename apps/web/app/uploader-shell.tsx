@@ -43,7 +43,7 @@ export function LandingUploader({ children }: { children: ReactNode }) {
         started.current = false;
         pending.current = null;
         setQueued(false);
-        setLoadError("couldn't load · check your connection and try again");
+        setLoadError("couldn't load the uploader · check your connection and try again");
       });
   }, []);
 

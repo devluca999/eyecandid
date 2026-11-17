@@ -18,6 +18,8 @@
 
 /* type */
 .ec-eyebrow { font: var(--type-ui); color: var(--ink-secondary); }
+/* honest label on sections that show where the product is going, not only what ships today */
+.ec-tag { align-self: flex-start; font: var(--type-timecode); letter-spacing: .04em; color: var(--ink-secondary); padding: 3px 9px; border-radius: 999px; border: 1px solid var(--hairline); background: var(--surface-raised); }
 .ec-meta { font: var(--type-meta); color: var(--ink-secondary); }
 .ec-ui { font: var(--type-ui); color: var(--ink); }
 .ec-body { margin: 0; font: var(--type-body); font-size: 17px; line-height: 26px; color: var(--ink-secondary); text-wrap: pretty; }

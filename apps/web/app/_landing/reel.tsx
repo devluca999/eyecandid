@@ -54,8 +54,8 @@ export function Reel() {
       <Reveal className="ec-copy">
         <span className="ec-eyebrow">the reel</span>
         <h2 id="reel-title" className="ec-h2">Same people. Same phones. Better takes.</h2>
-        <p className="ec-body">Every edit here has a raw take underneath. Hover one to see it. We’re not proud of it either.</p>
-        <span className="ec-meta">demo edits on stock footage</span>
+        <p className="ec-body">Every edit here has a raw take underneath. Hover or tap one to see it. We’re not proud of those either.</p>
+        <span className="ec-meta">demo edits on stock footage · the lines are ours, not theirs</span>
       </Reveal>
     </section>
   );
