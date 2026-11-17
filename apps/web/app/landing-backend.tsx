@@ -1,16 +1,12 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ConvexProvider } from "convex/react";
-import { ConvexProviderWithClerk } from "convex/react-clerk";
-import { ClerkProvider, useAuth } from "@clerk/nextjs";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { HERO_LINES, heroVariant } from "@eyelore/core/flags";
-import { env } from "@/lib/env";
 import { getAnonId } from "@/lib/anon";
-import { getConvexClient } from "@/lib/convex-client";
 import { UploaderProvider, useUploader } from "./drop";
+import { FullProviders } from "./providers-full";
 import { Recent } from "./recent";
 import type { BackendProps } from "./uploader-shell";
 
@@ -25,50 +21,39 @@ function Bridge({ register, report, root }: BackendProps & { root: React.RefObje
   const [slot, setSlot] = useState<Element | null>(null);
 
   useEffect(() => {
+    const anonId = getAnonId();
+    const v = heroVariant(anonId);
+    void track({ anonId, event: { name: "landing_view", props: { platform: "web", variant: v, heroLine: HERO_LINES[v] } } });
+  }, [track]);
+
+  useEffect(() => report({ busy, error }), [busy, error, report]);
+
+  useEffect(() => {
     // the shell owns the page's one file input (data-testid="file-input"); this one is only fed through it
     const real = root.current?.querySelector<HTMLInputElement>('input[type="file"]');
     real?.setAttribute("data-testid", "file-input-backend");
     register((file) => {
-      if (!real) return;
+      if (!real) return report({ busy: false, error: "couldn’t start that upload · reload the page and drop it again" });
       const dt = new DataTransfer();
       dt.items.add(file);
       real.files = dt.files;
       real.dispatchEvent(new Event("change", { bubbles: true }));
     });
     setSlot(document.querySelector(".ec-hero__recent"));
-  }, [register, root]);
-
-  useEffect(() => report({ busy, error }), [busy, error, report]);
-
-  useEffect(() => {
-    const anonId = getAnonId();
-    const v = heroVariant(anonId);
-    void track({ anonId, event: { name: "landing_view", props: { platform: "web", variant: v, heroLine: HERO_LINES[v] } } });
-  }, [track]);
+  }, [register, report, root]);
 
   return slot ? createPortal(<Recent />, slot) : null;
 }
 
 export default function LandingBackend(props: BackendProps) {
   const root = useRef<HTMLDivElement>(null);
-  const client = getConvexClient();
-  if (!client) return null;
-  const inner = (
-    <UploaderProvider>
-      <Bridge {...props} root={root} />
-    </UploaderProvider>
-  );
   return (
     <div ref={root} style={{ display: "contents" }}>
-      {env.clerkKey ? (
-        <ClerkProvider publishableKey={env.clerkKey}>
-          <ConvexProviderWithClerk client={client} useAuth={useAuth}>
-            {inner}
-          </ConvexProviderWithClerk>
-        </ClerkProvider>
-      ) : (
-        <ConvexProvider client={client}>{inner}</ConvexProvider>
-      )}
+      <FullProviders>
+        <UploaderProvider>
+          <Bridge {...props} root={root} />
+        </UploaderProvider>
+      </FullProviders>
     </div>
   );
 }

@@ -1,4 +1,5 @@
-type Sentry = typeof import("@sentry/nextjs");
+import type * as SentryNs from "@sentry/nextjs";
+type Sentry = typeof SentryNs;
 let sentry: Promise<Sentry | null> | null = null;
 
 /**
