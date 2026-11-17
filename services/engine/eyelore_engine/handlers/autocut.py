@@ -32,7 +32,7 @@ RESTART_GAP_MS = 200  # a pause this long between two attempts is evidence of a 
 FALSE_START_MAX_WORDS = 8
 RETAKE_SAME_START = 3  # a full retake starts with this many of the same words,
 RETAKE_MIN_WORDS = 4  # both sentences have at least this many words (short emphatic repeats are left alone),
-RETAKE_JACCARD_NUM, RETAKE_JACCARD_DEN = 7, 10  # and the word overlap (Jaccard) is at least 7/10
+# and the later sentence contains the earlier one, word for word in order (see 1c)
 QUOTE_WORDS = 6
 
 
@@ -220,9 +220,16 @@ def run(inp: dict, ctx) -> dict:
             continue
         if ta[:RETAKE_SAME_START] != tb[:RETAKE_SAME_START]:
             continue
-        inter = len(set(ta) & set(tb))
-        union = len(set(ta) | set(tb))
-        if inter * RETAKE_JACCARD_DEN < union * RETAKE_JACCARD_NUM:
+        # containment, not similarity: the kept take says everything the struck one said, in the same order (it may add
+        # words). "…in the shower. …in the pool." are two things. Only a cut-off last word may be a prefix of its match.
+        cut_off = bool(_CUT_OFF.search(words[a1]["text"].strip()))
+        q = 0
+        for x in tb:
+            if q >= len(ta):
+                break
+            if x == ta[q] or (cut_off and q == len(ta) - 1 and x.startswith(ta[q])):
+                q += 1
+        if q < len(ta):
             continue
         # a mark reaching out of the sentence (a false start across a long pause) already decided this stretch
         if any(it["i0"] <= a1 and it["i1"] >= a0 and (it["i0"] < a0 or it["i1"] > a1) for it in items):
@@ -264,10 +271,12 @@ def run(inp: dict, ctx) -> dict:
 
     ctx.progress(0.8, "splitting beads")
     beads: list[dict] = [{"inMs": words[s0]["startMs"], "outMs": words[s1]["endMs"]} for s0, s1 in sents]
-    if beads:
-        beads[0]["moment"] = "hook"
-        if len(beads) > 1:
-            beads[-1]["moment"] = "cta"
+    # hook and call to action go to the first and last line that is still said, not to a take that was struck
+    said = [k for k, (s0, s1) in enumerate(sents) if any(mark[x] is None for x in range(s0, s1 + 1))] or list(range(len(beads)))
+    if said:
+        beads[said[0]]["moment"] = "hook"
+        if len(said) > 1:
+            beads[said[-1]]["moment"] = "cta"
 
     strikes.sort(key=lambda s: s["startMs"])
     return {"strikes": strikes, "beads": beads}

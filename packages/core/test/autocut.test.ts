@@ -69,14 +69,22 @@ describe("autocut taste (same cases as the python handler)", () => {
   it("never cuts deliberate repetition", () => {
     for (const name of ["rhetorical repeat without a pause", "rhetorical repeat that ends the sentence", "never never give up", "i came i saw", "bye bye",
       "so so good", "a finished sentence is not a false start", "anaphora is not a retake", "short emphatic repeat is not a retake",
-      "a changed word is not a repeat"]) {
-      expect(strikes(input(name)), name).toEqual([]);
+      "a changed word is not a repeat", "parallel sentences are not a retake", "a retake that swaps a word is left alone",
+      "shower and pool are two things", "try it and buy it are two things"]) {
+      // not a word struck (a long pause between the sentences may still be trimmed)
+      expect(strikes(input(name)).filter((s) => s[2] !== "silence"), name).toEqual([]);
     }
   });
 
   it("a full retake strikes the earlier sentence whole; three takes keep the last", () => {
     expect(strikes(input("full retake"))).toEqual([[0, 3070, "repeat", "kept your last take · 'so today we're going to talk…'"]]);
     expect(strikes(input("three takes keep the last")).map((s) => [s[0], s[1]])).toEqual([[0, 2150], [2150, 4720]]);
+    // the hook is the take that's kept, not the flubbed one
+    expect(autocut(input("three takes keep the last")).beads.map((b) => b.moment)).toEqual([undefined, undefined, "hook"]);
+    expect(strikes(input("a retake cut off mid-word"))).toEqual([[0, 2070, "repeat", "kept your last take · 'this ring tracks your sl'"]]);
+    // containment: the later take may add words, never swap them
+    expect(strikes(input("a retake that adds words")).filter((s) => s[2] === "repeat")).toEqual([[0, 1670, "repeat", "kept your last take · 'i love this ring'"]]);
+    expect(strikes(input("the same sentence said twice")).filter((s) => s[2] === "repeat")).toEqual([[0, 1670, "repeat", "kept your last take · 'this ring is amazing'"]]);
   });
 
   it("pads cuts with a breath and merges a filler with the pauses around it", () => {

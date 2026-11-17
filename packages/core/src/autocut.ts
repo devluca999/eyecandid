@@ -40,9 +40,7 @@ const FALSE_START_MAX_WORDS = 8;
 const RETAKE_SAME_START = 3;
 /** …both sentences have at least this many words (short emphatic repeats are left alone)… */
 const RETAKE_MIN_WORDS = 4;
-/** …and the word overlap (Jaccard) is at least 7/10 */
-const RETAKE_JACCARD_NUM = 7;
-const RETAKE_JACCARD_DEN = 10;
+/** …and the later sentence contains the earlier one, word for word in order (see 1c) */
 /** words quoted in a reason */
 const QUOTE_WORDS = 6;
 
@@ -194,11 +192,14 @@ export function autocut(input: Pick<JobInput<"autocut">, "words"> & Partial<JobI
     const tb = toks(b0, b1);
     if (ta.length < RETAKE_MIN_WORDS || tb.length < RETAKE_MIN_WORDS) continue;
     if (!ta.slice(0, RETAKE_SAME_START).every((x, k) => x === tb[k])) continue;
-    const sa = new Set(ta);
-    const sb = new Set(tb);
-    const inter = [...sa].filter((x) => sb.has(x)).length;
-    const union = new Set([...ta, ...tb]).size;
-    if (inter * RETAKE_JACCARD_DEN < union * RETAKE_JACCARD_NUM) continue;
+    // containment, not similarity: the kept take says everything the struck one said, in the same order (it may add
+    // words). "…in the shower. …in the pool." are two things. Only a cut-off last word may be a prefix of its match.
+    const cutOff = CUT_OFF.test(words[a1]!.text.trim());
+    let q = 0;
+    for (let k = 0; k < tb.length && q < ta.length; k++) {
+      if (tb[k] === ta[q] || (cutOff && q === ta.length - 1 && tb[k]!.startsWith(ta[q]!))) q++;
+    }
+    if (q < ta.length) continue;
     // a mark reaching out of the sentence (a false start across a long pause) already decided this stretch
     if (items.some((it) => it.i0 <= a1 && it.i1 >= a0 && (it.i0 < a0 || it.i1 > a1))) continue;
     // the whole sentence becomes one strike; marks inside it are folded in
@@ -240,9 +241,12 @@ export function autocut(input: Pick<JobInput<"autocut">, "words"> & Partial<JobI
   }
 
   const beads: JobOutput<"autocut">["beads"] = sents.map(([s0, s1]) => ({ inMs: words[s0]!.startMs, outMs: words[s1]!.endMs }));
-  if (beads.length) {
-    beads[0]!.moment = "hook";
-    if (beads.length > 1) beads[beads.length - 1]!.moment = "cta";
+  // hook and call to action go to the first and last line that is still said, not to a take that was struck
+  let said = sents.flatMap(([s0, s1], k) => (mark.slice(s0, s1 + 1).some((m) => !m) ? [k] : []));
+  if (!said.length) said = beads.map((_, k) => k);
+  if (said.length) {
+    beads[said[0]!]!.moment = "hook";
+    if (said.length > 1) beads[said.at(-1)!]!.moment = "cta";
   }
   strikes.sort((a, b) => a.startMs - b.startMs);
   return { strikes, beads };

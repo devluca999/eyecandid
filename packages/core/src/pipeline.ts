@@ -105,7 +105,9 @@ export function beadChanges(doc: EditDoc, clipId: string, transcript: Transcript
   for (const [i, b] of cut.beads.entries()) {
     if (b.moment) changes.push(momentChange(beads[i]!, b.moment));
   }
-  const best = bestLine(beads);
+  // …among lines still said: a take autocut struck whole is never the best line (hook and CTA skip it too)
+  const said = beads.filter((b) => !b.words.every((w) => cut.strikes.some((s) => s.kind !== "silence" && w.startMs >= s.startMs && w.endMs <= s.endMs)));
+  const best = bestLine(said);
   if (best && !best.moment && !cut.beads.some((b) => b.moment === "best")) changes.push(momentChange(best, "best"));
   return changes;
 }

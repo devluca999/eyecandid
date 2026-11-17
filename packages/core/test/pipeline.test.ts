@@ -129,6 +129,7 @@ describe("real autocut → edit → timeline", () => {
     const d = edit([...a, ...b], []);
     expect(d.beads[0]!.words.every((w) => w.struck && w.strikeKind === "repeat")).toBe(true);
     expect(d.beads[1]!.words.some((w) => w.struck)).toBe(false);
+    expect(d.beads.map((x) => x.moment)).toEqual([undefined, "hook"]); // the hook is the take that is kept
     const segs = toTimeline(d).segments;
     expect(removed(d)).toEqual([]); // one continuous stretch of footage (two beads, no gap)
     expect([segs[0]!.fromMs, segs.at(-1)!.toMs]).toEqual([b[0]!.startMs - 80, b.at(-1)!.endMs]);

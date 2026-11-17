@@ -876,13 +876,12 @@
     "beads": [
      {
       "inMs": 0,
-      "outMs": 2350,
-      "moment": "hook"
+      "outMs": 2350
      },
      {
       "inMs": 3150,
       "outMs": 5800,
-      "moment": "cta"
+      "moment": "hook"
      }
     ]
    }
@@ -1021,8 +1020,7 @@
     "beads": [
      {
       "inMs": 0,
-      "outMs": 1450,
-      "moment": "hook"
+      "outMs": 1450
      },
      {
       "inMs": 2150,
@@ -1031,7 +1029,689 @@
      {
       "inMs": 4800,
       "outMs": 6850,
+      "moment": "hook"
+     }
+    ]
+   }
+  },
+  {
+   "name": "parallel sentences are not a retake",
+   "input": {
+    "words": [
+     {
+      "text": "i",
+      "startMs": 0,
+      "endMs": 250,
+      "conf": 1
+     },
+     {
+      "text": "use",
+      "startMs": 300,
+      "endMs": 550,
+      "conf": 1
+     },
+     {
+      "text": "it",
+      "startMs": 600,
+      "endMs": 850,
+      "conf": 1
+     },
+     {
+      "text": "in",
+      "startMs": 900,
+      "endMs": 1150,
+      "conf": 1
+     },
+     {
+      "text": "the",
+      "startMs": 1200,
+      "endMs": 1450,
+      "conf": 1
+     },
+     {
+      "text": "morning.",
+      "startMs": 1500,
+      "endMs": 1750,
+      "conf": 1
+     },
+     {
+      "text": "i",
+      "startMs": 2250,
+      "endMs": 2500,
+      "conf": 1
+     },
+     {
+      "text": "use",
+      "startMs": 2550,
+      "endMs": 2800,
+      "conf": 1
+     },
+     {
+      "text": "it",
+      "startMs": 2850,
+      "endMs": 3100,
+      "conf": 1
+     },
+     {
+      "text": "in",
+      "startMs": 3150,
+      "endMs": 3400,
+      "conf": 1
+     },
+     {
+      "text": "the",
+      "startMs": 3450,
+      "endMs": 3700,
+      "conf": 1
+     },
+     {
+      "text": "evening.",
+      "startMs": 3750,
+      "endMs": 4000,
+      "conf": 1
+     }
+    ],
+    "minSilenceMs": 450,
+    "fillers": []
+   },
+   "output": {
+    "strikes": [
+     {
+      "startMs": 1890,
+      "endMs": 2170,
+      "kind": "silence",
+      "reason": "trimmed pause · 0.5s"
+     }
+    ],
+    "beads": [
+     {
+      "inMs": 0,
+      "outMs": 1750,
+      "moment": "hook"
+     },
+     {
+      "inMs": 2250,
+      "outMs": 4000,
       "moment": "cta"
+     }
+    ]
+   }
+  },
+  {
+   "name": "a retake that swaps a word is left alone",
+   "input": {
+    "words": [
+     {
+      "text": "this",
+      "startMs": 0,
+      "endMs": 250,
+      "conf": 1
+     },
+     {
+      "text": "ring",
+      "startMs": 300,
+      "endMs": 550,
+      "conf": 1
+     },
+     {
+      "text": "tracks",
+      "startMs": 600,
+      "endMs": 850,
+      "conf": 1
+     },
+     {
+      "text": "my",
+      "startMs": 900,
+      "endMs": 1150,
+      "conf": 1
+     },
+     {
+      "text": "sleep",
+      "startMs": 1200,
+      "endMs": 1450,
+      "conf": 1
+     },
+     {
+      "text": "well.",
+      "startMs": 1500,
+      "endMs": 1750,
+      "conf": 1
+     },
+     {
+      "text": "this",
+      "startMs": 2350,
+      "endMs": 2600,
+      "conf": 1
+     },
+     {
+      "text": "ring",
+      "startMs": 2650,
+      "endMs": 2900,
+      "conf": 1
+     },
+     {
+      "text": "tracks",
+      "startMs": 2950,
+      "endMs": 3200,
+      "conf": 1
+     },
+     {
+      "text": "your",
+      "startMs": 3250,
+      "endMs": 3500,
+      "conf": 1
+     },
+     {
+      "text": "sleep",
+      "startMs": 3550,
+      "endMs": 3800,
+      "conf": 1
+     },
+     {
+      "text": "well.",
+      "startMs": 3850,
+      "endMs": 4100,
+      "conf": 1
+     }
+    ],
+    "minSilenceMs": 450,
+    "fillers": []
+   },
+   "output": {
+    "strikes": [
+     {
+      "startMs": 1890,
+      "endMs": 2270,
+      "kind": "silence",
+      "reason": "trimmed pause · 0.6s"
+     }
+    ],
+    "beads": [
+     {
+      "inMs": 0,
+      "outMs": 1750,
+      "moment": "hook"
+     },
+     {
+      "inMs": 2350,
+      "outMs": 4100,
+      "moment": "cta"
+     }
+    ]
+   }
+  },
+  {
+   "name": "a retake cut off mid-word",
+   "input": {
+    "words": [
+     {
+      "text": "this",
+      "startMs": 0,
+      "endMs": 250,
+      "conf": 1
+     },
+     {
+      "text": "ring",
+      "startMs": 300,
+      "endMs": 550,
+      "conf": 1
+     },
+     {
+      "text": "tracks",
+      "startMs": 600,
+      "endMs": 850,
+      "conf": 1
+     },
+     {
+      "text": "your",
+      "startMs": 900,
+      "endMs": 1150,
+      "conf": 1
+     },
+     {
+      "text": "sl-",
+      "startMs": 1200,
+      "endMs": 1450,
+      "conf": 1
+     },
+     {
+      "text": "this",
+      "startMs": 2150,
+      "endMs": 2400,
+      "conf": 1
+     },
+     {
+      "text": "ring",
+      "startMs": 2450,
+      "endMs": 2700,
+      "conf": 1
+     },
+     {
+      "text": "tracks",
+      "startMs": 2750,
+      "endMs": 3000,
+      "conf": 1
+     },
+     {
+      "text": "your",
+      "startMs": 3050,
+      "endMs": 3300,
+      "conf": 1
+     },
+     {
+      "text": "sleep.",
+      "startMs": 3350,
+      "endMs": 3600,
+      "conf": 1
+     }
+    ],
+    "minSilenceMs": 450,
+    "fillers": []
+   },
+   "output": {
+    "strikes": [
+     {
+      "startMs": 0,
+      "endMs": 2070,
+      "kind": "repeat",
+      "reason": "kept your last take · 'this ring tracks your sl'"
+     }
+    ],
+    "beads": [
+     {
+      "inMs": 0,
+      "outMs": 1450
+     },
+     {
+      "inMs": 2150,
+      "outMs": 3600,
+      "moment": "hook"
+     }
+    ]
+   }
+  },
+  {
+   "name": "shower and pool are two things",
+   "input": {
+    "words": [
+     {
+      "text": "you",
+      "startMs": 0,
+      "endMs": 250,
+      "conf": 1
+     },
+     {
+      "text": "can",
+      "startMs": 300,
+      "endMs": 550,
+      "conf": 1
+     },
+     {
+      "text": "wear",
+      "startMs": 600,
+      "endMs": 850,
+      "conf": 1
+     },
+     {
+      "text": "it",
+      "startMs": 900,
+      "endMs": 1150,
+      "conf": 1
+     },
+     {
+      "text": "in",
+      "startMs": 1200,
+      "endMs": 1450,
+      "conf": 1
+     },
+     {
+      "text": "the",
+      "startMs": 1500,
+      "endMs": 1750,
+      "conf": 1
+     },
+     {
+      "text": "shower.",
+      "startMs": 1800,
+      "endMs": 2050,
+      "conf": 1
+     },
+     {
+      "text": "you",
+      "startMs": 2550,
+      "endMs": 2800,
+      "conf": 1
+     },
+     {
+      "text": "can",
+      "startMs": 2850,
+      "endMs": 3100,
+      "conf": 1
+     },
+     {
+      "text": "wear",
+      "startMs": 3150,
+      "endMs": 3400,
+      "conf": 1
+     },
+     {
+      "text": "it",
+      "startMs": 3450,
+      "endMs": 3700,
+      "conf": 1
+     },
+     {
+      "text": "in",
+      "startMs": 3750,
+      "endMs": 4000,
+      "conf": 1
+     },
+     {
+      "text": "the",
+      "startMs": 4050,
+      "endMs": 4300,
+      "conf": 1
+     },
+     {
+      "text": "pool.",
+      "startMs": 4350,
+      "endMs": 4600,
+      "conf": 1
+     }
+    ],
+    "minSilenceMs": 450,
+    "fillers": []
+   },
+   "output": {
+    "strikes": [
+     {
+      "startMs": 2190,
+      "endMs": 2470,
+      "kind": "silence",
+      "reason": "trimmed pause · 0.5s"
+     }
+    ],
+    "beads": [
+     {
+      "inMs": 0,
+      "outMs": 2050,
+      "moment": "hook"
+     },
+     {
+      "inMs": 2550,
+      "outMs": 4600,
+      "moment": "cta"
+     }
+    ]
+   }
+  },
+  {
+   "name": "try it and buy it are two things",
+   "input": {
+    "words": [
+     {
+      "text": "i",
+      "startMs": 0,
+      "endMs": 250,
+      "conf": 1
+     },
+     {
+      "text": "want",
+      "startMs": 300,
+      "endMs": 550,
+      "conf": 1
+     },
+     {
+      "text": "you",
+      "startMs": 600,
+      "endMs": 850,
+      "conf": 1
+     },
+     {
+      "text": "to",
+      "startMs": 900,
+      "endMs": 1150,
+      "conf": 1
+     },
+     {
+      "text": "try",
+      "startMs": 1200,
+      "endMs": 1450,
+      "conf": 1
+     },
+     {
+      "text": "it.",
+      "startMs": 1500,
+      "endMs": 1750,
+      "conf": 1
+     },
+     {
+      "text": "i",
+      "startMs": 2250,
+      "endMs": 2500,
+      "conf": 1
+     },
+     {
+      "text": "want",
+      "startMs": 2550,
+      "endMs": 2800,
+      "conf": 1
+     },
+     {
+      "text": "you",
+      "startMs": 2850,
+      "endMs": 3100,
+      "conf": 1
+     },
+     {
+      "text": "to",
+      "startMs": 3150,
+      "endMs": 3400,
+      "conf": 1
+     },
+     {
+      "text": "buy",
+      "startMs": 3450,
+      "endMs": 3700,
+      "conf": 1
+     },
+     {
+      "text": "it.",
+      "startMs": 3750,
+      "endMs": 4000,
+      "conf": 1
+     }
+    ],
+    "minSilenceMs": 450,
+    "fillers": []
+   },
+   "output": {
+    "strikes": [
+     {
+      "startMs": 1890,
+      "endMs": 2170,
+      "kind": "silence",
+      "reason": "trimmed pause · 0.5s"
+     }
+    ],
+    "beads": [
+     {
+      "inMs": 0,
+      "outMs": 1750,
+      "moment": "hook"
+     },
+     {
+      "inMs": 2250,
+      "outMs": 4000,
+      "moment": "cta"
+     }
+    ]
+   }
+  },
+  {
+   "name": "a retake that adds words",
+   "input": {
+    "words": [
+     {
+      "text": "i",
+      "startMs": 0,
+      "endMs": 250,
+      "conf": 1
+     },
+     {
+      "text": "love",
+      "startMs": 300,
+      "endMs": 550,
+      "conf": 1
+     },
+     {
+      "text": "this",
+      "startMs": 600,
+      "endMs": 850,
+      "conf": 1
+     },
+     {
+      "text": "ring.",
+      "startMs": 900,
+      "endMs": 1150,
+      "conf": 1
+     },
+     {
+      "text": "i",
+      "startMs": 1750,
+      "endMs": 2000,
+      "conf": 1
+     },
+     {
+      "text": "love",
+      "startMs": 2050,
+      "endMs": 2300,
+      "conf": 1
+     },
+     {
+      "text": "this",
+      "startMs": 2350,
+      "endMs": 2600,
+      "conf": 1
+     },
+     {
+      "text": "ring",
+      "startMs": 2650,
+      "endMs": 2900,
+      "conf": 1
+     },
+     {
+      "text": "so",
+      "startMs": 2950,
+      "endMs": 3200,
+      "conf": 1
+     },
+     {
+      "text": "much.",
+      "startMs": 3250,
+      "endMs": 3500,
+      "conf": 1
+     }
+    ],
+    "minSilenceMs": 450,
+    "fillers": []
+   },
+   "output": {
+    "strikes": [
+     {
+      "startMs": 0,
+      "endMs": 1670,
+      "kind": "repeat",
+      "reason": "kept your last take · 'i love this ring'"
+     }
+    ],
+    "beads": [
+     {
+      "inMs": 0,
+      "outMs": 1150
+     },
+     {
+      "inMs": 1750,
+      "outMs": 3500,
+      "moment": "hook"
+     }
+    ]
+   }
+  },
+  {
+   "name": "the same sentence said twice",
+   "input": {
+    "words": [
+     {
+      "text": "this",
+      "startMs": 0,
+      "endMs": 250,
+      "conf": 1
+     },
+     {
+      "text": "ring",
+      "startMs": 300,
+      "endMs": 550,
+      "conf": 1
+     },
+     {
+      "text": "is",
+      "startMs": 600,
+      "endMs": 850,
+      "conf": 1
+     },
+     {
+      "text": "amazing.",
+      "startMs": 900,
+      "endMs": 1150,
+      "conf": 1
+     },
+     {
+      "text": "this",
+      "startMs": 1750,
+      "endMs": 2000,
+      "conf": 1
+     },
+     {
+      "text": "ring",
+      "startMs": 2050,
+      "endMs": 2300,
+      "conf": 1
+     },
+     {
+      "text": "is",
+      "startMs": 2350,
+      "endMs": 2600,
+      "conf": 1
+     },
+     {
+      "text": "amazing.",
+      "startMs": 2650,
+      "endMs": 2900,
+      "conf": 1
+     }
+    ],
+    "minSilenceMs": 450,
+    "fillers": []
+   },
+   "output": {
+    "strikes": [
+     {
+      "startMs": 0,
+      "endMs": 1670,
+      "kind": "repeat",
+      "reason": "kept your last take · 'this ring is amazing'"
+     }
+    ],
+    "beads": [
+     {
+      "inMs": 0,
+      "outMs": 1150
+     },
+     {
+      "inMs": 1750,
+      "outMs": 2900,
+      "moment": "hook"
      }
     ]
    }
@@ -3440,12 +4120,12 @@
      },
      {
       "inMs": 27654,
-      "outMs": 28529
+      "outMs": 28529,
+      "moment": "cta"
      },
      {
       "inMs": 29229,
-      "outMs": 29290,
-      "moment": "cta"
+      "outMs": 29290
      }
     ]
    }
@@ -3735,12 +4415,12 @@
     "beads": [
      {
       "inMs": 326,
-      "outMs": 633,
-      "moment": "hook"
+      "outMs": 633
      },
      {
       "inMs": 1333,
-      "outMs": 2048
+      "outMs": 2048,
+      "moment": "hook"
      },
      {
       "inMs": 2748,
@@ -3780,12 +4460,12 @@
      },
      {
       "inMs": 19586,
-      "outMs": 20204
+      "outMs": 20204,
+      "moment": "cta"
      },
      {
       "inMs": 20904,
-      "outMs": 21409,
-      "moment": "cta"
+      "outMs": 21409
      }
     ]
    }
@@ -5174,12 +5854,12 @@
      },
      {
       "inMs": 28144,
-      "outMs": 29792
+      "outMs": 29792,
+      "moment": "cta"
      },
      {
       "inMs": 30492,
-      "outMs": 30833,
-      "moment": "cta"
+      "outMs": 30833
      }
     ]
    }
@@ -5475,12 +6155,12 @@
     "beads": [
      {
       "inMs": 752,
-      "outMs": 1047,
-      "moment": "hook"
+      "outMs": 1047
      },
      {
       "inMs": 1747,
-      "outMs": 10738
+      "outMs": 10738,
+      "moment": "hook"
      },
      {
       "inMs": 11938,
@@ -7083,12 +7763,12 @@
     "beads": [
      {
       "inMs": 603,
-      "outMs": 678,
-      "moment": "hook"
+      "outMs": 678
      },
      {
       "inMs": 828,
-      "outMs": 1939
+      "outMs": 1939,
+      "moment": "hook"
      },
      {
       "inMs": 2019,
@@ -7554,12 +8234,12 @@
      },
      {
       "inMs": 22377,
-      "outMs": 22729
+      "outMs": 22729,
+      "moment": "cta"
      },
      {
       "inMs": 23929,
-      "outMs": 24238,
-      "moment": "cta"
+      "outMs": 24238
      }
     ]
    }
@@ -10449,12 +11129,12 @@
     "beads": [
      {
       "inMs": 957,
-      "outMs": 1399,
-      "moment": "hook"
+      "outMs": 1399
      },
      {
       "inMs": 2599,
-      "outMs": 7939
+      "outMs": 7939,
+      "moment": "hook"
      },
      {
       "inMs": 9139,
@@ -12104,12 +12784,12 @@
      },
      {
       "inMs": 2879,
-      "outMs": 5903
+      "outMs": 5903,
+      "moment": "cta"
      },
      {
       "inMs": 7103,
-      "outMs": 7393,
-      "moment": "cta"
+      "outMs": 7393
      }
     ]
    }
@@ -15879,8 +16559,7 @@
      },
      {
       "inMs": 2746,
-      "outMs": 2984,
-      "moment": "cta"
+      "outMs": 2984
      }
     ]
    }

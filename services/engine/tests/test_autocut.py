@@ -86,14 +86,23 @@ def test_keeps_the_last_take_of_a_false_start():
 def test_never_cuts_deliberate_repetition():
     for name in ["rhetorical repeat without a pause", "rhetorical repeat that ends the sentence", "never never give up", "i came i saw", "bye bye",
                  "so so good", "a finished sentence is not a false start", "anaphora is not a retake", "short emphatic repeat is not a retake",
-                 "a changed word is not a repeat"]:
+                 "a changed word is not a repeat", "parallel sentences are not a retake", "a retake that swaps a word is left alone",
+                 "shower and pool are two things", "try it and buy it are two things"]:
         i = _case(name)
-        assert _strikes(i["words"], i["fillers"], i["minSilenceMs"]) == [], name
+        # not a word struck (a long pause between the sentences may still be trimmed)
+        assert [s for s in _strikes(i["words"], i["fillers"], i["minSilenceMs"]) if s[2] != "silence"] == [], name
 
 
 def test_full_retake_strikes_the_earlier_sentence_whole():
     assert _strikes(_case("full retake")["words"]) == [(0, 3070, "repeat", "kept your last take · 'so today we're going to talk…'")]
     assert [(s, e) for s, e, _, _ in _strikes(_case("three takes keep the last")["words"])] == [(0, 2150), (2150, 4720)]
+    # the hook is the take that's kept, not the flubbed one
+    out = autocut.run({"words": _case("three takes keep the last")["words"], "fillers": []}, Ctx())
+    assert [b.get("moment") for b in out["beads"]] == [None, None, "hook"]
+    assert _strikes(_case("a retake cut off mid-word")["words"]) == [(0, 2070, "repeat", "kept your last take · 'this ring tracks your sl'")]
+    # containment: the later take may add words, never swap them
+    assert [s for s in _strikes(_case("a retake that adds words")["words"]) if s[2] == "repeat"] == [(0, 1670, "repeat", "kept your last take · 'i love this ring'")]
+    assert [s for s in _strikes(_case("the same sentence said twice")["words"]) if s[2] == "repeat"] == [(0, 1670, "repeat", "kept your last take · 'this ring is amazing'")]
 
 
 def test_breath_padding_and_merged_filler_strikes():
