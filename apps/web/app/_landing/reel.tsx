@@ -6,9 +6,9 @@ import { RAW, SLOT, WARM, type ClipId } from "./clips";
 import { Reveal } from "./motion";
 
 const REEL: { k: string; clip: ClipId; shape: "card" | "rect" | "circle"; aspect?: string; cap: string; raw: string; lab: string; rawLab: string }[] = [
-  { k: "a", clip: SLOT.reelA, shape: "card", cap: "okay. welcome back", raw: "okay so um… welcome, welcome back", lab: "edit · 0:24", rawLab: "raw · take 4" },
-  { k: "b", clip: SLOT.reelB, shape: "rect", aspect: "4 / 5", cap: "the coat. I know.", raw: "so the, uh… the coat. I know.", lab: "edit · 0:31", rawLab: "raw · take 2" },
-  { k: "c", clip: SLOT.reelC, shape: "circle", cap: "okay. coffee first", raw: "okay, um… coffee, coffee first", lab: "", rawLab: "" },
+  { k: "a", clip: SLOT.reelA, shape: "card", cap: "okay. three drops. that’s it.", raw: "okay so um… three, three drops", lab: "edit · 0:24", rawLab: "raw · take 4" },
+  { k: "b", clip: SLOT.reelB, shape: "rect", aspect: "4 / 5", cap: "it lives on my nightstand", raw: "so it, uh… lives on my", lab: "edit · 0:31", rawLab: "raw · take 2" },
+  { k: "c", clip: SLOT.reelC, shape: "circle", cap: "and it comes in this", raw: "and it, wait, hold on", lab: "", rawLab: "" },
   { k: "d", clip: SLOT.reelD, shape: "rect", aspect: "1 / 1", cap: "", raw: "", lab: "b-roll · graded", rawLab: "raw · shaky" },
 ];
 

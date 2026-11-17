@@ -29,8 +29,8 @@ export function RealAi() {
           onMouseLeave={() => hoverable() && setRaw(false)}
           onClick={(e) => (e.detail === 0 || !hoverable()) && setRaw((r) => !r)}
         >
-          {tile(SLOT.real, "new video’s up. go watch", "real")}
-          {tile(SLOT.ai, "one more lap before dark", "ai", true)}
+          {tile(SLOT.real, "yes, even at the gym", "real")}
+          {tile(SLOT.ai, "every single morning", "ai", true)}
           <span className="ec-sr">show both raw</span>
         </button>
       </Reveal>
