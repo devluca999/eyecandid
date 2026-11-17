@@ -1,6 +1,7 @@
 # Phase 2 exit check on mobile: a new user imports a clip and ends with an exported, captioned, reframed video
 # saved to the camera roll, in under 3 minutes. Everything is real: the system photo picker, the upload, the pipeline
-# on a CPU worker and the render. (Simulators have no camera, so the clip is imported.) The waits below add up to 175s, so a pass means the whole loop took less than 3 minutes.
+# on a CPU worker and the render. (Simulators have no camera, so the clip is imported.) Single waits are generous because a 2-core CI runner shares its cores with the emulator; the bound that counts
+# is the whole flow: run-ci.sh fails the job if it took 180s or more.
 appId: app.eyelore
 ---
 # the clip a new user would have in their camera roll (Maestro only reads media from inside this folder:
@@ -56,7 +57,7 @@ appId: app.eyelore
 - extendedWaitUntil:
     visible:
       id: "export-saved"
-    timeout: 90000
+    timeout: 140000
 - assertVisible:
     id: "share"
 # delete for good: confirm natively, land back on home with the edit gone
