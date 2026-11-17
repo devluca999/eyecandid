@@ -9,7 +9,7 @@
 | Web | https://eyelore.vercel.app (Vercel project `everstock/eyelore`, root `apps/web`; `main` deploys through `.github/workflows/deploy.yml`) |
 | Backend, production | Convex `hushed-heron-814` (team `SQco`, project `eyelore`) |
 | Backend, development | Convex `deafening-hedgehog-824` |
-| Workers | Modal apps `eyelore-worker-prod` and `eyelore-worker` (always-on CPU: transcribe, autocut, reframe, render) |
+| Workers | Modal apps `eyelore-worker-prod` and `eyelore-worker` (CPU: transcribe, autocut, reframe, render). **Stopped on 2026-11-16 22:10 UTC: the Modal workspace reached its spend cap.** New clips wait until the cap is raised and the workers are redeployed (section 3) |
 | Mobile | Expo project `@devluca999/eyelore`; EAS Update publishes the JS on `main`. No store or TestFlight build exists yet |
 | Funnel | `/funnel` on the web app, once `EYELORE_ADMIN_TOKEN` is set on the Convex deployment (section 5) |
 
@@ -47,7 +47,9 @@ Tests: `pnpm turbo run lint typecheck test` · `pnpm convex:test` · `cd service
 
 One codebase, pull-based and outbound-only. It claims jobs from Convex over HTTPS; only `EYELORE_PROVIDER` differs between hosts. Every worker needs `EYELORE_CONVEX_SITE_URL` (`https://<deployment>.convex.site`) and `EYELORE_WORKER_TOKEN` (from `npx convex run workers:register '{"name":"…","provider":"…"}'`, shown once; add `--prod` for production).
 
-- **Modal (what runs today):** `uvx --from modal modal deploy services/engine/deploy/modal_app.py` for the development backend, `EYELORE_ENV=prod uvx --from modal modal deploy services/engine/deploy/modal_app.py` for production. Modal secrets `eyelore-worker` and `eyelore-worker-prod` hold the two variables. A run starts every 25 minutes and polls for 30, so one CPU worker is always warm.
+- **Modal:** `uvx --from modal modal deploy services/engine/deploy/modal_app.py` for the development backend, `EYELORE_ENV=prod uvx --from modal modal deploy services/engine/deploy/modal_app.py` for production. Modal secrets `eyelore-worker` and `eyelore-worker-prod` hold the two variables.
+  - What is deployed today keeps one 4-CPU container warm per backend around the clock. That spent the workspace budget in hours.
+  - PR #13 (ADR 0010) replaces it with scale to zero: Convex calls the app's `wake` URL when a job waits and no worker is polling; the worker drains the queue and leaves after 3 idle minutes; an hourly run is the safety net. After deploying it, set the printed URL on each Convex deployment: `npx convex env set EYELORE_WAKE_URL <url>` (`--prod` for production). The cold start has not been measured yet.
 - **Colab:** `pip install` the wheel attached to the latest GitHub release (built on tags by `deploy.yml`), put the two variables in Colab secrets, then `EYELORE_PROVIDER=colab eyelore-worker`.
 - **RunPod or any GPU host:** run `ghcr.io/devluca999/eyelore-engine:main` with the two variables and `EYELORE_PROVIDER=runpod`.
 - **Serverless GPU for generation (Phase 3):** not deployed. The plan is a second Modal function on the same image with a GPU; the generation job types exist in the contract but have no handlers yet.
@@ -58,7 +60,8 @@ One codebase, pull-based and outbound-only. It claims jobs from Convex over HTTP
 - Web core loop: drop a clip with no signup, transcript, fillers and pauses struck (restorable), beads, moments, captions, face-centred reframe, loudness, export with cutdowns. Playwright runs it in CI with a real CPU worker; against production it took 56s.
 - The edit model: every change is an op with a one-line reason; undo, explain-on-hover and pinning work from the log.
 - The job contract, queue with leases, worker HTTP API and lease requeue.
-- Mobile app: see PLAN.md 2.3 for exactly what was exercised and how.
+- Mobile app: Maestro runs the core loop on an Android emulator in CI through the real photo picker (138s and 151s on 2-core runners, 1080×1920 export in the gallery), then deletes the edit. Not yet exercised: capture on a real device, anything on a real iPhone (the iOS simulator run used a development-only route to load the clip). See PLAN.md 2.3.
+- Delete an edit for good, on web and mobile: the project, its history, exports, jobs and stored files.
 
 **Built, waiting on keys** (each switches on with its variables and its Convex flag; until then the path works and says so)
 
@@ -93,8 +96,9 @@ The dashboard is `/funnel` on the web app: sessions per step, step-to-step conve
 
 ## 7. Next steps, by expected effect on conversion
 
+0. **Bring the engine back.** Raise the Modal spend cap (or add credit), merge and deploy PR #13 so the cost follows use, set `EYELORE_WAKE_URL`, set a budget alert below the cap, and measure the cold start. Until then nobody can finish an edit.
 1. **Connect Clerk and Stripe and decide the plans.** Signup at export and the paywall are built and dark. Nothing can convert until they are on.
-2. **Put the mobile app on real phones** (a TestFlight and an internal Android build), and shoot with the teleprompter on a device: capture has never run on real hardware.
-3. **Make render faster.** It is the slowest step of the loop on CPU (about 85s for a 19s export). A GPU or a lighter render path shortens the wait at the moment of highest intent.
+2. **Put the mobile app on real phones** (a TestFlight and an internal Android build through EAS), and shoot with the teleprompter on a device: capture has never run on real hardware. Before the first binary, change `runtimeVersion` from `appVersion` to the fingerprint policy (or bump the version), so an over-the-air update can never reach a binary with different native modules.
+3. **Make the wait shorter.** Render is the slowest step on CPU (about 85s for a 19s export), and scale-to-zero adds a cold start for the first clip after a quiet spell. A lighter render path or a GPU, and a warm worker during waking hours if the cold start measures badly.
 4. **Resumable upload with a proxy**, so long phone clips survive a bad connection; today a dropped upload starts over.
 5. **The first autopilot: the genre switcher**, behind a flag. It is the most visible "one tap, new edit" moment and needs no GPU for pacing, grade and captions.
