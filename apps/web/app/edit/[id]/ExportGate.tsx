@@ -51,7 +51,7 @@ function Modal({ children, label, onClose }: { children: ReactNode; label: strin
 }
 
 /** Shared flow. `auth.enabled` is false when Clerk is not configured. */
-function useGateCore(projectId: Id<"projects">, anonId: string, ready: boolean, auth: AuthState, signUp: ReactNode): Gate {
+function useGateCore(projectId: Id<"projects">, anonId: string, ready: boolean, showMeta: boolean, auth: AuthState, signUp: ReactNode): Gate {
   const track = useTrack();
   const startExport = useMutation(api.pipeline.startExport);
   const ensure = useMutation(api.users.ensure);
@@ -67,6 +67,26 @@ function useGateCore(projectId: Id<"projects">, anonId: string, ready: boolean, 
   const [signup, setSignup] = useState(false);
   const [paywall, setPaywall] = useState<Paywall | null>(null);
   const [note, setNote] = useState<string | null>(null);
+
+  const closeSignup = useCallback(() => {
+    setSignup(false);
+    waiter.current?.reject();
+    waiter.current = null;
+  }, []);
+
+  // Escape closes our modal first: it runs in the capture phase and stops the editor's own Escape layers (tour, sheet, drawer...)
+  useEffect(() => {
+    if (!signup && !paywall) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopImmediatePropagation();
+      e.preventDefault();
+      if (signup) closeSignup();
+      else setPaywall(null);
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [signup, paywall, closeSignup]);
 
   // presence: one beat now, then every 20s while the tab is visible
   useEffect(() => {
@@ -157,20 +177,13 @@ function useGateCore(projectId: Id<"projects">, anonId: string, ready: boolean, 
 
   const element = (
     <>
-      {ready && !auth.enabled && (
+      {ready && showMeta && !auth.enabled && (
         <p className="text-meta text-ink-tertiary" style={{ textAlign: "center" }} data-testid="export-meta">
           free export · watermarked · accounts aren&apos;t connected yet
         </p>
       )}
       {signup && (
-        <Modal
-          label="create an account to export"
-          onClose={() => {
-            setSignup(false);
-            waiter.current?.reject();
-            waiter.current = null;
-          }}
-        >
+        <Modal label="create an account to export" onClose={closeSignup}>
           <p className="text-meta text-ink-secondary" style={{ marginBottom: 12 }}>free account · your edit comes with you</p>
           {signUp}
         </Modal>
@@ -212,15 +225,15 @@ function useGateCore(projectId: Id<"projects">, anonId: string, ready: boolean, 
 }
 
 /** Clerk is configured: the provider exists, so Clerk's hooks and components are safe to use. */
-function useGateWithClerk(projectId: Id<"projects">, anonId: string, ready: boolean): Gate {
+function useGateWithClerk(projectId: Id<"projects">, anonId: string, ready: boolean, showMeta = true): Gate {
   const { isSignedIn } = useAuth();
   const { isAuthenticated } = useConvexAuth();
-  return useGateCore(projectId, anonId, ready, { enabled: true, isSignedIn: !!isSignedIn, isAuthenticated }, <SignUp routing="hash" appearance={{ elements: { card: { boxShadow: "none", background: "transparent" } } }} />);
+  return useGateCore(projectId, anonId, ready, showMeta, { enabled: true, isSignedIn: !!isSignedIn, isAuthenticated }, <SignUp routing="hash" appearance={{ elements: { card: { boxShadow: "none", background: "transparent" } } }} />);
 }
 
 /** No Clerk key: anonymous export, labelled honestly. */
-function useGateAnonymous(projectId: Id<"projects">, anonId: string, ready: boolean): Gate {
-  return useGateCore(projectId, anonId, ready, { enabled: false, isSignedIn: false, isAuthenticated: false }, null);
+function useGateAnonymous(projectId: Id<"projects">, anonId: string, ready: boolean, showMeta = true): Gate {
+  return useGateCore(projectId, anonId, ready, showMeta, { enabled: false, isSignedIn: false, isAuthenticated: false }, null);
 }
 
 // env is fixed at build time, so exactly one of these runs for the life of the page (hook order is stable)
