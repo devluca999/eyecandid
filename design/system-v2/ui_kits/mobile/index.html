@@ -1,0 +1,27 @@
+<!-- @dsCard group="Mobile app" viewport="1100x940" name="Mobile app" subtitle="Ideas → capture with teleprompter → takes → light edit → export" -->
+<!doctype html><html><head><meta charset="utf-8"><title>Eyecandid — mobile</title><link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../../_ds_bundle.js"></script>
+</head><body class="el-paper"><div id="root"></div>
+<script type="text/babel" src="ios-frame.jsx"></script>
+<script type="text/babel" src="mobile-screens.jsx"></script>
+<script type="text/babel">
+const SCREENS = [['ideas', 'ideas', IdeasScreen], ['capture', 'capture', CaptureScreen], ['takes', 'takes', TakesScreen], ['edit', 'light edit', EditScreen], ['export', 'export', ExportScreen]];
+function App() {
+  const [s, setS] = React.useState(() => localStorage.getItem('el-mobile-screen') || 'ideas');
+  React.useEffect(() => { localStorage.setItem('el-mobile-screen', s); }, [s]);
+  const Cur = SCREENS.find((x) => x[0] === s)[2];
+  return (
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 56, padding: 32 }}>
+      <nav style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <span style={{ font: 'var(--type-meta)', color: 'var(--ink-secondary)', marginBottom: 8 }}>flow</span>
+        {SCREENS.map(([id, label], i) => <button key={id} onClick={() => setS(id)} style={{ height: 40, padding: '0 14px', borderRadius: 10, border: 'none', textAlign: 'left', cursor: 'pointer', font: 'var(--type-ui)', background: s === id ? 'var(--surface-raised)' : 'transparent', boxShadow: s === id ? 'var(--shadow-lens-rest)' : 'none', color: s === id ? 'var(--ink)' : 'var(--ink-secondary)' }}>{i + 1} · {label}</button>)}
+      </nav>
+      <IOSDevice dark={s === 'capture'}><div key={s} style={{ height: 874, position: 'relative', background: 'var(--canvas)' }}><Cur go={setS} /></div></IOSDevice>
+    </div>
+  );
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script></body></html>
