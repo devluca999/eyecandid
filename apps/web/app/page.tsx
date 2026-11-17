@@ -1,6 +1,7 @@
 import { Lens, Lockup } from "@eyelore/ui";
 import { Hero } from "./hero";
 import { Drop } from "./drop";
+import { Recent } from "./recent";
 
 export default function Landing() {
   return (
@@ -12,6 +13,7 @@ export default function Landing() {
         <Lens shape="circle" scene="sofa" width={280} label="a creator talking to camera" caption="this ring tracks my sleep" />
         <Hero />
         <Drop />
+        <Recent />
       </section>
     </main>
   );

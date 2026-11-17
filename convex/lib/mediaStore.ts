@@ -15,4 +15,25 @@ export const mediaStore = {
     if (media.storage.provider === "convex") return await ctx.storage.getUrl(media.storage.key as Id<"_storage">);
     throw new Error("s3 provider not configured");
   },
+  /** Remove the stored bytes for good. A file that is already gone is not an error. */
+  async delete(ctx: ActionCtx | MutationCtx, media: Pick<Doc<"media">, "storage">): Promise<void> {
+    if (media.storage.provider !== "convex") throw new Error("s3 provider not configured");
+    const key = media.storage.key as Id<"_storage">;
+    if ((await ctx.storage.getUrl(key)) !== null) await ctx.storage.delete(key);
+  },
 };
+
+/**
+ * Media a job's output names (`mediaId`, `maskMediaId`, `mediaIds`…). Worker-registered media carries no projectId,
+ * so this is the only link from a project to its renders and generated assets.
+ */
+export function mediaIdsIn(value: unknown, depth = 0): string[] {
+  if (!value || typeof value !== "object" || depth > 4) return [];
+  if (Array.isArray(value)) return value.flatMap((x) => mediaIdsIn(x, depth + 1));
+  const out: string[] = [];
+  for (const [k, x] of Object.entries(value)) {
+    if (/mediaids?$/i.test(k)) out.push(...(Array.isArray(x) ? x : [x]).filter((y): y is string => typeof y === "string"));
+    else out.push(...mediaIdsIn(x, depth + 1));
+  }
+  return out;
+}
