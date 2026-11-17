@@ -177,10 +177,10 @@ jobs:
               - 'pnpm-lock.yaml'
               - '.github/workflows/ci.yml'
 
-  # The APK is built on this runner, not in the EAS cloud: on the free tier the cloud queue never started a build
-  # (every `eas build --wait` sat IN_QUEUE until the job timed out, and cancelled runs left their builds queued).
+  # The APK is built on this runner, not in the EAS cloud: a free-tier cloud build waits ~17 min in the queue and then
+  # builds for 14-26 min, so `eas build --wait` outlived every push (and each cancelled run left its build queued).
   # Hermetic like the web e2e: a local Convex backend and a real CPU worker; the emulator reaches them over
-  # `adb reverse`. Needs no secrets. Installable EAS builds: `eas build --profile preview` by hand (see HANDOFF).
+  # `adb reverse`. Needs no secrets. Installable builds for real devices: `eas build --profile preview`.
   mobile-e2e:
     name: mobile e2e · android build + maestro (local convex + real cpu worker)
     needs: [checks, mobile-changes]
@@ -206,9 +206,17 @@ jobs:
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: 17 }
       - uses: gradle/actions/setup-gradle@v4
+        with: { cache-read-only: false } # PR branches save the Gradle cache too: a cold native build is ~29 min
       - uses: astral-sh/setup-uv@v6
       - run: pnpm install --frozen-lockfile
+      # the APK only changes with the app's inputs: flow and CI edits reuse it instead of a ~29 min native build
+      - uses: actions/cache/restore@v4
+        id: apk
+        with:
+          path: app.apk
+          key: apk-x86_64-${{ hashFiles('apps/mobile/**', '!apps/mobile/.maestro/**', 'packages/**', 'convex/_generated/**', 'pnpm-lock.yaml') }}
       - name: release apk for the emulator (x86_64 only, signed with the debug key)
+        if: steps.apk.outputs.cache-hit != 'true'
         working-directory: apps/mobile
         run: |
           npx expo prebuild --platform android --no-install
@@ -219,6 +227,15 @@ jobs:
           rm -rf app/build app/.cxx build
           find "$GITHUB_WORKSPACE/node_modules" -type d \( -name .cxx -o -path '*/android/build' \) -prune -exec rm -rf {} + || true
           df -h /
+      - if: steps.apk.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: app.apk
+          key: ${{ steps.apk.outputs.cache-primary-key }}
+      - name: what this runner has; warm the renderer's headless browser before the emulator takes the cores
+        run: |
+          nproc; free -g; df -h /
+          cd services/render && npx remotion browser ensure
       - name: start a local convex backend
         run: |
           (npx convex dev > convex.log 2>&1 &)

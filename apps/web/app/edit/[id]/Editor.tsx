@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
@@ -56,6 +57,8 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
   const apply = useMutation(api.edits.apply);
   const undo = useMutation(api.edits.undo);
   const startExport = useMutation(api.pipeline.startExport);
+  const remove = useMutation(api.projects.remove);
+  const router = useRouter();
   const track = useTrack();
   const pending = useSyncExternalStore(session.subscribe, () => session.get(projectId), () => undefined);
 
@@ -86,6 +89,8 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
   const [tour, setTour] = useState<number | null>(null);
   const [nearDials, setNearDials] = useState(false);
   const [activeDial, setActiveDial] = useState<DialKey | null>(null);
+  // delete: a quiet verb, then one in-app step that says what goes and that it is final
+  const [del, setDel] = useState<"idle" | "confirm" | "deleting" | "gone">("idle");
   const frame = useRef<HTMLDivElement>(null);
   const [frameSize, setFrameSize] = useState({ w: 0, h: 0 });
   const [dialsInside, setDialsInside] = useState(false);
@@ -223,6 +228,17 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
     await startExport({ anonId, projectId, aspect, requestId: `${Date.now()}-${exportReq}`, ...(useCut ? { maxDurationMs: (Number(useCut) * 1000) as 15000 | 30000 | 60000 } : {}) });
     setExportReq((n) => n + 1);
   };
+  const doDelete = async () => {
+    setDel("deleting");
+    try {
+      await remove({ projectId, anonId });
+      setDel("gone");
+      router.replace("/");
+    } catch {
+      setDel("idle");
+      setNotice("couldn't delete that · try again");
+    }
+  };
   const doneSent = useRef<string | null>(null);
   useEffect(() => {
     if (latestExport?.status === "succeeded" && doneSent.current !== latestExport._id) {
@@ -240,6 +256,7 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
         // one layer per press: tour, sheet, drawer, menu, selection
         if (tour !== null) endTour();
         else if (sheet) setSheet(false);
+        else if (del === "confirm") setDel("idle");
         else if (drawer) setDrawer(false);
         else if (menu) setMenu(null);
         else setSelected(null);
@@ -286,6 +303,13 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
     return () => window.removeEventListener("keydown", onKey);
   });
 
+  if (del === "gone") {
+    return (
+      <Shell title="" night={false}>
+        <StatusDot status="ready" label="deleted" />
+      </Shell>
+    );
+  }
   if (data === null) {
     return (
       <Shell title="not found" night={false}>
@@ -311,6 +335,24 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
             ? null
             : `${STAGE_WORD[stage] ?? stage}${activeJob?.status === "running" ? ` · ${Math.round(activeJob.progress * 100)}%` : ""}`;
   const ready = stage === "ready" && !!doc && doc.beads.length > 0;
+
+  // deletable once the clip is registered (or its upload failed): deleting under a live upload would strand the file
+  const canDelete = !!data && (!!sourceMedia || !!pending?.error || !pending);
+  const actions = !canDelete ? null : del === "idle" ? (
+    <button className="el-pill el-pill--quiet el-pill--sm" data-testid="delete" onClick={() => setDel("confirm")}>
+      delete
+    </button>
+  ) : (
+    <div className="flex flex-wrap items-center justify-end gap-8" role="alertdialog" aria-label="delete this edit" data-testid="delete-confirm">
+      <span className="text-meta text-ink-secondary">delete this edit, its clip and exports for good? this can&apos;t be undone</span>
+      <button className="el-pill el-pill--quiet el-pill--sm" data-testid="delete-keep" disabled={del === "deleting"} onClick={() => setDel("idle")}>
+        keep
+      </button>
+      <button className="el-pill el-pill--secondary el-pill--sm" data-testid="delete-yes" disabled={del === "deleting"} onClick={() => void doDelete()}>
+        {del === "deleting" ? "deleting" : "delete"}
+      </button>
+    </div>
+  );
 
   // Lens geometry: circle in theater, true aspect (or the chosen ratio) while editing, a card on the board
   const srcRatio = clip ? clip.w / clip.h : sourceMedia?.w && sourceMedia.h ? sourceMedia.w / sourceMedia.h : 16 / 9;
@@ -372,6 +414,7 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
     <Shell
       title={data?.project.title ?? ""}
       night={night}
+      actions={actions}
       center={
         <div className="el-seg eyl-modes" role="radiogroup" aria-label="view" data-tour="modes">
           {MODES.map((m, i) => (
@@ -581,7 +624,7 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
 
 const fmtTc = (ms: number) => `${Math.floor(ms / 60000)}:${String(Math.floor((ms / 1000) % 60)).padStart(2, "0")}`;
 
-function Shell({ title, night, center, right, children }: { title: string; night: boolean; center?: React.ReactNode; right?: React.ReactNode; children: React.ReactNode }) {
+function Shell({ title, night, center, right, actions, children }: { title: string; night: boolean; center?: React.ReactNode; right?: React.ReactNode; actions?: React.ReactNode; children: React.ReactNode }) {
   return (
     <main className="min-h-dvh flex flex-col">
       <header className="eyl-top">
@@ -592,7 +635,10 @@ function Shell({ title, night, center, right, children }: { title: string; night
           <span className="text-meta text-ink-secondary truncate">{title}</span>
         </div>
         <div>{center}</div>
-        <div className="eyl-top__r">{right}</div>
+        <div className="eyl-top__r">
+          {actions}
+          {right}
+        </div>
       </header>
       <section className="flex flex-1 flex-col items-center justify-start gap-24 px-24 pb-96 pt-16">{children}</section>
     </main>
