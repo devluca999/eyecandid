@@ -9,6 +9,7 @@
     ".": "./src/index.ts",
     "./jobs": "./src/jobs.ts",
     "./editModel": "./src/editModel.ts",
+    "./versions": "./src/versions.ts",
     "./analytics": "./src/analytics.ts",
     "./flags": "./src/flags.ts",
     "./schema/jobs.schema.json": "./schema/jobs.schema.json"
