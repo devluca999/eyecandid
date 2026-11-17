@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 
@@ -10,6 +10,8 @@ import type { Id } from "@convex/_generated/dataModel";
  */
 export function ReadyEmail({ projectId, anonId, working }: { projectId: Id<"projects">; anonId: string; working: boolean }) {
   const setReadyEmail = useMutation(api.projects.setReadyEmail);
+  // the server only sends while `ready_email` is on (convex/notify.ts): never promise an email nobody will send
+  const flags = useQuery(api.flags.forSubject, anonId ? { subject: anonId } : "skip");
   const [show, setShow] = useState(false);
   const [email, setEmail] = useState("");
   const [state, setState] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -26,7 +28,7 @@ export function ReadyEmail({ projectId, anonId, working }: { projectId: Id<"proj
     };
   }, [working]);
 
-  if (!working || !show) return null;
+  if (!working || !show || !flags?.ready_email) return null;
   if (state === "saved") return <p className="text-meta text-ink-secondary" role="status">we&apos;ll email you when it&apos;s ready</p>;
   return (
     <form
@@ -38,9 +40,9 @@ export function ReadyEmail({ projectId, anonId, working }: { projectId: Id<"proj
         try {
           await setReadyEmail({ anonId, projectId, email });
           setState("saved");
-        } catch (err) {
+        } catch {
           setState("error");
-          setWhy(err instanceof Error ? err.message.replace(/^.*Uncaught Error: /, "").split("\n")[0]! : "couldn't save that");
+          setWhy("couldn't save that · check the address and try again"); // production Convex hides plain error text
         }
       }}
     >
