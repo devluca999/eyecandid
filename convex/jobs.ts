@@ -89,7 +89,11 @@ export const workerPresence = query({
     const recent = await ctx.db.query("workers").order("desc").take(50);
     const now = Date.now();
     const live = recent.filter((w) => !w.disabled && w.lastSeenAt && now - w.lastSeenAt < 60_000);
-    return { live: live.length, providers: [...new Set(live.map((w) => w.provider))] };
+    // how the last wake of a scale-to-zero host went, so the UI can say what is really happening while it waits
+    const state = await ctx.db.query("engineState").first();
+    const r = state?.lastWakeResult ?? "";
+    const wake: "asked" | "none" | "failing" | null = !state ? null : r.startsWith("ok") || r === "asking" ? "asked" : r.startsWith("not configured") || r.startsWith("no wake-able") ? "none" : "failing";
+    return { live: live.length, providers: [...new Set(live.map((w) => w.provider))], wake };
   },
 });
 

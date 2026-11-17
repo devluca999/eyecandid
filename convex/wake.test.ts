@@ -44,6 +44,7 @@ describe("wake on demand (scale-to-zero workers)", () => {
     expect(url).toBe("https://wake.example/wake");
     expect((init.headers as Record<string, string>)["x-eyelore-wake"]).toBe(await wakeKey(await sha(token)));
     expect((await state(t))?.lastWakeResult).toMatch(/^ok · /);
+    expect((await t.query(api.jobs.workerPresence, {})).wake).toBe("asked");
 
     // a second job inside the debounce window does not call again
     await t.mutation(api.jobs.enqueueHello, { anonId: ANON, message: "hi", requestId: "2" });
@@ -71,6 +72,7 @@ describe("wake on demand (scale-to-zero workers)", () => {
     await t.mutation(api.jobs.enqueueHello, { anonId: ANON, message: "hi", requestId: "1" });
     await t.finishAllScheduledFunctions(vi.runAllTimers);
     expect((await state(t))?.lastWakeResult).toMatch(/^refused · 503/);
+    expect((await t.query(api.jobs.workerPresence, {})).wake).toBe("failing");
     vi.advanceTimersByTime(WAKE_DEBOUNCE_MS + 1);
     expect((await t.mutation(internal.wake.check, {})).wake).toBe(true);
   });
@@ -85,6 +87,7 @@ describe("wake on demand (scale-to-zero workers)", () => {
     await t.finishAllScheduledFunctions(vi.runAllTimers);
     expect(fetchMock).not.toHaveBeenCalled();
     expect((await state(t))?.lastWakeResult).toBe("not configured · set EYELORE_WAKE_URL");
+    expect((await t.query(api.jobs.workerPresence, {})).wake).toBe("none");
   });
 
   it("only workers on a wake-able host get a key sent", async () => {
