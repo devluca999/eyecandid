@@ -6,8 +6,8 @@ import { Icon, PillButton } from "@eyelore/ui";
 // the form needs Convex: its chunk loads when "request access" is clicked, not with the landing
 const RequestForm = dynamic(() => import("./access-form"), { ssr: false });
 
-const FREE = ["no signup · start from the drop zone", "cut, captioned and reframed", "exports carry a small watermark"];
-const PRO = ["no watermark", "longer clips", "generated b-roll and genre looks"];
+const FREE = ["no signup · start from the drop zone", "cut, captioned and reframed", "clips up to 60 s · a small watermark"];
+const PRO = ["no watermark", "longer clips", "generated b-roll and genre looks, as they ship"];
 
 /** Jump to the hero's drop well and put focus on it (the "start now" of the Free card). */
 function toDrop() {

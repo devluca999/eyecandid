@@ -6,7 +6,7 @@ import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { addClipChange, autocut, beadChanges, JOB_SPECS, reframeChange, retakeChanges } from "@eyelore/core";
 import { caller, owns } from "./lib/owner";
 import { addUsage, usageFor } from "./lib/entitle";
-import { admitFreeJob, MSG, rateLimit, refuse, sourceRefusal } from "./lib/limits";
+import { admitFreeJob, freeState, MSG, rateLimit, refuse, sourceRefusal } from "./lib/limits";
 import { commitChanges, createDoc, headDoc } from "./lib/docs";
 import { enqueueJob } from "./jobs";
 import { mediaIdsIn, mediaStore } from "./lib/mediaStore";
@@ -16,6 +16,23 @@ export async function ownedProject(ctx: QueryCtx | MutationCtx, projectId: Id<"p
   if (!p || !owns(p, await caller(ctx, anonId))) throw new Error("not found");
   return p;
 }
+
+/**
+ * Would this clip be refused? Asked on the landing before a project exists, so a clip over the cap or a paused free
+ * day is said there, in one line, instead of after an editor opened and an upload ran. Only a courtesy: the same
+ * rules are enforced again where it counts (addSource, addDeviceSource, uploadUrl).
+ */
+export const preflight = query({
+  args: { anonId: v.string(), durationMs: v.number(), bytes: v.number(), onDevice: v.boolean() },
+  handler: async (ctx, a): Promise<string | null> => {
+    const pro = (await usageFor(ctx, await caller(ctx, a.anonId))).plan !== "free";
+    // nothing is uploaded on device, so size isn't capped there (same as addDeviceSource)
+    const why = sourceRefusal({ pro, size: a.onDevice ? 0 : a.bytes, durationMs: a.durationMs });
+    if (why) return why;
+    if (!pro && !a.onDevice && (await freeState(ctx)).paused) return MSG.paused;
+    return null;
+  },
+});
 
 /** Start a project with no signup (ADR 0006). */
 export const create = mutation({
@@ -150,8 +167,11 @@ type MediaView = { id: Id<"media">; kind: Doc<"media">["kind"]; url: string | nu
 
 /** Everything the editor needs, live: the project, the edit doc, media URLs, jobs in flight and exports. */
 export const get = query({
-  args: { projectId: v.id("projects"), anonId: v.optional(v.string()) },
-  handler: async (ctx, { projectId, anonId }) => {
+  // a string, not v.id: a mistyped or truncated edit link is "not found", not a crash
+  args: { projectId: v.string(), anonId: v.optional(v.string()) },
+  handler: async (ctx, { projectId: raw, anonId }) => {
+    const projectId = ctx.db.normalizeId("projects", raw);
+    if (!projectId) return null;
     const project = await ctx.db.get(projectId);
     if (!project || !owns(project, await caller(ctx, anonId))) return null;
     const head = await headDoc(ctx, projectId);
@@ -306,6 +326,10 @@ export const addDeviceSource = mutation({
   },
   handler: async (ctx, a) => {
     await ownedProject(ctx, a.projectId, a.anonId);
+    // the free length cap is a product rule, so it holds on device too (size isn't capped: nothing is uploaded)
+    const pro = (await usageFor(ctx, await caller(ctx, a.anonId))).plan !== "free";
+    const why = sourceRefusal({ pro, size: 0, durationMs: a.durationMs });
+    if (why) refuse(why);
     const mediaId = await ctx.db.insert("media", {
       projectId: a.projectId,
       kind: "source",

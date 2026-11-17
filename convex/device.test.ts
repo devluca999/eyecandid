@@ -90,6 +90,16 @@ describe("on-device export (ADR 0012)", () => {
   });
 });
 
+describe("on-device clips keep the free length cap", () => {
+  it("refuses a free clip over 60 s with the one-line reason", async () => {
+    const t = convexTest(schema, modules);
+    const projectId = await t.mutation(api.projects.create, { anonId: ANON });
+    await expect(
+      t.mutation(api.projects.addDeviceSource, { anonId: ANON, projectId, contentType: "video/mp4", w: 1080, h: 1920, durationMs: 61_000, bytes: 1 }),
+    ).rejects.toThrow(/60 s/);
+  });
+});
+
 describe("on-device reframe (ADR 0012)", () => {
   const kfs = [{ ms: 0, cx: 0.4, cy: 0.3, scale: 1 }, { ms: 500, cx: 0.45, cy: 0.32, scale: 1 }];
   async function ready(t: ReturnType<typeof convexTest>) {
