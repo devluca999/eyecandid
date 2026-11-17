@@ -3,6 +3,11 @@ packages:
   - "packages/*"
   - "services/render"
 allowBuilds:
+  # Node-only ONNX runtime pulled in by @huggingface/transformers; the browser engine uses onnxruntime-web
+  onnxruntime-node: false
+  protobufjs: false
+  # optional native build; Next.js uses sharp's prebuilt @img binaries
+  sharp: false
   esbuild: true
 nodeLinker: hoisted
 autoInstallPeers: true
