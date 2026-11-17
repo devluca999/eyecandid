@@ -8,6 +8,7 @@ import type { JobType } from "@eyelore/core";
 import { caller, owns } from "./lib/owner";
 import { mediaIdsIn, mediaStore } from "./lib/mediaStore";
 import { requestWake } from "./wake";
+import { chargeGpuJob, recordCharge, refundJobCredits } from "./lib/entitle";
 
 /** Insert a job, validating input against the contract. Idempotent on idempotencyKey. */
 export async function enqueueJob(
@@ -30,8 +31,10 @@ export async function enqueueJob(
   if (existing) return existing._id;
   const spec = JOB_SPECS[args.type];
   const input = spec.input.parse(args.input);
+  // GPU work is Pro only and paid with credits; throws before anything is woken or written (convex/lib/entitle.ts)
+  const charge = await chargeGpuJob(ctx, args.type, args.ownerUserId);
   await requestWake(ctx); // scale-to-zero hosts: start a worker if none is polling (convex/wake.ts)
-  return await ctx.db.insert("jobs", {
+  const jobId = await ctx.db.insert("jobs", {
     type: args.type,
     version: spec.version,
     idempotencyKey: args.idempotencyKey,
@@ -47,6 +50,8 @@ export async function enqueueJob(
     ownerAnonId: args.ownerAnonId,
     createdAt: Date.now(),
   });
+  if (charge) await recordCharge(ctx, jobId, charge);
+  return jobId;
 }
 
 /** Phase 1 round-trip: enqueue a hello job from a client (behind the hello_job flag). */
@@ -206,6 +211,7 @@ export const complete = internalMutation({
     const parsed = JOB_SPECS[job.type as JobType].output.safeParse(output);
     if (!parsed.success) {
       await ctx.db.patch(job._id, { status: "failed", error: `output failed contract: ${parsed.error.message.slice(0, 500)}`, finishedAt: Date.now(), leaseOwner: undefined, leaseExpiresAt: undefined });
+      await refundJobCredits(ctx, job._id);
       if (job.projectId) await ctx.scheduler.runAfter(0, internal.pipeline.onJobDone, { jobId: job._id });
       return { ok: false as const, error: "output failed contract" };
     }
@@ -240,6 +246,7 @@ export const fail = internalMutation({
       leaseExpiresAt: undefined,
       finishedAt: retry ? undefined : Date.now(),
     });
+    if (!retry) await refundJobCredits(ctx, job._id);
     if (!retry && job.projectId) await ctx.scheduler.runAfter(0, internal.pipeline.onJobDone, { jobId: job._id });
     return true;
   },
@@ -266,6 +273,7 @@ export const requeueExpired = internalMutation({
           leaseExpiresAt: undefined,
           finishedAt: retry ? undefined : now,
         });
+        if (!retry) await refundJobCredits(ctx, job._id);
         if (!retry && job.projectId) await ctx.scheduler.runAfter(0, internal.pipeline.onJobDone, { jobId: job._id });
         n++;
       }

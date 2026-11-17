@@ -155,6 +155,8 @@ export default defineSchema({
     stripeSubscriptionId: v.optional(v.string()),
     /** raw Stripe subscription status, for support */
     subscriptionStatus: v.optional(v.string()),
+    /** Phase 4: UTC month ("2026-11") whose monthly GPU credits were last granted; one grant per month */
+    creditsPeriod: v.optional(v.string()),
   })
     .index("by_user", ["userId"])
     .index("by_stripeCustomer", ["stripeCustomerId"]),
@@ -206,7 +208,24 @@ export default defineSchema({
     anonHash: v.optional(v.string()),
     createdAt: v.number(),
     status: v.union(v.literal("new"), v.literal("approved"), v.literal("declined")),
+    // ── Phase 4 (admin /admin/access): decision, invite link (hash only) and the honest email outcome ──
+    decidedAt: v.optional(v.number()),
+    inviteTokenHash: v.optional(v.string()),
+    emailStatus: v.optional(v.union(v.literal("queued"), v.literal("sent"), v.literal("not_sent"), v.literal("failed"))),
+    /** e.g. "not sent · SendPulse not configured" */
+    emailDetail: v.optional(v.string()),
   })
     .index("by_email_created", ["email", "createdAt"])
-    .index("by_anon_created", ["anonHash", "createdAt"]),
+    .index("by_anon_created", ["anonHash", "createdAt"])
+    .index("by_status_created", ["status", "createdAt"])
+    .index("by_inviteTokenHash", ["inviteTokenHash"]),
+
+  /** Phase 4: GPU credits charged when a job is enqueued, and refunded once if it finally fails (convex/lib/entitle.ts). */
+  creditCharges: defineTable({
+    userId: v.id("users"),
+    jobId: v.id("jobs"),
+    credits: v.number(),
+    at: v.number(),
+    refundedAt: v.optional(v.number()),
+  }).index("by_job", ["jobId"]),
 });
