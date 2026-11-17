@@ -31,10 +31,10 @@ maestro test apps/mobile/.maestro --format junit --output maestro-report.xml --d
 # the proof, measured: the flow's own duration, and the exported video sitting in the gallery
 python3 - <<'PY'
 import sys, xml.etree.ElementTree as ET
-cases = list(ET.parse("maestro-report.xml").getroot().iter("testcase"))
-total = sum(float(c.get("time") or 0) for c in cases)
-print(f"maestro: {len(cases)} flow(s), {total:.0f}s in total")
-sys.exit(0 if cases and total < 180 else f"the core loop took {total:.0f}s: over the 3 minute bound")
+cases = {c.get("name"): float(c.get("time") or 0) for c in ET.parse("maestro-report.xml").getroot().iter("testcase")}
+print("maestro:", ", ".join(f"{n} {t:.0f}s" for n, t in cases.items()))
+loop = cases.get("core-loop")
+sys.exit(0 if loop is not None and loop < 180 else f"the core loop took {loop}s: over the 3 minute bound")
 PY
 videos | tee maestro-debug/gallery.txt
 grep -q 'width=1080, height=1920' maestro-debug/gallery.txt || { echo "no 1080x1920 export in the gallery"; exit 1; }

@@ -217,6 +217,7 @@ Where work runs (decided 2026-11-16): one worker codebase behind `GpuProvider`. 
 - [x] Export pill: ratio + 15/30/60 cutdowns, ring on the Lens edge, download
 - [x] Funnel events: drop_started, upload_done, first_preview (time-to-wow), edit_interaction, export_clicked, export_done
 - [x] Playwright: landing → exported 9:16 in **55–62s** locally (real CPU worker), CI runs it with a real worker
+- [x] Delete an edit for good (owner only): project, edit doc and change log, exports, jobs and every stored file through `MediaStore.delete`; a job running at that moment is canceled and anything it uploads late is removed. Web: quiet "delete" in the editor with an in-app confirm, and a "your edits" list on the landing to find it again. Mobile control ships with 2.3 — 6 convex tests, 1 Playwright
 - [ ] Resumable upload (chunked storage behind MediaStore) and an uploaded proxy for other devices
 **2.2b Web, rest** — theater (Night, circle Lens) and board modes; dials that re-edit live; timeline drawer with the five tracks; "?" shortcut sheet + skippable tour; Clerk signup at export with the anonymous work carried over
 **2.3 Mobile** — branch `phase-2/mobile` (native screens, no webview)
