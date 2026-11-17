@@ -15,7 +15,7 @@ is larger than a fix.
 | 1 | On-device edit reopened after a reload: the Lens showed the design-system placeholder figure (not your clip) and export said "drop it again here", but the editor has no drop target. A dead end on the free tier's main path. | 5 | 2 | **fixed**: "choose it again" (same length ±1 s) puts the clip back; plays and exports. `shots/device-reload-before.jpg`, `shots/device-reload-choose-again.jpg` |
 | 2 | A clip over 60 s (or a file over 200 MB) on the server engine opened the editor, uploaded in full, then was refused; the project stayed in "your edits" as "uploading" forever, and the bytes stayed in storage. | 5 | 2 | **fixed**: `projects.preflight` refuses on the landing before a project exists; server caps unchanged |
 | 3 | "Leave your email and we'll send it when it's ready" appeared on every slow server edit, but nothing sends without the `ready_email` flag and SendPulse keys (neither set). An honesty breach at the moment trust matters most. | 4 | 1 | **fixed**: shown only while `ready_email` is on; a failed save says a plain line, not "Server Error" |
-| 4 | Server exports: "download" pointed at the Convex storage origin; browsers ignore `download` cross-origin, so the video replaced the editor (no way back but Back). | 4 | 1 | **fixed**: fetched on click, saved as `<title> - eyecandid.mp4`; on failure opens in a new tab |
+| 4 | Server exports: "download" pointed at the Convex storage origin; browsers ignore `download` cross-origin, so the video replaced the editor (no way back but Back). | 4 | 1 | **fixed**: fetched on click, saved as `<title> - eyecandid.mp4`; on failure opens in a new tab (Convex storage answers CORS for the site's origin; core-loop now clicks it in CI) |
 | 5 | No next step after the first export (mvp-spec step 8, "offer Pro, don't push it"). The moment value is felt had no ask. | 4 | 1 | **fixed**: one quiet line under the export pill after a free export → `/#pricing`. `shots/phone-exported-after.jpg` |
 | 6 | **The first visit on the device engine waits ~30 s on a 206 MB model download** before anything happens (38 s drop → ready; 7 s once cached). The clip doesn't play meanwhile, so the value is invisible for the slowest half-minute. | 5 | 3 | **left**. Options: play the raw clip in the Lens during the download (it's already local); start with `tiny.en` (120 MB) and upgrade later; or show the first transcript words as they arrive |
 | 7 | **No worker runs in production.** Browsers without WebGPU + WebCodecs (Firefox, older Safari, many Android) get "no engine is running right now · your clip starts when one comes online" and never finish, while the landing promises "about a minute". | 5 | 2 (owner) | **left, owner decision**: raise the Modal cap, or say before the drop that this browser can't edit on the device and the server queue is closed |
@@ -24,7 +24,7 @@ is larger than a fix.
 | 10 | Phone editor header: the view switch overlapped "delete" ("boardelete"); stage, refusal and error lines were cut off (StatusDot is `nowrap`). | 3 | 1 | **fixed**: switch on its own row under 640 px; long lines wrap. `shots/phone-editor-cold-before.jpg` |
 | 11 | Landing walkthrough (desktop 1440, ~97 % through "one take, start to finish"): a dark rectangle of the footage showed behind the finished circle. Chrome stops clipping composited children (playing video, soft-light cine layer) to an animated border-radius. | 3 | 1 | **fixed**: a no-op mask on the Lens frame forces the clip. `shots/walkthrough-circle-before.jpg` → `-after.jpg` |
 | 12 | Upload failure (offline, server engine) ends at "upload failed · check your connection and drop it again", in the editor, where there's no drop. The file is still in the tab. | 3 | 2 | **left**: a "try again" button that re-runs the upload from the session's file |
-| 13 | Two drops in quick succession (or a drop while one is being read) started two projects. | 2 | 1 | **fixed**: one clip at a time on the landing |
+| 13 | Two drops in quick succession (or a drop while one is being read) started two projects. | 2 | 1 | **fixed**: one clip at a time on the landing (two back-to-back picks now add one edit) |
 | 14 | `/pro/checkout` with an invalid link still said "you're in" above the error. | 2 | 1 | **fixed**: heading "pro", plus a "request access" link |
 | 15 | The free limits (60 s, watermark) aren't said before the drop; the well says "the more ums the better · mp4, mov". People find the cap by being refused. | 3 | 1 | **left for the copy PR** (#34 owns site language): add "up to 60 s" to the well hint |
 | 16 | "no take yet? try it with our clip" is hidden: `NEXT_PUBLIC_SAMPLE_CLIP_URL` isn't set. People without a take have no path to the value. | 4 | 1 (owner) | **left, owner**: host a 20 s sample (the spec's) and set the variable |
@@ -57,6 +57,8 @@ is larger than a fix.
 - A file over 200 MB: covered by the preflight unit test rather than a 200 MB upload to dev.
 
 ## Needs the owner
+
+0. CI's "preview · convex + vercel" check fails on PRs opened since the Convex team hit its preview-deployment quota (40). Old preview deployments need deleting (not done here).
 
 1. Production has no worker (#7): raise the Modal cap or decide what non-WebGPU browsers are told.
 2. The sample clip (#16): host one and set `NEXT_PUBLIC_SAMPLE_CLIP_URL`.
