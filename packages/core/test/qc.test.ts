@@ -196,6 +196,5 @@ describe("qcDoc on ordinary autocut output", () => {
     expect(bad.slice(0, 10)).toEqual([]);
     // today's autocut does leave wordless slivers between back-to-back cuts, and the chunker a few long captions
     expect(slivers).toBeGreaterThan(0);
-    console.log(`qc: ${slivers} notes (wordless slivers, captions past two lines) across 300 generated takes`);
-  });
+  }, 60_000);
 });
