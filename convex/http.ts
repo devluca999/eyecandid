@@ -15,6 +15,7 @@ import {
   CONTRACT,
 } from "@eyelore/core";
 import { authWorker } from "./lib/workerAuth";
+import { verifyStripe, verifySvix } from "./lib/webhookSig";
 
 const http = httpRouter();
 
@@ -119,6 +120,64 @@ http.route({
   handler: workerRoute(DownloadUrlRequest, async (ctx, _w, b) => {
     const url = await ctx.runQuery(internal.media.downloadUrl, { mediaId: b.mediaId });
     return url ? json({ url }) : json({ error: "not found" }, 404);
+  }),
+});
+
+/**
+ * Clerk webhook (user.created / user.updated / user.deleted). Verified with Svix signatures over WebCrypto.
+ * 501 until CLERK_WEBHOOK_SECRET is set. Register `<convex site url>/clerk/webhook` in the Clerk dashboard.
+ */
+http.route({
+  path: "/clerk/webhook",
+  method: "POST",
+  handler: httpAction(async (ctx, req) => {
+    const secret = process.env.CLERK_WEBHOOK_SECRET;
+    if (!secret) return json({ error: "not configured" }, 501);
+    const raw = await req.text();
+    const ok = await verifySvix(secret, req.headers, raw);
+    if (!ok.ok) return json({ error: ok.error }, 400);
+    let evt: { type?: string; data?: { id?: string; primary_email_address_id?: string; email_addresses?: { id: string; email_address: string }[] } };
+    try {
+      evt = JSON.parse(raw);
+    } catch {
+      return json({ error: "invalid json" }, 400);
+    }
+    const d = evt.data;
+    if (!d?.id) return json({ error: "invalid body" }, 400);
+    if (evt.type === "user.created" || evt.type === "user.updated") {
+      const email = d.email_addresses?.find((e) => e.id === d.primary_email_address_id)?.email_address ?? d.email_addresses?.[0]?.email_address;
+      await ctx.runMutation(internal.users.upsertFromWebhook, { clerkId: d.id, email });
+    } else if (evt.type === "user.deleted") {
+      await ctx.runMutation(internal.users.removeFromWebhook, { clerkId: d.id });
+    }
+    return json({ ok: true });
+  }),
+});
+
+/**
+ * Stripe webhook. Real signature check (Stripe-Signature, HMAC-SHA256 over `${t}.${rawBody}`, 5 minute tolerance,
+ * constant-time compare); applied once per event id. 501 until STRIPE_WEBHOOK_SECRET is set.
+ * Register `<convex site url>/stripe/webhook` with checkout.session.completed, customer.subscription.updated,
+ * customer.subscription.deleted.
+ */
+http.route({
+  path: "/stripe/webhook",
+  method: "POST",
+  handler: httpAction(async (ctx, req) => {
+    const secret = process.env.STRIPE_WEBHOOK_SECRET;
+    if (!secret) return json({ error: "not configured" }, 501);
+    const raw = await req.text();
+    const ok = await verifyStripe(secret, req.headers.get("stripe-signature"), raw);
+    if (!ok.ok) return json({ error: ok.error }, 400);
+    let evt: { id?: string; type?: string; data?: { object?: unknown } };
+    try {
+      evt = JSON.parse(raw);
+    } catch {
+      return json({ error: "invalid json" }, 400);
+    }
+    if (!evt.id || !evt.type) return json({ error: "invalid body" }, 400);
+    const r = await ctx.runMutation(internal.billing.applyStripeEvent, { eventId: evt.id, type: evt.type, object: evt.data?.object ?? {} });
+    return json({ received: true, ...r });
   }),
 });
 

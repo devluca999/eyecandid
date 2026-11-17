@@ -9,6 +9,7 @@ dependencies = ["httpx>=0.28", "jsonschema>=4.23"]
 # real CPU work: transcription, face tracking (render additionally needs Node + services/render, and ffmpeg)
 cpu = ["faster-whisper>=1.1", "av>=14,<17", "opencv-python-headless>=4.10,<5", "numpy>=1.26"]
 gpu = ["faster-whisper>=1.1", "av>=14,<17", "opencv-python-headless>=4.10,<5", "numpy>=1.26", "huggingface_hub>=0.30"]
+sentry = ["sentry-sdk>=2.0"]
 dev = ["pytest>=8.3", "respx>=0.22"]
 
 [project.scripts]
