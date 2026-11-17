@@ -7,7 +7,8 @@
 # Per clip: a seamless loop (the last FADE seconds crossfade into the first frame), no audio, then
 #   <id>-720.mp4  H.264, short side 720, ~1.5 Mbps cap      <id>-720.webm  VP9, short side 720
 #   <id>-480.mp4  H.264, short side 480 (phones, small tiles) <id>-480.webm  VP9, short side 480
-#   <id>.jpg      poster: the loop's first frame, short side 480
+#   <id>.jpg      poster: the loop's first frame, short side 360
+# POSTERS_ONLY=1 rebuilds just the posters.
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 raw="$here/.raw"
@@ -36,7 +37,7 @@ while IFS=$'\t' read -r id start loop crop _why; do
   tmp="$raw/$id-loop.mkv"
   ffmpeg -nostdin -v error -y -ss "$start" -t "$len" -i "$src" -filter_complex "$loopf,format=yuv420p" -an -c:v libx264 -crf 12 -preset fast "$tmp"
 
-  for s in 720 480; do
+  [[ -n "${POSTERS_ONLY:-}" ]] || for s in 720 480; do
     if (( w >= h )) || [[ "$crop" == sq:* ]]; then sc="scale=-2:$s"; else sc="scale=$s:-2"; fi
     if [[ $s == 720 ]]; then mr=1500k; vb=900k; crf=25; vcrf=37; else mr=650k; vb=380k; crf=28; vcrf=40; fi
     ffmpeg -nostdin -v error -y -i "$tmp" -vf "$sc" -an -c:v libx264 -profile:v high -preset slow -crf $crf -maxrate $mr -bufsize $mr \
@@ -44,8 +45,9 @@ while IFS=$'\t' read -r id start loop crop _why; do
     ffmpeg -nostdin -v error -y -i "$tmp" -vf "$sc" -an -c:v libvpx-vp9 -crf $vcrf -b:v $vb -maxrate $mr -bufsize $mr -row-mt 1 \
       -deadline good -cpu-used 2 -pix_fmt yuv420p "$out/$id-$s.webm"
   done
-  if (( w >= h )) || [[ "$crop" == sq:* ]]; then sc="scale=-2:480"; else sc="scale=480:-2"; fi
-  ffmpeg -nostdin -v error -y -i "$tmp" -vf "$sc" -frames:v 1 -q:v 5 "$out/$id.jpg"
+  # posters stay small: they paint before any video and compete with the page's own first bytes
+  if (( w >= h )) || [[ "$crop" == sq:* ]]; then sc="scale=-2:360"; else sc="scale=360:-2"; fi
+  ffmpeg -nostdin -v error -y -i "$tmp" -vf "$sc" -frames:v 1 -q:v 7 "$out/$id.jpg"
   rm -f "$tmp"
   printf '%-6s %s\n' "$id" "$(cd "$out" && ls -l "$id"-* "$id".jpg | awk '{printf "%s=%dK ", $9, $5/1024}')"
 done < "$here/clips.tsv"
