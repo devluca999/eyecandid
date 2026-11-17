@@ -3,7 +3,7 @@ import { internalMutation, mutation, query } from "./_generated/server";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
-import { addClipChange, autocut, beadChanges, JOB_SPECS, retakeChanges } from "@eyelore/core";
+import { addClipChange, autocut, beadChanges, JOB_SPECS, reframeChange, retakeChanges } from "@eyelore/core";
 import { caller, owns } from "./lib/owner";
 import { addUsage, usageFor } from "./lib/entitle";
 import { admitFreeJob, MSG, rateLimit, refuse, sourceRefusal } from "./lib/limits";
@@ -360,6 +360,25 @@ export const applyDeviceTranscript = mutation({
     }
     await ctx.db.patch(a.projectId, { stage: "ready", stageDetail: undefined, readyAt: Date.now() });
     return { ok: true as const, already: false };
+  },
+});
+
+/**
+ * The browser's face pass (MediaPipe, ADR 0012) lands after the edit is already ready, like the server's background
+ * reframe. Keyframes are client input, so they are validated and bounded; the same reframeChange the worker path uses
+ * records "reframed · keeps your face centred" in history. Export uses whatever reframe the doc has at that moment.
+ */
+export const applyDeviceReframe = mutation({
+  args: { anonId: v.string(), projectId: v.id("projects"), clipId: v.string(), keyframes: v.any(), faces: v.number() },
+  handler: async (ctx, a) => {
+    const p = await ownedProject(ctx, a.projectId, a.anonId);
+    if (p.engine !== "device") throw new Error("not an on-device edit");
+    const out = JOB_SPECS.reframe.output.parse({ keyframes: a.keyframes, faces: a.faces });
+    if (out.keyframes.length === 0 || out.keyframes.length > 2000) throw new Error("bad keyframes");
+    const head = await headDoc(ctx, a.projectId);
+    if (!head || !head.doc.clips.some((c) => c.id === a.clipId)) throw new Error("unknown clip");
+    await commitChanges(ctx, a.projectId, [reframeChange(a.clipId, out.keyframes, out.faces)]);
+    return { ok: true as const };
   },
 });
 
