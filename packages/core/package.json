@@ -8,6 +8,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./jobs": "./src/jobs.ts",
+    "./qc": "./src/qc.ts",
     "./editModel": "./src/editModel.ts",
     "./analytics": "./src/analytics.ts",
     "./flags": "./src/flags.ts",
