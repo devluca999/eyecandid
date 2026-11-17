@@ -342,3 +342,16 @@ export const deviceFailed = mutation({
     await ctx.db.patch(a.projectId, { stage: "failed", stageDetail: a.reason.slice(0, 160) });
   },
 });
+
+/** "leave your email and we'll send it when it's ready": one address, for this edit only (server pipeline). */
+export const setReadyEmail = mutation({
+  args: { anonId: v.string(), projectId: v.id("projects"), email: v.string() },
+  handler: async (ctx, a) => {
+    const p = await ownedProject(ctx, a.projectId, a.anonId);
+    const email = a.email.trim().toLowerCase();
+    if (email.length > 200 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("that email doesn't look right");
+    if (p.engine === "device") throw new Error("this edit happens in your browser · keep the tab open");
+    await ctx.db.patch(a.projectId, { readyEmail: email });
+    return { ok: true as const, alreadyReady: p.stage === "ready" };
+  },
+});

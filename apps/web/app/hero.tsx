@@ -7,7 +7,7 @@ import { HERO_LINES, heroVariant } from "@eyelore/core/flags";
 import { Lens, Lockup, PillButton } from "@eyelore/ui";
 import { getAnonId } from "@/lib/anon";
 import { HERO_LINE_SCRIPT } from "@/lib/hero-line";
-import { DropWell, useUploader } from "./drop";
+import { DropWell, TrySample, useUploader } from "./drop";
 import { Recent } from "./recent";
 import { Clip } from "./_landing/media";
 import { BRIGHT, CINE, SLOT, SOFT, poster } from "./_landing/clips";
@@ -134,6 +134,7 @@ export function Hero() {
               height={172}
             />
           </div>
+          <TrySample />
           <span className="ec-meta">about a minute · ums out · captions in · your words stay yours</span>
         </div>
       </section>

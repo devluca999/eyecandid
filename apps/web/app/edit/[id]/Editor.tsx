@@ -11,6 +11,7 @@ import { getAnonId } from "@/lib/anon";
 import { session } from "@/lib/session";
 import { useTrack } from "@/lib/track";
 import { renderOnDevice } from "@/lib/device-engine";
+import { ReadyEmail } from "./ReadyEmail";
 import { usePlayer } from "./usePlayer";
 import { Thread, type Hover } from "./Thread";
 import { Captions } from "./Captions";
@@ -79,7 +80,9 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
   const sourceMedia = data?.media.find((m) => m.kind === "source");
   const src = pending?.url ?? sourceMedia?.url ?? undefined;
   const tl = useMemo(() => (doc && doc.beads.length ? toTimeline(doc) : null), [doc]);
-  const player = usePlayer(tl?.segments ?? null, clip?.id ?? null);
+  // before/after: "raw" plays the untouched take straight through (ums, pauses and all), "edit" plays the cut
+  const [raw, setRaw] = useState(false);
+  const player = usePlayer(raw ? null : tl?.segments ?? null, clip?.id ?? null);
   const thumbs = useThumbs(src, useMemo(() => serverDoc?.beads.map((b) => b.inMs) ?? [], [serverDoc?.beads]));
 
   const [mode, setModeState] = useState<Mode>("edit");
@@ -405,7 +408,7 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
   const face = clip ? faceAt(doc?.reframe[clip.id], player.srcMs) : { cx: 0.5, cy: 0.5, scale: 1 };
   // energy punch-ins: the same resolver the renderer uses (services/render shotBox)
   const punch = doc && clip ? punchAt(doc, clip.id, player.srcMs) : 1;
-  const trueAspect = mode === "edit" && view === "source";
+  const trueAspect = (mode === "edit" && view === "source") || raw;
   const box =
     clip && frameSize.w
       ? coverBox(clip.w, clip.h, frameSize.w, frameSize.h, trueAspect ? { cx: 0.5, cy: 0.5, scale: punch } : { ...face, scale: face.scale * punch })
@@ -528,7 +531,7 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
                     style={box ? { position: "absolute", left: box.left, top: box.top, width: box.width, height: box.height, maxWidth: "none", transition: "left 120ms linear, top 120ms linear" } : { width: "100%", height: "100%", objectFit: "cover" }}
                   />
                 )}
-                {doc?.captions.enabled && mode !== "board" && <Captions chunk={chunk} outMs={outMs ?? 0} look={doc.captions.look} onRetype={retype} readOnly={mode === "theater"} />}
+                {doc?.captions.enabled && mode !== "board" && !raw && <Captions chunk={chunk} outMs={outMs ?? 0} look={doc.captions.look} onRetype={retype} readOnly={mode === "theater"} />}
                 {!player.playing && src && stage === "ready" && mode === "edit" && (
                   <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", pointerEvents: "none" }}>
                     <span className="el-glass" style={{ width: 52, height: 52, borderRadius: 999, display: "grid", placeItems: "center" }}>
@@ -591,6 +594,13 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
           </div>
         )}
 
+        {data && !isDevice && <ReadyEmail projectId={projectId} anonId={anonId} working={stage !== "ready" && stage !== "failed" && !pending?.error} />}
+        {mode === "edit" && stage === "ready" && (
+          <div className="el-seg" role="radiogroup" aria-label="before and after" data-testid="before-after">
+            <button className={"el-seg__opt" + (!raw ? " is-on" : "")} role="radio" aria-checked={!raw} onClick={() => setRaw(false)}>edit</button>
+            <button className={"el-seg__opt" + (raw ? " is-on" : "")} role="radio" aria-checked={raw} onClick={() => { setRaw(true); track("edit_interaction", { kind: "raw" }); }}>raw take</button>
+          </div>
+        )}
         {mode !== "theater" && (
           <div className="el-explain" style={{ minHeight: 22 }} aria-live="polite" data-testid="explain">
             {notice ? (
