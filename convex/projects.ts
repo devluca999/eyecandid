@@ -3,9 +3,10 @@ import { internalMutation, mutation, query } from "./_generated/server";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
-import { addClipChange } from "@eyelore/core";
+import { addClipChange, autocut, beadChanges, JOB_SPECS, retakeChanges } from "@eyelore/core";
 import { caller, owns } from "./lib/owner";
-import { addUsage } from "./lib/entitle";
+import { addUsage, usageFor } from "./lib/entitle";
+import { admitFreeJob, MSG, rateLimit, refuse, sourceRefusal } from "./lib/limits";
 import { commitChanges, createDoc, headDoc } from "./lib/docs";
 import { enqueueJob } from "./jobs";
 import { mediaIdsIn, mediaStore } from "./lib/mediaStore";
@@ -18,9 +19,10 @@ export async function ownedProject(ctx: QueryCtx | MutationCtx, projectId: Id<"p
 
 /** Start a project with no signup (ADR 0006). */
 export const create = mutation({
-  args: { anonId: v.string(), title: v.optional(v.string()), script: v.optional(v.array(v.string())) },
-  handler: async (ctx, { anonId, title, script }) => {
+  args: { anonId: v.string(), title: v.optional(v.string()), script: v.optional(v.array(v.string())), clientHint: v.optional(v.string()) },
+  handler: async (ctx, { anonId, title, script, clientHint }) => {
     const who = await caller(ctx, anonId);
+    await rateLimit(ctx, "create", { anonId, clientHint });
     const projectId = await ctx.db.insert("projects", {
       ownerUserId: who.userId,
       ownerAnonId: anonId,
@@ -39,13 +41,40 @@ export const create = mutation({
 });
 
 export const uploadUrl = mutation({
-  args: { anonId: v.string(), projectId: v.id("projects") },
-  handler: async (ctx, { anonId, projectId }) => {
+  args: { anonId: v.string(), projectId: v.id("projects"), clientHint: v.optional(v.string()) },
+  handler: async (ctx, { anonId, projectId, clientHint }) => {
     await ownedProject(ctx, projectId, anonId);
+    await rateLimit(ctx, "uploadUrl", { anonId, clientHint });
+    // don't take bytes we would refuse: a paused or full free day says so before the upload, not after
+    const pro = (await usageFor(ctx, await caller(ctx, anonId))).plan !== "free";
+    if (!pro) await admitFreeJob(ctx, { count: false });
     await ctx.db.patch(projectId, { stage: "uploading" });
     return await mediaStore.uploadUrl(ctx);
   },
 });
+
+/**
+ * Free caps, enforced here and nowhere else (the client only shows the message). Size comes from Convex's `_storage`
+ * metadata, never the client. Duration is the client's probe: the server cannot decode video in a mutation, so it
+ * is a guard, not a proof (the worker's transcribe output carries the real duration).
+ * Known gap: a thrown refusal rolls back the whole mutation, so the refused upload's bytes cannot be deleted here;
+ * they stay in storage until an orphan sweep exists (not built). Upload URLs are rate limited and gated meanwhile.
+ */
+async function enforceSourceCaps(
+  ctx: MutationCtx,
+  a: { anonId: string; storageId: Id<"_storage">; durationMs: number },
+  project: Doc<"projects">,
+  size: number | undefined,
+) {
+  const pro = (await usageFor(ctx, await caller(ctx, a.anonId))).plan !== "free";
+  const why = sourceRefusal({ pro, size, durationMs: a.durationMs });
+  if (why) refuse(why);
+  if (pro) return;
+  // one pipeline job in flight per anonymous session
+  const mine = await ctx.db.query("jobs").withIndex("by_owner_anon", (q) => q.eq("ownerAnonId", project.ownerAnonId ?? a.anonId)).order("desc").take(50);
+  if (mine.some((j) => j.status === "queued" || j.status === "leased" || j.status === "running")) refuse(MSG.busy);
+  await admitFreeJob(ctx, { count: true });
+}
 
 /**
  * Register an uploaded source clip: add it to the edit model and start the pipeline
@@ -66,6 +95,7 @@ export const addSource = mutation({
   handler: async (ctx, a) => {
     const project = await ownedProject(ctx, a.projectId, a.anonId);
     const meta = await ctx.db.system.get(a.storageId);
+    await enforceSourceCaps(ctx, a, project, meta?.size);
     const mediaId = await ctx.db.insert("media", {
       projectId: a.projectId,
       kind: "source",
@@ -136,6 +166,11 @@ export const get = query({
     const exports = await ctx.db.query("exports").withIndex("by_project", (q) => q.eq("projectId", projectId)).order("desc").take(10);
     const exportViews = [];
     for (const e of exports) {
+      if (!e.jobId) {
+        // rendered in the visitor's browser: the file only ever existed there
+        exportViews.push({ _id: e._id, aspect: e.aspect, maxDurationMs: e.maxDurationMs, watermark: e.watermark, createdAt: e.createdAt, status: "succeeded" as const, progress: 1, stage: "on this device", error: undefined, url: null, durationMs: undefined, device: true });
+        continue;
+      }
       const j = await ctx.db.get(e.jobId);
       const out = j?.status === "succeeded" ? (j.output as { mediaId?: string; durationMs?: number } | undefined) : undefined;
       const mid = out?.mediaId ? ctx.db.normalizeId("media", out.mediaId) : null;
@@ -143,11 +178,11 @@ export const get = query({
       exportViews.push({
         _id: e._id, aspect: e.aspect, maxDurationMs: e.maxDurationMs, watermark: e.watermark, createdAt: e.createdAt,
         status: j?.status ?? "failed", progress: j?.progress ?? 0, stage: j?.stage ?? "", error: j?.error,
-        url: m ? await mediaStore.downloadUrl(ctx, m) : null, durationMs: out?.durationMs,
+        url: m ? await mediaStore.downloadUrl(ctx, m) : null, durationMs: out?.durationMs, device: false,
       });
     }
     return {
-      project: { _id: project._id, title: project.title, stage: project.stage, stageDetail: project.stageDetail, createdAt: project.createdAt, readyAt: project.readyAt },
+      project: { _id: project._id, title: project.title, stage: project.stage, stageDetail: project.stageDetail, createdAt: project.createdAt, readyAt: project.readyAt, engine: project.engine ?? "server" },
       doc: head?.doc ?? null,
       media,
       jobs,
@@ -188,7 +223,7 @@ async function purge(ctx: MutationCtx, projectId: Id<"projects">): Promise<boole
   const exportRows = await ctx.db.query("exports").withIndex("by_project", (q) => q.eq("projectId", projectId)).take(PURGE_BATCH);
   for (const e of exportRows) {
     // a render that succeeded before the delete still used its minutes (ADR 0009); one that did not, did not
-    if (!e.usageCounted) {
+    if (!e.usageCounted && e.jobId) {
       const j = await ctx.db.get(e.jobId);
       if (j?.status === "succeeded") await addUsage(ctx, { userId: e.chargedUserId, anonHash: e.chargedAnonHash }, ((j.output as { durationMs?: number } | undefined)?.durationMs ?? 0) / 60_000);
     }
@@ -250,5 +285,103 @@ export const purgeRest = internalMutation({
   handler: async (ctx, { projectId }) => {
     if (await ctx.db.get(projectId)) return; // never sweep a project that still exists
     if (!(await purge(ctx, projectId))) await ctx.scheduler.runAfter(0, internal.projects.purgeRest, { projectId });
+  },
+});
+
+// ───────────── on-device engine (free tier, ADR 0012) ─────────────
+
+/**
+ * A clip that stays on the visitor's device: the browser transcribes it (Whisper on WebGPU) and renders exports
+ * itself. Convex still holds the project and the edit model, so every decision is explained and undoable.
+ */
+export const addDeviceSource = mutation({
+  args: {
+    anonId: v.string(),
+    projectId: v.id("projects"),
+    contentType: v.string(),
+    w: v.number(),
+    h: v.number(),
+    durationMs: v.number(),
+    bytes: v.number(),
+  },
+  handler: async (ctx, a) => {
+    await ownedProject(ctx, a.projectId, a.anonId);
+    const mediaId = await ctx.db.insert("media", {
+      projectId: a.projectId,
+      kind: "source",
+      storage: { provider: "device", key: "local" },
+      contentType: a.contentType,
+      bytes: a.bytes,
+      w: a.w,
+      h: a.h,
+      durationMs: a.durationMs,
+      createdAt: Date.now(),
+    });
+    const clipId = `c_${mediaId}`;
+    await commitChanges(ctx, a.projectId, [
+      addClipChange({ id: clipId, mediaId, source: "upload", w: a.w, h: a.h, durationMs: a.durationMs, fps: 30 }),
+    ]);
+    await ctx.db.patch(a.projectId, { engine: "device", stage: "transcribing", stageDetail: "on this device" });
+    return { mediaId, clipId };
+  },
+});
+
+/** Live progress from the device (model download, listening) so the stage line stays honest across reloads. */
+export const deviceProgress = mutation({
+  args: { anonId: v.string(), projectId: v.id("projects"), detail: v.string() },
+  handler: async (ctx, a) => {
+    const p = await ownedProject(ctx, a.projectId, a.anonId);
+    if (p.engine !== "device" || p.stage === "ready") return;
+    await ctx.db.patch(a.projectId, { stageDetail: a.detail.slice(0, 120) });
+  },
+});
+
+/**
+ * The device's transcript lands here; autocut, beads, moments and retakes run server-side from the same pure code the
+ * worker path uses, so both engines produce the same explained changes. The transcript is validated against the
+ * engine contract (it is client input).
+ */
+export const applyDeviceTranscript = mutation({
+  args: { anonId: v.string(), projectId: v.id("projects"), clipId: v.string(), transcript: v.any() },
+  handler: async (ctx, a) => {
+    const p = await ownedProject(ctx, a.projectId, a.anonId);
+    if (p.engine !== "device") throw new Error("not an on-device edit");
+    if (p.stage === "ready") return { ok: true as const, already: true };
+    const transcript = JOB_SPECS.transcribe.output.parse(a.transcript);
+    if (transcript.words.length > 6000) throw new Error("transcript too long");
+    const head = await headDoc(ctx, a.projectId);
+    if (!head || !head.doc.clips.some((c) => c.id === a.clipId)) throw new Error("unknown clip");
+    const cut = autocut({ words: transcript.words });
+    await commitChanges(ctx, a.projectId, beadChanges(head.doc, a.clipId, transcript, cut));
+    const after = await headDoc(ctx, a.projectId);
+    if (after) {
+      const retakes = retakeChanges(after.doc);
+      if (retakes.length) await commitChanges(ctx, a.projectId, retakes);
+    }
+    await ctx.db.patch(a.projectId, { stage: "ready", stageDetail: undefined, readyAt: Date.now() });
+    return { ok: true as const, already: false };
+  },
+});
+
+/** The device couldn't finish (no speech found, out of memory, tab closed mid-way): say so on the project. */
+export const deviceFailed = mutation({
+  args: { anonId: v.string(), projectId: v.id("projects"), reason: v.string() },
+  handler: async (ctx, a) => {
+    const p = await ownedProject(ctx, a.projectId, a.anonId);
+    if (p.engine !== "device" || p.stage === "ready") return;
+    await ctx.db.patch(a.projectId, { stage: "failed", stageDetail: a.reason.slice(0, 160) });
+  },
+});
+
+/** "leave your email and we'll send it when it's ready": one address, for this edit only (server pipeline). */
+export const setReadyEmail = mutation({
+  args: { anonId: v.string(), projectId: v.id("projects"), email: v.string() },
+  handler: async (ctx, a) => {
+    const p = await ownedProject(ctx, a.projectId, a.anonId);
+    const email = a.email.trim().toLowerCase();
+    if (email.length > 200 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("that email doesn't look right");
+    if (p.engine === "device") throw new Error("this edit happens in your browser · keep the tab open");
+    await ctx.db.patch(a.projectId, { readyEmail: email });
+    return { ok: true as const, alreadyReady: p.stage === "ready" };
   },
 });

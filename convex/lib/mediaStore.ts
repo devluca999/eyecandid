@@ -13,10 +13,12 @@ export const mediaStore = {
   },
   async downloadUrl(ctx: Ctx, media: Pick<Doc<"media">, "storage">): Promise<string | null> {
     if (media.storage.provider === "convex") return await ctx.storage.getUrl(media.storage.key as Id<"_storage">);
+    if (media.storage.provider === "device") return null; // only on the visitor's device
     throw new Error("s3 provider not configured");
   },
   /** Remove the stored bytes for good. A file that is already gone is not an error. */
   async delete(ctx: ActionCtx | MutationCtx, media: Pick<Doc<"media">, "storage">): Promise<void> {
+    if (media.storage.provider === "device") return; // nothing stored server-side
     if (media.storage.provider !== "convex") throw new Error("s3 provider not configured");
     const key = media.storage.key as Id<"_storage">;
     if ((await ctx.storage.getUrl(key)) !== null) await ctx.storage.delete(key);

@@ -1,6 +1,7 @@
 "use client";
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
 import { Icon, StatusDot } from "@eyelore/ui";
+import { env } from "@/lib/env";
 
 /**
  * The landing's light uploader shell. It owns what the first paint needs (the hidden file input, the pick() every
@@ -10,8 +11,8 @@ import { Icon, StatusDot } from "@eyelore/ui";
  * Nothing here imports convex or clerk: that is the point.
  */
 
-type Uploader = { pick: () => void; busy: boolean; error: string | null };
-const Ctx = createContext<Uploader>({ pick: () => {}, busy: false, error: null });
+type Uploader = { pick: () => void; trySample: (() => void) | null; busy: boolean; error: string | null };
+const Ctx = createContext<Uploader>({ pick: () => {}, trySample: null, busy: false, error: null });
 export const useUploader = () => useContext(Ctx);
 
 export type BackendProps = {
@@ -112,8 +113,24 @@ export function LandingUploader({ children }: { children: ReactNode }) {
     input.current?.click(); // synchronous with the gesture, so browsers allow it
   }, [load]);
 
+  // "try it with our clip": the hosted sample goes through the same queue as a picked file (hidden until configured)
+  const trySample = useCallback(async () => {
+    setLoadError(null);
+    setQueued(true);
+    load();
+    try {
+      const res = await fetch(env.sampleClipUrl);
+      if (!res.ok) throw new Error(String(res.status));
+      const blob = await res.blob();
+      enqueue(new File([blob], "sample.mp4", { type: blob.type || "video/mp4" }));
+    } catch {
+      setQueued(false);
+      setLoadError("couldn't load the sample · try your own clip");
+    }
+  }, [enqueue, load]);
+
   return (
-    <Ctx.Provider value={{ pick, busy: queued || real.busy, error: loadError ?? real.error }}>
+    <Ctx.Provider value={{ pick, trySample: env.sampleClipUrl ? () => void trySample() : null, busy: queued || real.busy, error: loadError ?? real.error }}>
       {children}
       <input
         ref={input}
@@ -176,5 +193,16 @@ export function DropWell({ title, hint, height, testId, id }: { title: string; h
       </button>
       {error && <StatusDot status="attention" label={error} />}
     </div>
+  );
+}
+
+/** Under the hero well: for people without a take. Hidden until a sample clip is configured. */
+export function TrySample() {
+  const { trySample, busy } = useUploader();
+  if (!trySample) return null;
+  return (
+    <button type="button" className="el-pill el-pill--quiet el-pill--sm" onClick={trySample} disabled={busy} data-testid="try-sample">
+      no take yet? try it with our clip
+    </button>
   );
 }

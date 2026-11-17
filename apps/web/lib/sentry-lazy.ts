@@ -1,4 +1,5 @@
 import type * as SentryNs from "@sentry/nextjs";
+import { initSentry } from "./sentry";
 type Sentry = typeof SentryNs;
 let sentry: Promise<Sentry | null> | null = null;
 
@@ -8,9 +9,6 @@ let sentry: Promise<Sentry | null> | null = null;
  */
 export function startSentry(): Promise<Sentry | null> {
   const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
-  if (!dsn) return Promise.resolve(null);
-  return (sentry ??= import("@sentry/nextjs").then((S) => {
-    S.init({ dsn, tracesSampleRate: 0.1, environment: process.env.NEXT_PUBLIC_VERCEL_ENV });
-    return S;
-  }));
+  if (!dsn?.trim()) return Promise.resolve(null);
+  return (sentry ??= import("@sentry/nextjs").then((S) => (initSentry(S.init, dsn, process.env.NEXT_PUBLIC_VERCEL_ENV) ? S : null)));
 }

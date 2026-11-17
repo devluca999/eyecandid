@@ -1,6 +1,7 @@
 /** Feature flags (ADR 0007). Stable bucketing so a subject always lands in the same arm. */
 export const FLAGS = {
   hello_job: "Phase 1 round-trip demo",
+  on_device: "free tier: transcribe and render on the visitor's device when it can (ADR 0012)",
   core_loop: "Phase 2 drop → cut → export",
   accounts: "Phase 2.4 Clerk signup at export + anonymous claim",
   billing: "Phase 2.4 paywall and Stripe checkout",
@@ -10,6 +11,8 @@ export const FLAGS = {
   weave: "Phase 3",
   take_mixer: "Phase 3",
   select_and_talk: "Phase 3",
+  /** budget switch: on = free server jobs are refused with an honest message (convex/lib/limits.ts) */
+  free_paused: "pause free server jobs",
 } as const;
 export type FlagKey = keyof typeof FLAGS;
 
