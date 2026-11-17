@@ -306,6 +306,10 @@ export const addDeviceSource = mutation({
   },
   handler: async (ctx, a) => {
     await ownedProject(ctx, a.projectId, a.anonId);
+    // the free length cap is a product rule, so it holds on device too (size isn't capped: nothing is uploaded)
+    const pro = (await usageFor(ctx, await caller(ctx, a.anonId))).plan !== "free";
+    const why = sourceRefusal({ pro, size: 0, durationMs: a.durationMs });
+    if (why) refuse(why);
     const mediaId = await ctx.db.insert("media", {
       projectId: a.projectId,
       kind: "source",
