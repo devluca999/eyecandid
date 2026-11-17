@@ -6,6 +6,7 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { JOB_SPECS, JobTypeSchema, DEFAULT_LEASE_MS, DEFAULT_MAX_ATTEMPTS, MAX_LEASE_MS, evaluateFlag } from "@eyelore/core";
 import type { JobType } from "@eyelore/core";
 import { caller, owns } from "./lib/owner";
+import { mediaIdsIn, mediaStore } from "./lib/mediaStore";
 import { requestWake } from "./wake";
 
 /** Insert a job, validating input against the contract. Idempotent on idempotencyKey. */
@@ -95,6 +96,7 @@ export const workerPresence = query({
 // ───────────── worker side (called only from http.ts after token auth) ─────────────
 
 const CLAIMABLE = ["queued"] as const;
+const CANCELED_KEEP_MS = 24 * 60 * 60 * 1000;
 
 export const claim = internalMutation({
   args: { workerId: v.id("workers"), types: v.array(v.string()), leaseMs: v.optional(v.number()) },
@@ -145,6 +147,24 @@ async function ownedActive(ctx: MutationCtx, jobId: string, workerId: Id<"worker
   return job;
 }
 
+/**
+ * A worker reporting on a job whose edit was deleted while it ran: remove whatever it made and the canceled shell.
+ * Only worker-registered media that belongs to no project is touched.
+ */
+async function reapCanceled(ctx: MutationCtx, jobId: string, workerId: Id<"workers">, output?: unknown) {
+  const id = ctx.db.normalizeId("jobs", jobId);
+  const job = id ? await ctx.db.get(id) : null;
+  if (!job || job.status !== "canceled" || job.leaseOwner !== workerId) return;
+  for (const mid of mediaIdsIn(output)) {
+    const mediaId = ctx.db.normalizeId("media", mid);
+    const m = mediaId ? await ctx.db.get(mediaId) : null;
+    if (!m || m.projectId) continue;
+    await mediaStore.delete(ctx, m);
+    await ctx.db.delete(m._id);
+  }
+  await ctx.db.delete(job._id);
+}
+
 export const heartbeat = internalMutation({
   args: { workerId: v.id("workers"), jobId: v.string(), leaseMs: v.optional(v.number()) },
   handler: async (ctx, { workerId, jobId, leaseMs }) => {
@@ -175,7 +195,10 @@ export const complete = internalMutation({
   args: { workerId: v.id("workers"), jobId: v.string(), output: v.any() },
   handler: async (ctx, { workerId, jobId, output }) => {
     const job = await ownedActive(ctx, jobId, workerId);
-    if (!job) return { ok: false as const, error: "stale lease" };
+    if (!job) {
+      await reapCanceled(ctx, jobId, workerId, output);
+      return { ok: false as const, error: "stale lease" };
+    }
     const parsed = JOB_SPECS[job.type as JobType].output.safeParse(output);
     if (!parsed.success) {
       await ctx.db.patch(job._id, { status: "failed", error: `output failed contract: ${parsed.error.message.slice(0, 500)}`, finishedAt: Date.now(), leaseOwner: undefined, leaseExpiresAt: undefined });
@@ -200,7 +223,10 @@ export const fail = internalMutation({
   args: { workerId: v.id("workers"), jobId: v.string(), error: v.string(), retryable: v.boolean() },
   handler: async (ctx, { workerId, jobId, error, retryable }) => {
     const job = await ownedActive(ctx, jobId, workerId);
-    if (!job) return false;
+    if (!job) {
+      await reapCanceled(ctx, jobId, workerId);
+      return false;
+    }
     const retry = retryable && job.attempts < job.maxAttempts;
     await ctx.db.patch(job._id, {
       status: retry ? "queued" : "failed",
@@ -240,6 +266,9 @@ export const requeueExpired = internalMutation({
         n++;
       }
     }
+    // canceled shells (edit deleted mid-job) whose worker never reported back: nothing can arrive a day later
+    const dead = await ctx.db.query("jobs").withIndex("by_status_lease", (q) => q.eq("status", "canceled").lt("leaseExpiresAt", now - CANCELED_KEEP_MS)).take(100);
+    for (const job of dead) await ctx.db.delete(job._id);
     return n;
   },
 });

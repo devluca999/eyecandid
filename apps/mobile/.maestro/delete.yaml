@@ -1,0 +1,23 @@
+# Runs after core-loop (see config.yaml) on the edit it made: delete it for good, natively confirmed.
+appId: app.eyelore
+---
+- launchApp
+- runFlow:
+    when:
+      visible: "Wait"
+    commands:
+      - tapOn: "Wait"
+- assertVisible: "recent"
+- tapOn: "ready"
+- extendedWaitUntil:
+    visible:
+      id: "delete"
+    timeout: 20000
+# delete for good: confirm natively, land back on home with the edit gone
+- tapOn:
+    id: "delete"
+# the native confirm: "Delete" is its positive button
+- tapOn:
+    id: "android:id/button1"
+- assertVisible: "Making real people look great."
+- assertNotVisible: "recent"
