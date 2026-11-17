@@ -141,6 +141,22 @@ button.ec-reeltile, button.ec-pair__btn { border: 0; background: none; padding: 
 .ec-seq__media .el-lens__frame { -webkit-mask-image: radial-gradient(#fff, #000); mask-image: radial-gradient(#fff, #000); }
 .ec-seq__tilt { position: relative; transition: transform var(--dur-morph) var(--spring); }
 .ec-seq__music { width: min(320px, 80vw); transition: opacity .4s var(--ease-out); }
+/* a stack of takes under the walkthrough clip: two earlier takes peek out behind it, a little askew */
+.ec-seq__tilt > .el-lens { z-index: 1; }
+.ec-seq__stack { position: absolute; inset: 0; z-index: 0; pointer-events: none; transition: opacity .5s var(--ease-out); }
+.ec-seq__stack.is-gone { opacity: 0; }
+.ec-seq__take { position: absolute; inset: 0; border-radius: 16px; background: var(--surface-sunken); border: 1px solid var(--hairline); box-shadow: var(--shadow-lens-rest);
+  overflow: hidden; transition: transform var(--dur-morph) var(--spring); }
+.ec-seq__take::before { content: ""; position: absolute; inset: 9px; border-radius: 10px; background: color-mix(in oklab, var(--ink) 12%, var(--surface-sunken)); }
+.ec-seq__take--1 { transform: rotate(-9deg) translate(-14%, 5%) scale(.94); }
+.ec-seq__take--2 { transform: rotate(6deg) translate(12%, 3%) scale(.97); }
+.ec-seq__stack.is-gone .ec-seq__take { transform: none; }
+/* labels run up the edge that peeks out from under the top take */
+.ec-seq__takeno { position: absolute; z-index: 1; top: 50%; font: var(--type-timecode); letter-spacing: .06em; color: var(--ink-secondary); writing-mode: vertical-rl; }
+.ec-seq__take--1 .ec-seq__takeno { left: 6px; transform: translateY(-50%) rotate(180deg); }
+.ec-seq__take--2 .ec-seq__takeno { right: 6px; transform: translateY(-50%); }
+.ec-seq__take::before { inset: 9px 26px; }
+@media (prefers-reduced-motion: reduce) { .ec-seq__take, .ec-seq__stack { transition: none; } }
 .ec-lane { display: flex; align-items: center; gap: 12px; min-height: 36px; }
 .ec-lane__name { width: 92px; flex: none; display: flex; flex-direction: column; gap: 2px; font: var(--type-ui); }
 .ec-lane__mode { font: var(--type-meta); color: var(--ink-secondary); }

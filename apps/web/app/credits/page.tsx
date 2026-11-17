@@ -12,7 +12,7 @@ const CREDITS: { id: number; title: string; slug: string; licence: string }[] = 
   { id: 42306, title: "Happy woman dancing happily in a colorful spot", slug: "happy-woman-dancing-happily-in-a-colorful-spot-42306", licence: FREE },
   { id: 32800, title: "Young woman getting into position for sprinting", slug: "young-woman-getting-into-position-for-sprinting-32800", licence: FREE },
   { id: 2168, title: "Bright orange sunset on beach", slug: "bright-orange-sunset-on-beach-2168", licence: FREE },
-  { id: 236, title: "Filling a white cup of coffee", slug: "filling-a-white-cup-of-coffee-236", licence: FREE },
+  { id: 2300, title: "Woman opens a box", slug: "woman-opens-a-box-2300", licence: FREE },
   { id: 40865, title: "A person riding a bicycle to the side of a cycling track", slug: "a-person-riding-a-bicycle-to-the-side-of-a-40865", licence: FREE },
   { id: 41290, title: "Face of a vlogger speaking to the camera", slug: "face-of-a-vlogger-speaking-to-the-camera-41290", licence: FREE },
   { id: 810, title: "Latte art", slug: "latte-art-810", licence: FREE },
