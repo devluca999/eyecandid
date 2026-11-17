@@ -5,7 +5,7 @@ import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { addClipChange, autocut, beadChanges, JOB_SPECS, reframeChange, retakeChanges } from "@eyelore/core";
 import { caller, owns } from "./lib/owner";
-import { addUsage, usageFor } from "./lib/entitle";
+import { addUsage, refundJobCredits, usageFor } from "./lib/entitle";
 import { admitFreeJob, freeState, MSG, rateLimit, refuse, sourceRefusal } from "./lib/limits";
 import { commitChanges, createDoc, headDoc } from "./lib/docs";
 import { enqueueJob } from "./jobs";
@@ -261,6 +261,8 @@ async function purge(ctx: MutationCtx, projectId: Id<"projects">): Promise<boole
 
   const jobs = await ctx.db.query("jobs").withIndex("by_project", (q) => q.eq("projectId", projectId)).take(PURGE_BATCH);
   for (const j of jobs) {
+    // a paid job that will now never deliver gives its credits back (nothing to do for free or already-refunded jobs)
+    if (j.status !== "succeeded") await refundJobCredits(ctx, j._id);
     for (const mid of [...mediaIdsIn(j.output), j.previewMediaId]) await dropMedia(ctx, projectId, mid);
     if (j.status === "leased" || j.status === "running") {
       await ctx.db.patch(j._id, {
