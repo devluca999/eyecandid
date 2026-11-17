@@ -11,3 +11,5 @@ export * from "./dials";
 export * from "./funnel";
 export * from "./autocut";
 export * from "./clientHint";
+export * from "./eval";
+export * from "./labels";

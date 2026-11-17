@@ -1,0 +1,20 @@
+{
+  "id": "example-restart",
+  "source": "example",
+  "notes": "FORMAT EXAMPLE, hand-written. Not a real clip and not evidence of cut quality. The speaker restarts a sentence; a human editor drops the first attempt, which autocut does not detect.",
+  "words": [
+    { "text": "We", "startMs": 0, "endMs": 200, "conf": 1 },
+    { "text": "built", "startMs": 250, "endMs": 550, "conf": 1 },
+    { "text": "this", "startMs": 600, "endMs": 800, "conf": 1 },
+    { "text": "ring", "startMs": 850, "endMs": 1100, "conf": 1 },
+    { "text": "to-", "startMs": 1150, "endMs": 1300, "conf": 1 },
+    { "text": "We", "startMs": 1900, "endMs": 2050, "conf": 1 },
+    { "text": "built", "startMs": 2100, "endMs": 2400, "conf": 1 },
+    { "text": "this", "startMs": 2450, "endMs": 2650, "conf": 1 },
+    { "text": "ring", "startMs": 2700, "endMs": 2950, "conf": 1 },
+    { "text": "to", "startMs": 3000, "endMs": 3100, "conf": 1 },
+    { "text": "track", "startMs": 3150, "endMs": 3500, "conf": 1 },
+    { "text": "sleep.", "startMs": 3550, "endMs": 4000, "conf": 1 }
+  ],
+  "reference": { "keep": [{ "startMs": 1900, "endMs": 4000 }] }
+}
