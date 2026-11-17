@@ -9,7 +9,7 @@ import { getAnonId } from "@/lib/anon";
 import { session } from "@/lib/session";
 import { probeVideo, uploadFile } from "@/lib/upload";
 import { useTrack } from "@/lib/track";
-import { deviceSupport, transcribeOnDevice } from "@/lib/device-engine";
+import { deviceSupport, faceTrackOnDevice, transcribeOnDevice } from "@/lib/device-engine";
 import { env } from "@/lib/env";
 import { getClientHint } from "@/lib/client-hint";
 import { refusalMessage } from "@/lib/refusal";
@@ -30,6 +30,7 @@ export function UploaderProvider({ children }: { children: ReactNode }) {
   const addDeviceSource = useMutation(api.projects.addDeviceSource);
   const deviceProgress = useMutation(api.projects.deviceProgress);
   const applyDeviceTranscript = useMutation(api.projects.applyDeviceTranscript);
+  const applyDeviceReframe = useMutation(api.projects.applyDeviceReframe);
   const deviceFailed = useMutation(api.projects.deviceFailed);
   const flags = useQuery(api.flags.forSubject, typeof window === "undefined" ? "skip" : { subject: getAnonId() });
   const track = useTrack();
@@ -99,6 +100,14 @@ export function UploaderProvider({ children }: { children: ReactNode }) {
           } else {
             session.update(projectId, { deviceStage: "trimming the ums" });
             await applyDeviceTranscript({ anonId, projectId, clipId, transcript });
+            // the edit is ready; the face pass runs behind it (like the server's background reframe). Non-fatal:
+            // on any failure the doc keeps its centred crop, and an export before it lands uses whatever the doc has.
+            void faceTrackOnDevice(file, meta.durationMs)
+              .then((r) => {
+                console.info(`[reframe] ${r.faces}/${r.frames} frames with a face · ${r.keyframes.length} keyframes · ${r.ms} ms`);
+                return applyDeviceReframe({ anonId, projectId, clipId, keyframes: r.keyframes, faces: r.faces });
+              })
+              .catch((e) => console.warn("[reframe] skipped, keeping the clip centred", e));
           }
         } catch (e) {
           const why = e instanceof Error ? e.message : String(e);
@@ -120,7 +129,7 @@ export function UploaderProvider({ children }: { children: ReactNode }) {
         session.update(projectId, { error: refusalMessage(e, "upload failed · check your connection and drop it again") });
       }
     },
-    [addDeviceSource, addSource, applyDeviceTranscript, create, deviceFailed, deviceProgress, flags?.on_device, router, track, uploadUrl],
+    [addDeviceSource, addSource, applyDeviceReframe, applyDeviceTranscript, create, deviceFailed, deviceProgress, flags?.on_device, router, track, uploadUrl],
   );
   const pick = useCallback(() => input.current?.click(), []);
   // "try it with our clip": the hosted sample runs through the exact same pipeline as a dropped clip

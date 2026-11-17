@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Lens, Lockup } from "@eyelore/ui";
 import { Clip } from "./media";
 import { CINE, SLOT, WARM, type ClipId } from "./clips";
-import { DropWell } from "../drop";
+import { DropWell } from "../uploader-shell";
 
 /** A breather tile that slides against the scroll (the Motion loop moves [data-drift]); desktop only, decorative. */
 function Drift({ k, at, clip, shape, w, aspect, rot, cine }: { k: number; at: React.CSSProperties; clip: ClipId; shape: "circle" | "rect" | "card"; w: number; aspect?: string; rot?: number; cine?: boolean }) {
@@ -53,7 +53,7 @@ export function Final() {
       <h2 id="final-title" className="ec-final__h">Go film the awkward one.</h2>
       <p className="ec-body ec-final__sub">We’ll take it from there.</p>
       <div className="ec-final__well">
-        <DropWell title="drop your rawest clip" hint="about a minute · mp4, mov" height={210} />
+        <DropWell title="drop your rawest clip" hint="up to 60 s · straight from your phone is fine" height={210} />
       </div>
     </section>
   );

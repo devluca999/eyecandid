@@ -99,3 +99,38 @@ describe("on-device clips keep the free length cap", () => {
     ).rejects.toThrow(/60 s/);
   });
 });
+
+describe("on-device reframe (ADR 0012)", () => {
+  const kfs = [{ ms: 0, cx: 0.4, cy: 0.3, scale: 1 }, { ms: 500, cx: 0.45, cy: 0.32, scale: 1 }];
+  async function ready(t: ReturnType<typeof convexTest>) {
+    const { projectId, clipId } = await deviceProject(t);
+    await t.mutation(api.projects.applyDeviceTranscript, { anonId: ANON, projectId, clipId, transcript: { language: "en", words, durationMs: 6000 } });
+    return { projectId, clipId };
+  }
+  it("commits the face track with the same history line as the server path", async () => {
+    const t = convexTest(schema, modules);
+    const { projectId, clipId } = await ready(t);
+    await t.mutation(api.projects.applyDeviceReframe, { anonId: ANON, projectId, clipId, keyframes: kfs, faces: 9 });
+    const view = (await t.query(api.projects.get, { projectId, anonId: ANON }))!;
+    expect(view.doc!.reframe[clipId]).toEqual(kfs);
+    const history = await t.query(api.edits.history, { anonId: ANON, projectId });
+    expect(history.map((h) => h.reason)).toContain("reframed · keeps your face centred");
+  });
+  it("rejects invalid or oversized keyframes and an unknown clip", async () => {
+    const t = convexTest(schema, modules);
+    const { projectId, clipId } = await ready(t);
+    const go = (keyframes: unknown, id = clipId) => t.mutation(api.projects.applyDeviceReframe, { anonId: ANON, projectId, clipId: id, keyframes, faces: 1 });
+    await expect(go([{ ms: 0, cx: 2, cy: 0.5, scale: 1 }])).rejects.toThrow();
+    await expect(go("nope")).rejects.toThrow();
+    await expect(go([])).rejects.toThrow(/bad keyframes/);
+    await expect(go(Array.from({ length: 2001 }, (_, i) => ({ ms: i, cx: 0.5, cy: 0.5, scale: 1 })))).rejects.toThrow(/bad keyframes/);
+    await expect(go(kfs, "c_nope")).rejects.toThrow(/unknown clip/);
+  });
+  it("is owner-only and refused for a server project", async () => {
+    const t = convexTest(schema, modules);
+    const { projectId, clipId } = await ready(t);
+    await expect(t.mutation(api.projects.applyDeviceReframe, { anonId: OTHER, projectId, clipId, keyframes: kfs, faces: 1 })).rejects.toThrow();
+    const server = await t.mutation(api.projects.create, { anonId: ANON });
+    await expect(t.mutation(api.projects.applyDeviceReframe, { anonId: ANON, projectId: server, clipId, keyframes: kfs, faces: 1 })).rejects.toThrow(/not an on-device/);
+  });
+});
