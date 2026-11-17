@@ -17,7 +17,7 @@ export function Mark({ width = 44, theme }: { width?: number; theme?: ThemeName 
   const { c } = useTheme(theme);
   const [, , w, h] = MARK_VIEWBOX.split(" ").map(Number) as [number, number, number, number];
   return (
-    <Svg width={width} height={(width * h) / w} viewBox={MARK_VIEWBOX} accessibilityRole="image" accessibilityLabel="Eyelore">
+    <Svg width={width} height={(width * h) / w} viewBox={MARK_VIEWBOX} accessibilityRole="image" accessibilityLabel="Eyecandid">
       {MARK_PATHS.map((d, i) => (
         <Path key={i} d={d} fill={c.ink} />
       ))}

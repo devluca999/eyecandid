@@ -1,4 +1,4 @@
-# Eyelore — plan
+# Eyecandid — plan (formerly Eyelore; ADR 0011)
 
 *Making real people look great.* Drop in raw clips, get back a polished, captioned, well-paced edit in about a minute.
 

@@ -1,4 +1,6 @@
-# Eyelore
+# Eyecandid
+
+(Formerly Eyelore. User-facing name is **Eyecandid**, lowercase `eyecandid` in the lockup and URLs; internal package, env, Convex, Vercel and Modal names stay `eyelore` — see ADR 0011.)
 
 A video editor for creators and UGC ads. Tagline: **Making real people look great.** ("From cringe to cinema" is a playful secondary line only.)
 

@@ -1,6 +1,8 @@
-# Eyelore — product notes
+# Eyecandid — product notes
 
-Name: Eyelore. Video editor + generation engine, grown out of the Everstock Media Engine.
+(Formerly Eyelore; renamed 2026-11-17, ADR 0011. Historical text below may still say Eyelore.)
+
+Name: Eyecandid (formerly Eyelore). Video editor + generation engine, grown out of the Everstock Media Engine.
 
 ## Brand
 - Flagship mark "2D": calligraphic almond eye, ringed sun half-sunk on the horizon, tapering ripple bars, fine tapered brow, nothing below the lower lid. Files in `brand/`: eyelore-mark.svg, eyelore-mark-inverse.svg, eyelore-mark-small.svg (use below 48px and for favicons).
@@ -10,7 +12,7 @@ Name: Eyelore. Video editor + generation engine, grown out of the Everstock Medi
 - Empty-state line: Drop your rawest clips.
 
 ## Positioning
-- Most AI video tools generate fake people. Eyelore makes real people look great, and generates the world around them when needed.
+- Most AI video tools generate fake people. Eyecandid makes real people look great, and generates the world around them when needed.
 - The blend: real performance, generated world, edited intelligently.
 - Boundary: polish how something was said, never what was said. Retouching is subtle and listed in edit history.
 
@@ -33,8 +35,8 @@ Name: Eyelore. Video editor + generation engine, grown out of the Everstock Medi
 - One-gesture adds: voiceover, b-roll, grade, music, text. Templates. Idea engine on the empty canvas.
 - Real and generated footage treated identically.
 - In-app teleprompter with line-by-line takes.
-- Sets: film yourself anywhere; Eyelore builds the world around you (cutout + relight + generated environment, props and sound).
+- Sets: film yourself anywhere; Eyecandid builds the world around you (cutout + relight + generated environment, props and sound).
 - Word-anchored effects and moment anchors: effects attach to transcript words or physical moments (a jump's landing), and move with them.
 
 ## Launch demo concept
-Luca walks down a corridor that becomes a white void, intercut with macro shots of a prompt typing "make the Eyelore launch video", each word on a musical note. The camera pulls back: the screen is a giant laptop. He jumps onto the enter key, the melody resolves, and a montage of engine-made clips and UI explodes out of the screen. All from raw clips.
+Luca walks down a corridor that becomes a white void, intercut with macro shots of a prompt typing "make the Eyecandid launch video", each word on a musical note. The camera pulls back: the screen is a giant laptop. He jumps onto the enter key, the melody resolves, and a montage of engine-made clips and UI explodes out of the screen. All from raw clips.
