@@ -2,7 +2,7 @@
 import { AbsoluteFill, Sequence, useCurrentFrame, useVideoConfig } from "remotion";
 import { Video } from "@remotion/media";
 import { loadFont } from "@remotion/google-fonts/Geist";
-import { coverBox, toTimeline, type EditDoc } from "@eyelore/core";
+import { coverBox, faceAt, toTimeline, type EditDoc, type Segment } from "@eyelore/core";
 
 const { fontFamily } = loadFont("normal", { weights: ["500", "700"], subsets: ["latin"] });
 
@@ -15,8 +15,6 @@ export type CutWebProps = { doc: EditDoc; src: string; watermark: boolean };
 export function CutWeb({ doc, src, watermark }: CutWebProps) {
   const { fps, width: W, height: H } = useVideoConfig();
   const tl = toTimeline(doc);
-  const clip = doc.clips[0]!;
-  const box = coverBox(clip.w, clip.h, W, H, { cx: 0.5, cy: 0.5, scale: 1 });
   let at = 0;
   return (
     <AbsoluteFill style={{ backgroundColor: "#0F0F10", overflow: "hidden" }}>
@@ -26,11 +24,7 @@ export function CutWeb({ doc, src, watermark }: CutWebProps) {
         at += frames;
         return (
           <Sequence key={i} from={start} durationInFrames={frames}>
-            <Video
-              src={src}
-              trimBefore={Math.round((s.fromMs / 1000) * fps)}
-              style={{ position: "absolute", left: box.left, top: box.top, width: box.width, height: box.height }}
-            />
+            <Shot seg={s} doc={doc} src={src} W={W} H={H} fps={fps} />
           </Sequence>
         );
       })}
@@ -41,6 +35,21 @@ export function CutWeb({ doc, src, watermark }: CutWebProps) {
         </div>
       )}
     </AbsoluteFill>
+  );
+}
+
+/** One kept range of the clip, framed for the output aspect (face-centred when the doc has a reframe track). */
+function Shot({ seg, doc, src, W, H, fps }: { seg: Segment; doc: EditDoc; src: string; W: number; H: number; fps: number }) {
+  const frame = useCurrentFrame();
+  const clip = doc.clips.find((c) => c.id === seg.clipId);
+  if (!clip) return null;
+  const box = coverBox(clip.w, clip.h, W, H, faceAt(doc.reframe[clip.id], seg.fromMs + (frame / fps) * 1000));
+  return (
+    <Video
+      src={src}
+      trimBefore={Math.round((seg.fromMs / 1000) * fps)}
+      style={{ position: "absolute", left: box.left, top: box.top, width: box.width, height: box.height }}
+    />
   );
 }
 

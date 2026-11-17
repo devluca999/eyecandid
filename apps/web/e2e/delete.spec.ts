@@ -6,6 +6,7 @@ const CLIP = fileURLToPath(new URL("../../../services/engine/tests/fixtures/talk
 /** Someone drops a clip, thinks better of it, and removes it for good: found again from the landing, deleted in the editor. */
 test("an edit can be found again from the landing and deleted for good", async ({ page }, info) => {
   test.skip(info.project.name !== "desktop", "one pipeline at a time on the single CI worker");
+  await page.addInitScript(() => localStorage.setItem("eyelore.engine", "server")); // these specs prove the worker path
   await page.goto("/");
   await expect(page.getByTestId("recent")).toHaveCount(0);
   await expect(page.getByTestId("file-input")).toHaveAttribute("data-ready", "1"); // hydrated: the input's handler is live
