@@ -4,6 +4,8 @@
 
 A video editor for creators and UGC ads. Tagline: **Making real people look great.** ("From cringe to cinema" is a playful secondary line only.)
 
+Picking the project up? Start with `MANIFEST.md` (what this is, where things live, the owner's rules, how to work here).
+
 Read before any work: `docs/mvp-spec.md` (the Eyecandid MVP spec: what ships, access model, cost limits, phases — it takes precedence over older phase plans), `docs/BUILD_PROMPT.md` (the original full brief), `docs/product-notes.md`, `docs/engine-assessment.md`. Track progress in `PLAN.md`; record decisions in `docs/adr/`.
 
 ## Stack (fixed; do not substitute)
