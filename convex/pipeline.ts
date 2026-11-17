@@ -10,6 +10,7 @@ import { enqueueJob } from "./jobs";
 import { ownedProject } from "./projects";
 import { caller } from "./lib/owner";
 import { flagOn } from "./lib/flags";
+import { freeState, MSG, refuse } from "./lib/limits";
 import { addUsage, anonHashOf, usageFor } from "./lib/entitle";
 
 /**
@@ -68,6 +69,7 @@ export const onJobDone = internalMutation({
         if (retakes.length) await commitChanges(ctx, projectId, retakes);
       }
       await ctx.db.patch(projectId, { stage: "ready", stageDetail: undefined, readyAt: Date.now() });
+      await ctx.scheduler.runAfter(0, internal.notify.onEditReady, { projectId, jobId });
       const clip = head.doc.clips.find((c) => c.id === clipId);
       if (clip) {
         await enqueueJob(ctx, { type: "reframe", input: { mediaId: clip.mediaId }, idempotencyKey: `reframe:${clip.mediaId}`, projectId, meta: { clipId }, ...owner });
@@ -117,6 +119,8 @@ async function planExport(ctx: MutationCtx, a: ExportArgs) {
   if (!head) throw new Error("nothing to export");
   let doc: EditDoc = { ...head.doc, aspect: a.aspect as Aspect };
   const usage = await usageFor(ctx, who);
+  // the manual budget pause also stops free renders, on the worker and on device (the daily cap only gates new edits)
+  if (usage.plan === "free" && (await freeState(ctx)).reason === "flag") refuse(MSG.paused);
   const input = { requestedMs: a.maxDurationMs, fullMs: toTimeline(head.doc).durationMs };
   // Paywall rules bite only when payments can actually be taken: the `billing` flag is on for this caller AND
   // Stripe is configured. Otherwise behave as before: watermark, silent clamp to the free cap, no minutes block,

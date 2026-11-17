@@ -36,8 +36,16 @@ describe("accessRequests.request", () => {
     for (let i = 0; i < 3; i++) await t.mutation(api.access.request, ask({ email: `m${i}@example.com` }));
     // a 4th from the same session, new email
     await expect(t.mutation(api.access.request, ask({ email: "m9@example.com" }))).rejects.toThrow(/already asked/);
-    // the same email from other sessions, case and spaces aside
-    for (let i = 0; i < 2; i++) await t.mutation(api.access.request, ask({ anonId: OTHER, email: " M0@example.com" }));
+    // the same email from other sessions, case and spaces aside, after earlier asks were declined
+    await t.run(async (ctx) => {
+      for (const r of await ctx.db.query("accessRequests").collect()) await ctx.db.patch(r._id, { status: "declined" });
+    });
+    for (let i = 0; i < 2; i++) {
+      await t.mutation(api.access.request, ask({ anonId: OTHER, email: " M0@example.com" }));
+      await t.run(async (ctx) => {
+        for (const r of await ctx.db.query("accessRequests").collect()) await ctx.db.patch(r._id, { status: "declined" });
+      });
+    }
     await expect(t.mutation(api.access.request, ask({ anonId: "anon_" + "c".repeat(32), email: "m0@EXAMPLE.com" }))).rejects.toThrow(/already asked/);
     expect(await t.run((ctx) => ctx.db.query("accessRequests").collect())).toHaveLength(5);
   });
@@ -46,8 +54,21 @@ describe("accessRequests.request", () => {
     const t = convexTest(schema, modules);
     const old = Date.now() - 25 * 60 * 60 * 1000;
     await t.run(async (ctx) => {
-      for (let i = 0; i < 3; i++) await ctx.db.insert("accessRequests", { email: "late@example.com", note: "", link: "", createdAt: old, status: "new" });
+      for (let i = 0; i < 3; i++) await ctx.db.insert("accessRequests", { email: "late@example.com", note: "", link: "", createdAt: old, status: "declined" });
     });
     expect(await t.mutation(api.access.request, ask({ email: "late@example.com" }))).toEqual({ ok: true });
+  });
+
+  it("a second request while the first is waiting (or approved) writes no second row", async () => {
+    const t = convexTest(schema, modules);
+    expect(await t.mutation(api.access.request, ask())).toEqual({ ok: true });
+    expect(await t.mutation(api.access.request, ask({ anonId: OTHER, email: "MAKER@example.com", note: "again" }))).toEqual({ ok: true, duplicate: true });
+    expect(await t.run((ctx) => ctx.db.query("accessRequests").collect())).toHaveLength(1);
+    await t.run(async (ctx) => {
+      const [r] = await ctx.db.query("accessRequests").collect();
+      await ctx.db.patch(r!._id, { status: "approved" });
+    });
+    expect(await t.mutation(api.access.request, ask({ anonId: OTHER }))).toEqual({ ok: true, duplicate: true });
+    expect(await t.run((ctx) => ctx.db.query("accessRequests").collect())).toHaveLength(1);
   });
 });

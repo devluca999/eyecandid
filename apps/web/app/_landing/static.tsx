@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Lens, Lockup } from "@eyelore/ui";
 import { Clip } from "./media";
 import { CINE, SLOT, WARM, type ClipId } from "./clips";
-import { DropWell } from "../drop";
+import { DropWell } from "../uploader-shell";
 
 /** A breather tile that slides against the scroll (the Motion loop moves [data-drift]); desktop only, decorative. */
 function Drift({ k, at, clip, shape, w, aspect, rot, cine }: { k: number; at: React.CSSProperties; clip: ClipId; shape: "circle" | "rect" | "card"; w: number; aspect?: string; rot?: number; cine?: boolean }) {
@@ -76,6 +76,8 @@ export function Footer() {
         <nav aria-label="about" className="ec-footer__col">
           <span className="ec-meta">about</span>
           <Link href="/credits">footage credits</Link>
+          <Link href="/terms">terms</Link>
+          <Link href="/privacy">privacy</Link>
         </nav>
       </div>
       <div className="ec-footer__bottom">

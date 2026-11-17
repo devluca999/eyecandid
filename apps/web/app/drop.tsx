@@ -10,9 +10,10 @@ import { session } from "@/lib/session";
 import { probeVideo, uploadFile } from "@/lib/upload";
 import { useTrack } from "@/lib/track";
 import { deviceSupport, faceTrackOnDevice, transcribeOnDevice } from "@/lib/device-engine";
+import { env } from "@/lib/env";
 
-type Uploader = { pick: () => void; busy: boolean; error: string | null };
-const Ctx = createContext<Uploader>({ pick: () => {}, busy: false, error: null });
+type Uploader = { pick: () => void; trySample: (() => void) | null; busy: boolean; error: string | null };
+const Ctx = createContext<Uploader>({ pick: () => {}, trySample: null, busy: false, error: null });
 export const useUploader = () => useContext(Ctx);
 
 /**
@@ -40,7 +41,7 @@ export function UploaderProvider({ children }: { children: ReactNode }) {
   const [busy, setBusy] = useState(false);
 
   const start = useCallback(
-    async (file: File, source: "drop" | "picker") => {
+    async (file: File, source: "drop" | "picker" | "sample") => {
       setError(null);
       setBusy(true);
       const anonId = getAnonId();
@@ -128,12 +129,27 @@ export function UploaderProvider({ children }: { children: ReactNode }) {
     [addDeviceSource, addSource, applyDeviceReframe, applyDeviceTranscript, create, deviceFailed, deviceProgress, flags?.on_device, router, track, uploadUrl],
   );
   const pick = useCallback(() => input.current?.click(), []);
+  // "try it with our clip": the hosted sample runs through the exact same pipeline as a dropped clip
+  const trySample = useCallback(async () => {
+    if (!env.sampleClipUrl) return;
+    setError(null);
+    setBusy(true);
+    try {
+      const res = await fetch(env.sampleClipUrl);
+      if (!res.ok) throw new Error(String(res.status));
+      const blob = await res.blob();
+      await start(new File([blob], "sample.mp4", { type: blob.type || "video/mp4" }), "sample");
+    } catch {
+      setBusy(false);
+      setError("couldn't load the sample · try your own clip");
+    }
+  }, [start]);
   // set once hydrated: the input's change handler exists from here on (tests wait for it before setInputFiles)
   const [ready, setReady] = useState(false);
   useEffect(() => setReady(true), []);
 
   return (
-    <Ctx.Provider value={{ pick, busy, error }}>
+    <Ctx.Provider value={{ pick, trySample: env.sampleClipUrl ? () => void trySample() : null, busy, error }}>
       {children}
       <DropZone onDrop={(f) => void start(f, "drop")} />
       <input
@@ -196,5 +212,16 @@ export function DropWell({ title, hint, height, testId, id }: { title: string; h
       </button>
       {error && <StatusDot status="attention" label={error} />}
     </div>
+  );
+}
+
+/** Under the hero well: for people without a take. Hidden until a sample clip is configured. */
+export function TrySample() {
+  const { trySample, busy } = useUploader();
+  if (!trySample) return null;
+  return (
+    <button type="button" className="el-pill el-pill--quiet el-pill--sm" onClick={trySample} disabled={busy} data-testid="try-sample">
+      no take yet? try it with our clip
+    </button>
   );
 }

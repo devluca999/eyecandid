@@ -38,9 +38,10 @@ export const forSend = internalQuery({
   handler: async (ctx, { notificationId }) => {
     const n = await ctx.db.get(notificationId);
     if (!n || n.status !== "queued") return null;
-    const [user, project] = await Promise.all([ctx.db.get(n.userId), ctx.db.get(n.projectId)]);
-    if (!user?.email || !project) return null;
-    return { to: user.email, title: project.title, projectId: project._id };
+    const [user, project] = await Promise.all([n.userId ? ctx.db.get(n.userId) : null, ctx.db.get(n.projectId)]);
+    const to = n.email ?? user?.email;
+    if (!to || !project) return null;
+    return { to, title: project.title, projectId: project._id };
   },
 });
 
@@ -61,36 +62,64 @@ export const send = internalAction({
   handler: async (ctx, { notificationId }): Promise<void> => {
     const n: { to: string; title: string; projectId: string } | null = await ctx.runQuery(internal.notify.forSend, { notificationId });
     if (!n) return;
-    const done = async (status: "sent" | "not_sent" | "failed", detail?: string): Promise<void> => {
-      await ctx.runMutation(internal.notify.finish, { notificationId, status, detail });
-    };
-    const id = process.env.SENDPULSE_CLIENT_ID;
-    const secret = process.env.SENDPULSE_CLIENT_SECRET;
-    if (!id || !secret) return await done("not_sent", "not sent · SendPulse not configured");
-    const from = process.env.SENDPULSE_FROM_EMAIL;
-    if (!from) return await done("not_sent", "not sent · SENDPULSE_FROM_EMAIL not set");
-    try {
-      const tokenRes = await fetch("https://api.sendpulse.com/oauth/access_token", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ grant_type: "client_credentials", client_id: id, client_secret: secret }),
-      });
-      if (!tokenRes.ok) return await done("failed", `sendpulse auth ${tokenRes.status}`);
-      const { access_token } = (await tokenRes.json()) as { access_token?: string };
-      if (!access_token) return await done("failed", "sendpulse auth: no token");
-      const base = (process.env.EYELORE_WEB_URL ?? "").replace(/\/$/, "");
-      const link = base ? `${base}/edit/${n.projectId}` : "";
-      const text = `"${n.title}" has finished exporting.${link ? `\nOpen it: ${link}` : ""}`;
-      const html = `<p>&ldquo;${esc(n.title)}&rdquo; has finished exporting.</p>${link ? `<p><a href="${esc(link)}">Open it</a></p>` : ""}`;
-      const res = await fetch("https://api.sendpulse.com/smtp/emails", {
-        method: "POST",
-        headers: { "content-type": "application/json", authorization: `Bearer ${access_token}` },
-        body: JSON.stringify({ email: { subject: "Your edit is ready", from: { name: "Eyecandid", email: from }, to: [{ email: n.to }], text, html: b64(html) } }),
-      });
-      if (!res.ok) return await done("failed", `sendpulse send ${res.status}`);
-      return await done("sent");
-    } catch (e) {
-      return await done("failed", `sendpulse error · ${String(e).slice(0, 120)}`);
-    }
+    const base = (process.env.EYELORE_WEB_URL ?? "").replace(/\/$/, "");
+    const link = base ? `${base}/edit/${n.projectId}` : "";
+    const text = `"${n.title}" has finished exporting.${link ? `\nOpen it: ${link}` : ""}`;
+    const html = `<p>&ldquo;${esc(n.title)}&rdquo; has finished exporting.</p>${link ? `<p><a href="${esc(link)}">Open it</a></p>` : ""}`;
+    const r = await sendPulseEmail({ to: n.to, subject: "Your edit is ready", text, html });
+    await ctx.runMutation(internal.notify.finish, { notificationId, status: r.status, detail: r.detail });
   },
 });
+
+/**
+ * The edit itself is ready (server pipeline) and the owner left an email for it: queue one "your edit is ready"
+ * email, unless they're watching the editor right now. Same flag, sender and honest outcomes as export emails.
+ */
+export const onEditReady = internalMutation({
+  args: { projectId: v.id("projects"), jobId: v.id("jobs") },
+  handler: async (ctx, { projectId, jobId }) => {
+    const project = await ctx.db.get(projectId);
+    if (!project?.readyEmail) return;
+    if (!(await flagOn(ctx, "ready_email", project.ownerUserId ?? project.ownerAnonId ?? ""))) return;
+    if (await ctx.db.query("notifications").withIndex("by_job", (q) => q.eq("jobId", jobId)).unique()) return;
+    const presence = await ctx.db.query("presence").withIndex("by_project", (q) => q.eq("projectId", projectId)).unique();
+    if (presence && Date.now() - presence.lastSeenAt < WATCHING_MS) return;
+    const id = await ctx.db.insert("notifications", { kind: "edit_ready", email: project.readyEmail, projectId, jobId, status: "queued", createdAt: Date.now() });
+    await ctx.scheduler.runAfter(0, internal.notify.send, { notificationId: id });
+  },
+});
+
+export type EmailOutcome = { status: "sent" | "not_sent" | "failed"; detail?: string };
+
+/**
+ * One email through the SendPulse SMTP API (shared by "your edit is ready" and the Pro invite). Never throws; the
+ * outcome is honest: "not sent · SendPulse not configured" when the keys are missing. Call from actions only.
+ */
+export async function sendPulseEmail(m: { to: string; subject: string; text: string; html: string }): Promise<EmailOutcome> {
+  const id = process.env.SENDPULSE_CLIENT_ID;
+  const secret = process.env.SENDPULSE_CLIENT_SECRET;
+  if (!id || !secret) return { status: "not_sent", detail: "not sent · SendPulse not configured" };
+  const from = process.env.SENDPULSE_FROM_EMAIL;
+  if (!from) return { status: "not_sent", detail: "not sent · SENDPULSE_FROM_EMAIL not set" };
+  try {
+    const tokenRes = await fetch("https://api.sendpulse.com/oauth/access_token", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ grant_type: "client_credentials", client_id: id, client_secret: secret }),
+    });
+    if (!tokenRes.ok) return { status: "failed", detail: `sendpulse auth ${tokenRes.status}` };
+    const { access_token } = (await tokenRes.json()) as { access_token?: string };
+    if (!access_token) return { status: "failed", detail: "sendpulse auth: no token" };
+    const res = await fetch("https://api.sendpulse.com/smtp/emails", {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${access_token}` },
+      body: JSON.stringify({ email: { subject: m.subject, from: { name: "Eyecandid", email: from }, to: [{ email: m.to }], text: m.text, html: b64(m.html) } }),
+    });
+    if (!res.ok) return { status: "failed", detail: `sendpulse send ${res.status}` };
+    return { status: "sent" };
+  } catch (e) {
+    return { status: "failed", detail: `sendpulse error · ${String(e).slice(0, 120)}` };
+  }
+}
+
+export { esc as escapeHtml };

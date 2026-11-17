@@ -32,6 +32,8 @@ export default defineSchema({
     readyAt: v.optional(v.number()),
     /** where the core loop runs for this project: the visitor's device (free tier, ADR 0012) or the worker queue */
     engine: v.optional(v.union(v.literal("device"), v.literal("server"))),
+    /** "leave your email and we'll send it when it's ready" (MVP spec, Phase 2): used once, for this edit only */
+    readyEmail: v.optional(v.string()),
   })
     .index("by_owner_user", ["ownerUserId"])
     .index("by_owner_anon", ["ownerAnonId"]),
@@ -68,7 +70,9 @@ export default defineSchema({
     /** for proxies: the source media this is a low-res copy of */
     proxyOf: v.optional(v.id("media")),
     createdAt: v.number(),
-  }).index("by_project", ["projectId"]),
+  })
+    .index("by_project", ["projectId"])
+    .index("by_kind_created", ["kind", "createdAt"]),
 
   exports: defineTable({
     projectId: v.id("projects"),
@@ -160,6 +164,8 @@ export default defineSchema({
     stripeSubscriptionId: v.optional(v.string()),
     /** raw Stripe subscription status, for support */
     subscriptionStatus: v.optional(v.string()),
+    /** Phase 4: UTC month ("2026-11") whose monthly GPU credits were last granted; one grant per month */
+    creditsPeriod: v.optional(v.string()),
   })
     .index("by_user", ["userId"])
     .index("by_stripeCustomer", ["stripeCustomerId"]),
@@ -183,8 +189,10 @@ export default defineSchema({
 
   /** "your edit is ready" emails and their honest outcome */
   notifications: defineTable({
-    kind: v.literal("export_ready"),
-    userId: v.id("users"),
+    kind: v.union(v.literal("export_ready"), v.literal("edit_ready")),
+    /** a signed-in owner, or — for "leave your email" on an anonymous edit — just the address they gave */
+    userId: v.optional(v.id("users")),
+    email: v.optional(v.string()),
     projectId: v.id("projects"),
     jobId: v.id("jobs"),
     status: v.union(v.literal("queued"), v.literal("sent"), v.literal("not_sent"), v.literal("failed")),
@@ -211,7 +219,30 @@ export default defineSchema({
     anonHash: v.optional(v.string()),
     createdAt: v.number(),
     status: v.union(v.literal("new"), v.literal("approved"), v.literal("declined")),
+    // ── Phase 4 (admin /admin/access): decision, invite link (hash only) and the honest email outcome ──
+    decidedAt: v.optional(v.number()),
+    inviteTokenHash: v.optional(v.string()),
+    emailStatus: v.optional(v.union(v.literal("queued"), v.literal("sent"), v.literal("not_sent"), v.literal("failed"))),
+    /** e.g. "not sent · SendPulse not configured" */
+    emailDetail: v.optional(v.string()),
   })
     .index("by_email_created", ["email", "createdAt"])
-    .index("by_anon_created", ["anonHash", "createdAt"]),
+    .index("by_anon_created", ["anonHash", "createdAt"])
+    .index("by_status_created", ["status", "createdAt"])
+    .index("by_inviteTokenHash", ["inviteTokenHash"]),
+
+  /** Phase 4: GPU credits charged when a job is enqueued, and refunded once if it finally fails (convex/lib/entitle.ts). */
+  creditCharges: defineTable({
+    userId: v.id("users"),
+    jobId: v.id("jobs"),
+    credits: v.number(),
+    at: v.number(),
+    refundedAt: v.optional(v.number()),
+  }).index("by_job", ["jobId"]),
+
+  // ── cost controls (convex/lib/limits.ts, convex/expiry.ts) ──
+  /** fixed-window rate limit counters; key = "<action>:anon|hint:<hash>", swept by the expiry cron */
+  rateLimits: defineTable({ key: v.string(), windowStart: v.number(), count: v.number() }).index("by_key", ["key"]).index("by_window", ["windowStart"]),
+  /** free server jobs started per UTC day ("2026-11-17") against EYELORE_FREE_DAILY_JOBS */
+  dailyUsage: defineTable({ day: v.string(), freeJobs: v.number() }).index("by_day", ["day"]),
 });

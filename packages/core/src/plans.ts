@@ -19,6 +19,8 @@ export interface PlanDef {
   exportCapMs: number;
   /** rendered minutes per calendar month, UTC (PLACEHOLDER) */
   monthlyMinutes: number;
+  /** GPU credits granted once per UTC month while the subscription is live (PLACEHOLDER) */
+  monthlyCredits: number;
   /** Convex env var holding the Stripe price id for this plan; absent for free */
   priceEnv?: "STRIPE_PRICE_CREATOR" | "STRIPE_PRICE_STUDIO";
   /** one honest line for the paywall */
@@ -26,9 +28,9 @@ export interface PlanDef {
 }
 
 export const PLANS: Record<PlanId, PlanDef> = {
-  free: { id: "free", label: "Free", watermark: true, exportCapMs: 60_000, monthlyMinutes: 10, blurb: "watermarked, up to 60s" },
-  creator: { id: "creator", label: "Creator", watermark: false, exportCapMs: 5 * 60_000, monthlyMinutes: 120, priceEnv: "STRIPE_PRICE_CREATOR", blurb: "no watermark, up to 5 min" },
-  studio: { id: "studio", label: "Studio", watermark: false, exportCapMs: 15 * 60_000, monthlyMinutes: 600, priceEnv: "STRIPE_PRICE_STUDIO", blurb: "no watermark, up to 15 min, more minutes" },
+  free: { id: "free", label: "Free", watermark: true, exportCapMs: 60_000, monthlyMinutes: 10, monthlyCredits: 0, blurb: "watermarked, up to 60s" },
+  creator: { id: "creator", label: "Creator", watermark: false, exportCapMs: 5 * 60_000, monthlyMinutes: 120, monthlyCredits: 50, priceEnv: "STRIPE_PRICE_CREATOR", blurb: "no watermark, up to 5 min" },
+  studio: { id: "studio", label: "Studio", watermark: false, exportCapMs: 15 * 60_000, monthlyMinutes: 600, monthlyCredits: 250, priceEnv: "STRIPE_PRICE_STUDIO", blurb: "no watermark, up to 15 min, more minutes" },
 };
 
 /** Credit packs (for Phase 3 generation). PLACEHOLDER sizes; price id env var per pack. */
@@ -39,6 +41,24 @@ export const CREDIT_PACKS = {
 export type CreditPackId = keyof typeof CREDIT_PACKS;
 
 export const FREE = PLANS.free;
+
+/** Pro (mvp-spec "Access model") is sold as the `creator` plan until the owner names a separate price. */
+export const PRO_PLAN: PlanId = "creator";
+
+/** Job types that run on CPU for everyone. Every other job type is GPU work: Pro only, paid with credits. */
+export const FREE_CPU_JOB_TYPES = ["hello", "transcribe", "autocut", "reframe", "render"] as const;
+
+/** Credits charged when a GPU job is enqueued (refunded if it finally fails). PLACEHOLDER sizes. */
+export const GPU_CREDIT_COST: Record<string, number> = { still: 1, grade: 1, voice: 2, matte: 2, inpaint: 2, i2v: 5, t2v: 5 };
+
+export function isGpuJobType(type: string): boolean {
+  return !(FREE_CPU_JOB_TYPES as readonly string[]).includes(type);
+}
+
+/** Credits a GPU job costs; unknown GPU types cost 1 so nothing GPU-bound is ever free. */
+export function gpuCreditCost(type: string): number {
+  return isGpuJobType(type) ? (GPU_CREDIT_COST[type] ?? 1) : 0;
+}
 export const PAID_PLAN_IDS = ["creator", "studio"] as const satisfies readonly PlanId[];
 
 export function isPlanId(s: unknown): s is PlanId {

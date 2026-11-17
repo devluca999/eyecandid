@@ -6,11 +6,15 @@ export const FLAGS = {
   accounts: "Phase 2.4 Clerk signup at export + anonymous claim",
   billing: "Phase 2.4 paywall and Stripe checkout",
   ready_email: "Phase 2.4 your edit is ready email",
+  /** Phase 4: approved Pro seats. Created enabled with rolloutPct 0; the allow list holds approved emails (lowercase). */
+  pro: "Phase 4 Pro by request (allow list of approved emails)",
   hero_line_ab: "A/B test of the landing hero line",
   genre_switcher: "Phase 3",
   weave: "Phase 3",
   take_mixer: "Phase 3",
   select_and_talk: "Phase 3",
+  /** budget switch: on = free server jobs are refused with an honest message (convex/lib/limits.ts) */
+  free_paused: "pause free server jobs",
 } as const;
 export type FlagKey = keyof typeof FLAGS;
 
