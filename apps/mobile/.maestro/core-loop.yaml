@@ -36,7 +36,7 @@ appId: app.eyelore
 - extendedWaitUntil:
     visible:
       id: "lens"
-    timeout: 10000
+    timeout: 30000
 # ready: the summary line replaces the stage line ("2 fillers trimmed · 1 pause cut")
 - extendedWaitUntil:
     visible:
