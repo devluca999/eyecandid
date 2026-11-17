@@ -22,5 +22,5 @@ Measured on a Mac (Chrome, Apple GPU, model cached), `/lab/local` and then the r
 - The watermark and the length cap are decided by the server but applied by the visitor's browser; someone who edits their own browser can bypass them. Accepted for the free tier.
 - The clip lives in one tab: reloading or opening the edit elsewhere can't play or export it, and the editor says so. "Your edits" still lists it (the edit doc is on the server).
 - Devices without WebGPU fall back to the worker queue, which needs a running worker; without one they see the honest "engine is cold" line.
-- Reframe on device is centred for now (no face track); face tracking in the browser (MediaPipe) is a follow-up.
+- Reframe on device: after the edit is ready, the browser samples the clip at ~4 fps (≤ 240 frames), runs MediaPipe BlazeFace (self-hosted under `/mediapipe`) and sends smoothed keyframes to `projects.applyDeviceReframe` (same smoothing as the server handler, `smoothFaceTrack`). 21 s clip: 86 frames, 9.5 s, in the background; it never blocks "ready" or export, and a failure keeps the clip centred.
 - Phones are not yet measured; the model download (206 MB once) is the first-visit cost.

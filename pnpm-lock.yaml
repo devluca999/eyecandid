@@ -317,6 +317,9 @@ importers:
       '@huggingface/transformers':
         specifier: 4.3.2
         version: 4.3.2(@types/node@22.20.5)
+      '@mediapipe/tasks-vision':
+        specifier: 1.2.3
+        version: 1.2.3
       '@remotion/google-fonts':
         specifier: 4.0.543
         version: 4.0.543(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
@@ -2008,6 +2011,9 @@ packages:
     resolution: {integrity: sha512-agJx3Vv2NsrJDwMBF4l5a0SEA6cszmFS4LVyLaHCQNAY0BKm55HEo+vbD51CJIxuHSYtvFdaurJqHh/S6kF7XQ==}
     peerDependencies:
       mediabunny: ^1.0.0
+
+  '@mediapipe/tasks-vision@1.2.3':
+    resolution: {integrity: sha512-sxJyfhbN+EamexhaaCmUlw7v8vWWMum7VDsORe6d4c8Dk/xlI4qiIgoSw9cE9hpvYhVRRVLIA8y605FbqWkNeQ==}
 
   '@napi-rs/wasm-runtime@1.1.6':
     resolution: {integrity: sha512-ZLv/JdUfkvOy9eCnnBaGfiO+XimbjebAeO+MRQqD/B+FR1tnRN0tpKSJHRbE8sFfS6aqsXZ67TQjfwfsxULVbg==}
@@ -7891,6 +7897,8 @@ snapshots:
   '@mediabunny/mp3-encoder@1.64.0(mediabunny@1.64.0)':
     dependencies:
       mediabunny: 1.64.0
+
+  '@mediapipe/tasks-vision@1.2.3': {}
 
   '@napi-rs/wasm-runtime@1.1.6(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)':
     dependencies:
