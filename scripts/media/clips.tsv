@@ -1,0 +1,17 @@
+# Mixkit clips used by the landing (apps/web/app/(landing)). One row per clip.
+# id	start_s	loop_s	crop	why
+# crop: "full" keeps the frame; "sq:X" takes a square at horizontal centre X (0..1) of a landscape frame
+#   (every tile is 1:1, 4:5, 9:16 or a circle, so a square loses nothing on screen and saves ~45% of the pixels).
+#   Portrait sources are kept whole.
+5565	2	5	sq:0.5	hills · hero far circle, founder drift
+41272	1	5	sq:0.42	talking head · hero, reel a, autopilots
+42308	1	5	full	selfie at the gym (portrait) · hero, reel b, real tile
+32800	1	6	sq:0.4	sprint, crouched start · hero runner, genre sports, final drift
+9582	2	5	sq:0.5	clouds · hero cine tile
+236	1	5	sq:0.45	coffee pour · hero b-roll, sequence b-roll, final drift
+40865	1	5	sq:0.35	cyclist · hero lower right, genre sports inset
+42323	1	5	full	talking to camera (portrait) · hero circle, sequence, genre
+810	2	5	sq:0.45	milk pour · hero small tile, reel d, founder drift
+41181	1	5	sq:0.55	selfie at the window · hero circle, reel c, faq drift
+46653	2	5	sq:0.5	runner silhouette · real-or-ai "ai" tile
+583	2	6	full	runner at dusk · pricing drift
