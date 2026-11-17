@@ -366,6 +366,32 @@ describe("GPU credits: charged on enqueue, refunded on final failure", () => {
     expect(await credits(t, userId)).toBe(1);
   });
 
+  it("deleting the edit refunds a paid job that is still waiting or running, once, and not one that delivered", async () => {
+    const t = mk();
+    const userId = await proUser(t, { credits: 5 });
+    const workerId = await worker(t);
+    const projectId = await t.withIdentity(ALICE).mutation(api.projects.create, { anonId: anon("a") });
+    const job = (key: string) =>
+      t.run((ctx) => enqueueJob(ctx, { type: "still", input: { prompt: "a bead", w: 512, h: 512 }, idempotencyKey: key, projectId, ownerUserId: userId, ownerAnonId: anon("a") }));
+    const done = await job("still:done");
+    const claimed = await t.mutation(internal.jobs.claim, { workerId, types: ["still"] });
+    expect(claimed!.id).toBe(done);
+    const storageId = await t.run((ctx) => ctx.storage.store(new Blob(["png"], { type: "image/png" })));
+    const mediaId = await t.mutation(internal.media.registerFromWorker, { storageId, contentType: "image/png", kind: "generated" });
+    expect((await t.mutation(internal.jobs.complete, { workerId, jobId: done, output: { mediaId } })).ok).toBe(true);
+    const running = await job("still:running");
+    await t.mutation(internal.jobs.claim, { workerId, types: ["still"] });
+    await job("still:queued");
+    expect(await credits(t, userId)).toBe(2);
+
+    await t.withIdentity(ALICE).mutation(api.projects.remove, { projectId });
+    await t.finishAllScheduledFunctions(() => {});
+    expect(await credits(t, userId)).toBe(4); // the two that never delivered; the delivered still stays paid for
+    // the worker reporting on the canceled job afterwards changes nothing
+    await t.mutation(internal.jobs.fail, { workerId, jobId: running, error: "gone", retryable: false });
+    expect(await credits(t, userId)).toBe(4);
+  });
+
   it("refunds when the output fails the contract", async () => {
     const t = mk();
     const userId = await proUser(t, { credits: 1 });
