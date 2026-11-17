@@ -14,6 +14,7 @@ import { usePlayer } from "./usePlayer";
 import { Thread, type Hover } from "./Thread";
 import { Captions } from "./Captions";
 import { useThumbs } from "./useThumbs";
+import { useExportGate } from "./ExportGate"; // [around-the-loop] signup + paywall + presence live in ExportGate.tsx
 import { DialStrip, dialLine, useDials, type DialKey } from "./Dials";
 import { Drawer } from "./Drawer";
 import { Board } from "./Board";
@@ -63,7 +64,6 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
   const presence = useQuery(api.jobs.workerPresence, {});
   const apply = useMutation(api.edits.apply);
   const undo = useMutation(api.edits.undo);
-  const startExport = useMutation(api.pipeline.startExport);
   const remove = useMutation(api.projects.remove);
   const router = useRouter();
   const track = useTrack();
@@ -226,13 +226,14 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
 
   const latestExport = data?.exports[0];
   const exporting = latestExport && (latestExport.status === "queued" || latestExport.status === "leased" || latestExport.status === "running");
+  const gate = useExportGate(projectId, anonId, data?.project.stage === "ready", mode === "edit"); // [around-the-loop]
   const doExport = async (cutOverride?: string | null) => {
     const useCut = cutOverride === undefined ? cut : cutOverride;
     if (!serverDoc || !data || data.project.stage !== "ready") return;
     const aspect = (view === "source" ? serverDoc.aspect : view) as Aspect;
     track("export_clicked", { aspect });
-    // Clerk signup at export arrives with keys (PLAN: Needs keys); until then exports are anonymous and watermarked
-    await startExport({ anonId, projectId, aspect, requestId: `${Date.now()}-${exportReq}`, ...(useCut ? { maxDurationMs: (Number(useCut) * 1000) as 15000 | 30000 | 60000 } : {}) });
+    // [around-the-loop] signup (Clerk), paywall and the export call itself: see ExportGate.tsx
+    await gate.run({ aspect, requestId: `${Date.now()}-${exportReq}`, ...(useCut ? { maxDurationMs: (Number(useCut) * 1000) as 15000 | 30000 | 60000 } : {}) });
     setExportReq((n) => n + 1);
   };
   const doDelete = async () => {
@@ -589,6 +590,7 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
           />
         )}
         {latestExport?.status === "failed" && mode === "edit" && <StatusDot status="attention" label={`export failed · ${latestExport.error ?? ""}`.slice(0, 120)} />}
+        {gate.element /* [around-the-loop] modals work in every mode; the meta line only shows in edit */}
       </div>
 
       {ready && doc && tl && clip && (
