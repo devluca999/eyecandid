@@ -53,7 +53,7 @@ export function Final() {
       <h2 id="final-title" className="ec-final__h">Go film the awkward one.</h2>
       <p className="ec-body ec-final__sub">We’ll take it from there.</p>
       <div className="ec-final__well">
-        <DropWell title="drop your rawest clip" hint="about a minute · mp4, mov" height={210} />
+        <DropWell title="drop your rawest clip" hint="up to 60 s · straight from your phone is fine" height={210} />
       </div>
     </section>
   );

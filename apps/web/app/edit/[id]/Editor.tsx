@@ -65,6 +65,7 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
   const data = useQuery(api.projects.get, anonId ? { projectId, anonId } : "skip");
   const history = useQuery(api.edits.history, anonId && data?.doc?.beads.length ? { projectId, anonId, limit: 300 } : "skip");
   const presence = useQuery(api.jobs.workerPresence, {});
+  const limits = useQuery(api.limits.status, anonId ? { anonId } : "skip");
   const apply = useMutation(api.edits.apply);
   const undo = useMutation(api.edits.undo);
   const remove = useMutation(api.projects.remove);
@@ -384,7 +385,7 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
   const cold = !isDevice && presence && presence.live === 0 && stage !== "ready" && stage !== "failed" && !uploading;
   const deviceLine = isDevice && stage !== "ready" && stage !== "failed"
     ? pending
-      ? pending.deviceStage ?? data?.project.stageDetail ?? "on this device"
+      ? pending.deviceStage ?? data?.project.stageDetail ?? "editing on this device · your clip isn't uploaded"
       : "this edit runs in the browser it was dropped in · keep that tab open, or drop it again on the home page"
     : null;
   const activeJob = data?.jobs.find((j) => j.status === "running" || j.status === "leased" || j.status === "queued");
@@ -661,12 +662,12 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
             onDownload={saveServerExport}
           />
         )}
-        {/* mvp-spec "The first minute", step 8: after the first export, offer Pro once; never push it */}
-        {stage === "ready" && mode === "edit" && exportedFree && (
-          <p className="text-meta text-ink-secondary" style={{ textAlign: "center" }} data-testid="after-export">
-            want no watermark, longer clips and generated b-roll?{" "}
-            <Link href="/#pricing" style={{ color: "var(--ink)", textDecoration: "underline", textUnderlineOffset: 3 }}>
-              request access
+        {/* the Pro ask comes after value is felt: a free (watermarked) export just finished; never pushed */}
+        {stage === "ready" && mode === "edit" && exportedFree && !limits?.pro && (
+          <p className="text-meta text-ink-secondary" style={{ textAlign: "center" }} data-testid="pro-offer">
+            no watermark, clips up to 5 min?{" "}
+            <Link href="/#pricing" style={{ color: "var(--ink)", textDecoration: "underline", textUnderlineOffset: 3 }} onClick={() => track("edit_interaction", { kind: "pro_offer" })}>
+              request pro access
             </Link>
           </p>
         )}

@@ -54,7 +54,7 @@ test("drop a raw clip → polished, captioned 9:16 export in under 3 minutes", a
   expect(file.suggestedFilename()).toBe("talk - eyecandid.mp4");
   await expect(page).toHaveURL(/\/edit\//);
   // the free export's one next step: Pro, offered once, never pushed
-  await expect(page.getByTestId("after-export")).toContainText("request access");
+  await expect(page.getByTestId("pro-offer")).toContainText("request pro access");
 
   const secs = (Date.now() - t0) / 1000;
   console.log(`core loop: ${secs.toFixed(1)}s (restored '${word}')`);

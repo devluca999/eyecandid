@@ -11,6 +11,8 @@ import { probeVideo, uploadFile } from "@/lib/upload";
 import { useTrack } from "@/lib/track";
 import { deviceSupport, faceTrackOnDevice, transcribeOnDevice } from "@/lib/device-engine";
 import { env } from "@/lib/env";
+import { getClientHint } from "@/lib/client-hint";
+import { refusalMessage } from "@/lib/refusal";
 
 type Uploader = { pick: () => void; trySample: (() => void) | null; busy: boolean; error: string | null };
 const Ctx = createContext<Uploader>({ pick: () => {}, trySample: null, busy: false, error: null });
@@ -83,10 +85,10 @@ export function UploaderProvider({ children }: { children: ReactNode }) {
       }
       let projectId: Id<"projects">;
       try {
-        projectId = await create({ anonId, title: file.name.replace(/\.[^.]+$/, "").slice(0, 80) });
-      } catch {
+        projectId = await create({ anonId, title: file.name.replace(/\.[^.]+$/, "").slice(0, 80), clientHint: await getClientHint() });
+      } catch (e) {
         setBusy(false);
-        setError("couldn't start an edit · check your connection and try again");
+        setError(refusalMessage(e, "couldn't start an edit · check your connection and try again"));
         return;
       }
       if (onDevice) {
@@ -95,7 +97,7 @@ export function UploaderProvider({ children }: { children: ReactNode }) {
           clipId = (await addDeviceSource({ anonId, projectId, contentType: file.type || "video/mp4", bytes: file.size, ...meta })).clipId;
         } catch (e) {
           setBusy(false);
-          setError(e instanceof Error ? e.message.replace(/^.*Uncaught Error: /, "").split("\n")[0]! : "couldn't start an edit");
+          setError(refusalMessage(e, "couldn't start an edit · check your connection and try again"));
           return;
         }
         session.put({ projectId, file, droppedAt, engine: "device" });
@@ -137,12 +139,13 @@ export function UploaderProvider({ children }: { children: ReactNode }) {
       starting.current = false;
       router.push(`/edit/${projectId}`);
       try {
-        const storageId = await uploadFile(() => uploadUrl({ anonId, projectId }), file, (p) => session.update(projectId, { uploadProgress: p }));
+        const clientHint = await getClientHint();
+        const storageId = await uploadFile(() => uploadUrl({ anonId, projectId, clientHint }), file, (p) => session.update(projectId, { uploadProgress: p }));
         track("upload_done", { ms: Date.now() - droppedAt });
         await addSource({ anonId, projectId, storageId: storageId as Id<"_storage">, contentType: file.type || "video/mp4", source: "upload", ...meta });
         session.update(projectId, { uploadProgress: 1 });
-      } catch {
-        session.update(projectId, { error: "upload failed · check your connection and drop it again" });
+      } catch (e) {
+        session.update(projectId, { error: refusalMessage(e, "upload failed · check your connection and drop it again") });
       }
     },
     [addDeviceSource, addSource, applyDeviceReframe, applyDeviceTranscript, convex, create, deviceFailed, deviceProgress, flags?.on_device, router, track, uploadUrl],
