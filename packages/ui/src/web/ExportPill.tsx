@@ -16,7 +16,7 @@ export function ExportPill({
         <span className="el-export__msg">
           <StatusDot status="ready" label="ready" />
           <span className="el-meta">·</span>
-          <a className="el-pill el-pill--quiet el-pill--sm" style={{ padding: "0 6px", color: "var(--ink)" }} href={downloadUrl} download="eyelore.mp4" data-testid="download">
+          <a className="el-pill el-pill--quiet el-pill--sm" style={{ padding: "0 6px", color: "var(--ink)" }} href={downloadUrl} download="eyecandid.mp4" data-testid="download">
             download
           </a>
           <button className="el-pill el-pill--quiet el-pill--sm" style={{ padding: "0 6px" }} onClick={onExport}>again</button>

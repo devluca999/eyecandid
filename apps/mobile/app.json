@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "eyelore",
+    "name": "Eyecandid",
     "slug": "eyelore",
     "scheme": "eyelore",
     "version": "0.1.0",
@@ -30,22 +30,22 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Eyelore uses the camera to record your takes.",
-          "microphonePermission": "Eyelore uses the microphone to record what you say.",
+          "cameraPermission": "Eyecandid uses the camera to record your takes.",
+          "microphonePermission": "Eyecandid uses the microphone to record what you say.",
           "recordAudioAndroid": true
         }
       ],
       [
         "expo-image-picker",
         {
-          "photosPermission": "Eyelore opens the clips you choose from your library."
+          "photosPermission": "Eyecandid opens the clips you choose from your library."
         }
       ],
       [
         "expo-media-library",
         {
-          "savePhotosPermission": "Eyelore saves your finished edits to your camera roll.",
-          "photosPermission": "Eyelore saves your finished edits to your camera roll.",
+          "savePhotosPermission": "Eyecandid saves your finished edits to your camera roll.",
+          "photosPermission": "Eyecandid saves your finished edits to your camera roll.",
           "isAccessMediaLocationEnabled": false
         }
       ]

@@ -156,7 +156,7 @@ function Shoot({ lines, onBack }: { lines: string[]; onBack: () => void }) {
         <View style={{ alignItems: "center", gap: 16, padding: 24 }}>
           {!granted && (
             <View style={{ alignItems: "center", gap: 12 }}>
-              <Text style={[T.body, { color: c["ink-secondary"], textAlign: "center" }]}>Eyelore needs the camera and microphone to record you. Nothing leaves the phone until you stop recording.</Text>
+              <Text style={[T.body, { color: c["ink-secondary"], textAlign: "center" }]}>Eyecandid needs the camera and microphone to record you. Nothing leaves the phone until you stop recording.</Text>
               {blocked ? <Pill theme="night" label="open settings" onPress={() => void Linking.openSettings()} /> : <Pill theme="night" label="allow camera and microphone" onPress={() => void askCam().then(() => askMic())} />}
             </View>
           )}

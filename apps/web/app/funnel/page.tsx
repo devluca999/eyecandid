@@ -3,7 +3,7 @@ import { FunnelView } from "./funnel-view";
 
 /** Owner-only funnel dashboard. Not linked anywhere, not indexed; the data is gated by EYELORE_ADMIN_TOKEN on Convex. */
 export const metadata: Metadata = {
-  title: "funnel · eyelore",
+  title: "funnel · eyecandid",
   robots: { index: false, follow: false, nocache: true },
 };
 

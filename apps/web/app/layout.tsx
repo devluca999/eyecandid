@@ -8,8 +8,16 @@ import "./globals.css";
 import { Providers } from "./providers";
 
 export const metadata: Metadata = {
-  title: "eyelore · making real people look great",
+  title: "eyecandid · making real people look great",
   description: "Drop your rawest clips. Get back a polished, captioned, well-paced edit in about a minute.",
+  applicationName: "Eyecandid",
+  openGraph: {
+    siteName: "Eyecandid",
+    title: "Eyecandid · Making real people look great.",
+    description: "Drop your rawest clips. Get back a polished, captioned, well-paced edit in about a minute.",
+    type: "website",
+  },
+  twitter: { card: "summary_large_image", title: "Eyecandid · Making real people look great." },
 };
 export const viewport: Viewport = { themeColor: [{ media: "(prefers-color-scheme: light)", color: "#F7F5F0" }, { media: "(prefers-color-scheme: dark)", color: "#0F0F10" }] };
 
