@@ -7,3 +7,4 @@ export * from "./pipeline";
 export * from "./timeline";
 export * from "./reframe";
 export * from "./dials";
+export * from "./funnel";
