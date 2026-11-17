@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addClipChange, applyChange, beadChanges, cutdownChange, EditDoc, emptyEditDoc, keptMs } from "../src";
+import { addClipChange, applyChange, autocut as runAutocut, beadChanges, cutdownChange, EditDoc, emptyEditDoc, keptMs, toTimeline } from "../src";
 
 const word = (text: string, s: number, e: number, conf = 0.9) => ({ text, startMs: s, endMs: e, conf });
 const transcript = {
@@ -98,5 +98,39 @@ describe("pauses between sentences", () => {
     expect(doc.beads[0]!.outMs).toBe(3300); // tiles up to the next sentence
     expect(doc.beads[0]!.cuts).toHaveLength(1);
     expect(doc.beads[0]!.cuts[0]).toMatchObject({ startMs: 1920, endMs: 3180, struck: true });
+  });
+});
+
+describe("real autocut → edit → timeline", () => {
+  const edit = (words: ReturnType<typeof word>[], fillers: string[]) => {
+    const t = { language: "en", durationMs: 20000, words };
+    const d = applyChange(emptyEditDoc("p"), addClipChange({ id: "c1", mediaId: "m1", source: "upload", w: 640, h: 360, durationMs: 20000, fps: 15 }))!.doc;
+    return run(d, beadChanges(d, "c1", t, runAutocut({ words, minSilenceMs: 450, fillers })));
+  };
+  /** source ranges the edit leaves out */
+  const removed = (d: EditDoc) => {
+    const segs = toTimeline(d).segments;
+    return segs.slice(1).map((s, i) => [segs[i]!.toMs, s.fromMs]).filter(([a, b]) => b! > a!);
+  };
+
+  it("a filler after a sentence takes the pause before it across the bead edge: one removal", () => {
+    const words = [word("this", 400, 600), word("ring", 650, 900), word("tracks", 950, 1200), word("sleep.", 1550, 1900),
+      word("you", 3400, 3500), word("know", 3520, 3700), word("link", 3800, 4000), word("below.", 4050, 4400)];
+    const d = edit(words, ["you know"]);
+    expect(d.beads.flatMap((b) => b.words).filter((w) => w.struck).map((w) => w.text)).toEqual(["you", "know"]);
+    // the 20ms left after "know" is under a frame: no cut for it
+    expect(removed(d)).toEqual([[1900 + 140, 3700]]);
+  });
+
+  it("a struck retake leaves no slivers of air: the earlier sentence and the pause after it go in one piece", () => {
+    const take = (t0: number, extra: string[]) => ["so", "today", "we're", "going", "to", "talk", "about", ...extra].map((x, i) => word(x, t0 + i * 300, t0 + i * 300 + 250));
+    const a = take(0, ["rings."]);
+    const b = take(a.at(-1)!.endMs + 900, ["sleep", "rings."]);
+    const d = edit([...a, ...b], []);
+    expect(d.beads[0]!.words.every((w) => w.struck && w.strikeKind === "repeat")).toBe(true);
+    expect(d.beads[1]!.words.some((w) => w.struck)).toBe(false);
+    const segs = toTimeline(d).segments;
+    expect(removed(d)).toEqual([]); // one continuous stretch of footage (two beads, no gap)
+    expect([segs[0]!.fromMs, segs.at(-1)!.toMs]).toEqual([b[0]!.startMs - 80, b.at(-1)!.endMs]);
   });
 });

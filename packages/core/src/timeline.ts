@@ -33,7 +33,9 @@ export function toTimeline(doc: EditDoc): { segments: Segment[]; captions: Capti
         const next = bead.words[i + 1];
         const hl = room && prev && !prev.struck && w.startMs - prev.endMs < WORD_HANDLE_MS ? WORD_HANDLE_MS : 0;
         const hr = room && next && !next.struck && next.startMs - w.endMs < WORD_HANDLE_MS ? WORD_HANDLE_MS : 0;
-        return [[Math.max(w.startMs + hl, bead.inMs), Math.min(w.endMs - hr, bead.outMs)] as const];
+        // the gap between two struck words goes with them: a struck take never plays back as slivers of air
+        const from = prev?.struck ? Math.min(prev.endMs, w.startMs) : w.startMs + hl;
+        return [[Math.max(from, bead.inMs), Math.min(w.endMs - hr, bead.outMs)] as const];
       }),
       ...bead.cuts.filter((c) => c.struck).map((c) => [Math.max(c.startMs, bead.inMs), Math.min(c.endMs, bead.outMs)] as const),
     ];
