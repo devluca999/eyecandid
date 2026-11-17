@@ -9,7 +9,7 @@ import { hoverable } from "./reel";
 /** 06 · real and ai: media left, copy right. Hover (tap, Enter) shows both raw. */
 export function RealAi() {
   const [raw, setRaw] = useState(false);
-  const tile = (id: 42308 | 46653, cap: string, name: string, off?: boolean) => (
+  const tile = (id: 42308 | 4851, cap: string, name: string, off?: boolean) => (
     <div className={"ec-pair__tile" + (off ? " ec-pair__tile--off" : "")}>
       <Lens shape="card" width="var(--w)">
         <Clip id={id} filter={raw ? RAW : WARM} style={{ transition: "filter .5s var(--ease-out)" }} />
@@ -27,11 +27,10 @@ export function RealAi() {
           aria-pressed={raw}
           onMouseEnter={() => hoverable() && setRaw(true)}
           onMouseLeave={() => hoverable() && setRaw(false)}
-          onClick={() => !hoverable() && setRaw((r) => !r)}
-          onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), setRaw((r) => !r))}
+          onClick={(e) => (e.detail === 0 || !hoverable()) && setRaw((r) => !r)}
         >
           {tile(42308, "yes, even at the gym", "real")}
-          {tile(46653, "every single morning", "ai", true)}
+          {tile(4851, "every single morning", "ai", true)}
           <span className="ec-sr">show both raw</span>
         </button>
       </Reveal>

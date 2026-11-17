@@ -32,7 +32,7 @@ export function cleanAccessRequest(input: { email: string; note: string; link: s
 
 /** Pro is by request (docs: mvp-spec "Access model"). Anyone may ask; nothing is granted here. */
 export const request = mutation({
-  args: { anonId: v.optional(v.string()), email: v.string(), note: v.string(), link: v.string() },
+  args: { anonId: v.string(), email: v.string(), note: v.string(), link: v.string() },
   handler: async (ctx, { anonId, ...input }) => {
     await caller(ctx, anonId); // validates the anon id's shape
     const r = cleanAccessRequest(input);
@@ -43,13 +43,11 @@ export const request = mutation({
       .query("accessRequests")
       .withIndex("by_email_created", (q) => q.eq("email", email).gt("createdAt", since))
       .take(ACCESS_REQUESTS_PER_DAY);
-    const anonHash = anonId ? (await sha256Hex(anonId)).slice(0, 32) : undefined;
-    const byAnon = anonHash
-      ? await ctx.db
-          .query("accessRequests")
-          .withIndex("by_anon_created", (q) => q.eq("anonHash", anonHash).gt("createdAt", since))
-          .take(ACCESS_REQUESTS_PER_DAY)
-      : [];
+    const anonHash = (await sha256Hex(anonId)).slice(0, 32);
+    const byAnon = await ctx.db
+      .query("accessRequests")
+      .withIndex("by_anon_created", (q) => q.eq("anonHash", anonHash).gt("createdAt", since))
+      .take(ACCESS_REQUESTS_PER_DAY);
     if (byEmail.length >= ACCESS_REQUESTS_PER_DAY || byAnon.length >= ACCESS_REQUESTS_PER_DAY) {
       throw new ConvexError("you've already asked today · we'll be in touch");
     }

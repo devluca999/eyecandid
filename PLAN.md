@@ -89,6 +89,7 @@ legacy-engine/      the Colab engine as found, reference only, never imported at
 | `flags` | feature flags | `key`, `enabled`, `rolloutPct`, `allow[]` | `by_key` |
 | `entitlements` | server-checked plan limits | `userId`, `plan`, `minutesUsed`, `minutesLimit`, `credits`, `watermark` | `by_user` |
 | `stripeEvents` | webhook idempotency | `eventId` | `by_eventId` |
+| `accessRequests` | Pro "request access" from the landing (3 a day per email and per anon session) | `email`, `note`, `link`, `anonHash`, `createdAt`, `status` | `by_email_created`, `by_anon_created` |
 
 **The edit model** (`packages/core/src/editModel.ts`, `schemaVersion: 1`):
 ```
@@ -232,4 +233,9 @@ Where work runs (decided 2026-11-16): one worker codebase behind `GpuProvider`. 
 - [~] Maestro `core-loop.yaml` (import through the real picker → ready → edit → export saved, waits sum to under 3 min) on the Android emulator in CI
 - [ ] Geist fonts in the native app (system font today); Clerk and the paywall on mobile (needs keys and an in-app-purchase decision); Android foreground service for long uploads; Sentry
 **2.4 Around the loop** — idea engine empty state (needs an LLM key), paywall at export (Stripe), "your edit is ready" (SendPulse), Sentry
+**Landing v2 (Eyecandid)** — branch `feat/landing-v2`, from `design/landing-v2`
+- [x] Tokens generated from `design/system-v2` (v1 names the editor still reads live in `packages/ui/scripts/compat.css`)
+- [x] Landing sections in the design's order on the real uploader; self-hosted Mixkit loops (`scripts/media`, `docs/credits.md`, `/credits`); reduced motion = posters, no pinning
+- [x] Pricing Free / Pro with request access → `accessRequests` (no prices); founder letter and proof are labelled placeholders on previews, hidden in production
+- [ ] Founder letter (Luca to write); proof strip after launch, with consent; admin page for access requests (mvp-spec Phase 4); Lockup wordmark → eyecandid (separate PR)
 ### Phase 3 — autopilots and AI editing *(not started)*

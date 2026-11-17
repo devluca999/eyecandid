@@ -79,6 +79,11 @@ test("visual: landing hero", async ({ page }) => {
   await page.evaluate(() => localStorage.setItem("eyelore.anonId", "anon_" + "0".repeat(32))); // pin the A/B arm
   await page.reload();
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
-  await page.waitForLoadState("load");
+  await page.waitForLoadState("networkidle");
+  // every hero tile on screen has its poster (the desktop-only ones attach theirs after hydration)
+  await expect
+    .poll(() => page.locator(".ec-hero video").evaluateAll((vs) => vs.filter((v) => (v as HTMLElement).offsetParent && !v.getAttribute("poster")).length))
+    .toBe(0);
+  await page.waitForLoadState("networkidle");
   await expect(page).toHaveScreenshot("landing-hero.png", { mask: [page.locator(".ec-hero__recent")] });
 });

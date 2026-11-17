@@ -39,8 +39,6 @@ describe("accessRequests.request", () => {
     // the same email from other sessions, case and spaces aside
     for (let i = 0; i < 2; i++) await t.mutation(api.access.request, ask({ anonId: OTHER, email: " M0@example.com" }));
     await expect(t.mutation(api.access.request, ask({ anonId: "anon_" + "c".repeat(32), email: "m0@EXAMPLE.com" }))).rejects.toThrow(/already asked/);
-    // without an anon id the email limit still holds
-    await expect(t.mutation(api.access.request, { email: "m0@example.com", note: "", link: "" })).rejects.toThrow(/already asked/);
     expect(await t.run((ctx) => ctx.db.query("accessRequests").collect())).toHaveLength(5);
   });
 

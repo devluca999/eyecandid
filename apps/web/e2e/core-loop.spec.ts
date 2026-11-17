@@ -14,6 +14,7 @@ test("drop a raw clip → polished, captioned 9:16 export in under 3 minutes", a
   const t0 = Date.now();
 
   await page.goto("/");
+  await expect(page.getByTestId("file-input")).toHaveAttribute("data-ready", "1"); // hydrated: the input's handler is live
   await page.getByTestId("file-input").setInputFiles(CLIP);
   await expect(page).toHaveURL(/\/edit\//);
 

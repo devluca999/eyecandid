@@ -13,7 +13,7 @@ import { Clip } from "./_landing/media";
 import { BRIGHT, CINE, SOFT, poster } from "./_landing/clips";
 
 /** The four tiles shown on every screen size: their posters are in the HTML and fetched early (phones show only these). */
-const FIRST = [5565, 32800, 9582, 236] as const;
+const FIRST = [41550, 32800, 2168, 236] as const;
 
 /** 01 · hero: centred line, the real drop well, and scattered clips (sharp near, blurred far) with parallax. */
 export function Hero() {
@@ -26,105 +26,121 @@ export function Hero() {
     const anonId = getAnonId();
     const v = heroVariant(anonId);
     document.documentElement.setAttribute("data-hero", v);
-    void track({ anonId, event: { name: "landing_view", props: { platform: "web", variant: v, heroLine: HERO_LINES[v] } } });
+    void track({
+      anonId,
+      event: { name: "landing_view", props: { platform: "web", variant: v, heroLine: HERO_LINES[v] } },
+    });
   }, [track]);
 
   return (
-    <section className="ec-hero" aria-labelledby="hero-title">
-      <script dangerouslySetInnerHTML={{ __html: HERO_LINE_SCRIPT }} />
-      <div className="ec-scatter" aria-hidden="true">
-        <div data-depth="0.25" className="ec-t ec-t--far">
-          <Lens shape="circle" width="var(--w)" glow={false}>
-            <Clip eager id={5565} filter={SOFT} />
-          </Lens>
-        </div>
-        <div data-depth="0.3" className="ec-t ec-t--portrait ec-desk">
-          <Lens shape="card" width={200} glow={false}>
-            <Clip id={41272} filter={BRIGHT} />
-          </Lens>
-        </div>
-        <div data-depth="0.35" className="ec-t ec-t--rose ec-desk">
-          <Lens shape="rect" aspect="4 / 5" width={180} glow={false}>
-            <Clip id={42308} filter={SOFT} />
-          </Lens>
-        </div>
-        <div data-depth="0.6" className="ec-t ec-t--run">
-          <div style={{ transform: "rotate(-4deg)" }}>
-            <Lens shape="card" width="var(--w)">
-              <Clip eager id={32800} filter={CINE} position="50% 60%" />
-              <span className="ec-cine" />
+    <>
+      <section className="ec-hero" aria-labelledby="hero-title">
+        <script dangerouslySetInnerHTML={{ __html: HERO_LINE_SCRIPT }} />
+        <div className="ec-scatter" aria-hidden="true">
+          <div data-depth="0.25" className="ec-t ec-t--far">
+            <Lens shape="circle" width="var(--w)" glow={false}>
+              <Clip eager id={41550} filter={SOFT} />
+            </Lens>
+          </div>
+          <div data-depth="0.3" className="ec-t ec-t--portrait ec-desk">
+            <Lens shape="card" width={200} glow={false}>
+              <Clip id={41272} filter={BRIGHT} />
+            </Lens>
+          </div>
+          <div data-depth="0.35" className="ec-t ec-t--rose ec-desk">
+            <Lens shape="rect" aspect="4 / 5" width={180} glow={false}>
+              <Clip id={42308} filter={SOFT} />
+            </Lens>
+          </div>
+          <div data-depth="0.6" className="ec-t ec-t--run">
+            <div style={{ transform: "rotate(-4deg)" }}>
+              <Lens shape="card" width="var(--w)">
+                <Clip eager id={32800} filter={CINE} position="50% 60%" />
+                <span className="ec-cine" />
+              </Lens>
+            </div>
+          </div>
+          <div data-depth="0.5" className="ec-t ec-t--cine">
+            <div style={{ transform: "rotate(3deg)" }}>
+              <Lens shape="rect" aspect="4 / 5" width="var(--w)">
+                <Clip eager id={2168} filter="saturate(.65) contrast(1.18) brightness(.88)" />
+              </Lens>
+            </div>
+          </div>
+          <div data-depth="0.7" className="ec-t ec-t--broll">
+            <div style={{ transform: "rotate(2deg)" }}>
+              <Lens shape="rect" aspect="1 / 1" width="var(--w)">
+                <Clip eager id={236} filter={BRIGHT} />
+              </Lens>
+            </div>
+          </div>
+          <div data-depth="0.8" className="ec-t ec-t--cyc ec-desk">
+            <div style={{ transform: "rotate(-3deg)" }}>
+              <Lens shape="rect" aspect="4 / 5" width={220}>
+                <Clip id={40865} filter={CINE} />
+                <span className="ec-cine" />
+              </Lens>
+            </div>
+          </div>
+          <div data-depth="1.1" className="ec-t ec-t--c1 ec-desk">
+            <Lens shape="circle" width={112}>
+              <Clip id={42323} filter={SOFT} />
+            </Lens>
+          </div>
+          <div data-depth="1.2" className="ec-t ec-t--sq ec-desk">
+            <div style={{ transform: "rotate(5deg)" }}>
+              <Lens shape="rect" aspect="1 / 1" width={96}>
+                <Clip id={810} filter={BRIGHT} />
+              </Lens>
+            </div>
+          </div>
+          <div data-depth="1" className="ec-t ec-t--c2 ec-desk">
+            <Lens shape="circle" width={128}>
+              <Clip id={41181} filter="saturate(1.35) brightness(1.08)" />
             </Lens>
           </div>
         </div>
-        <div data-depth="0.5" className="ec-t ec-t--cine">
-          <div style={{ transform: "rotate(3deg)" }}>
-            <Lens shape="rect" aspect="4 / 5" width="var(--w)">
-              <Clip eager id={9582} filter="saturate(.65) contrast(1.18) brightness(.88)" />
-            </Lens>
-          </div>
-        </div>
-        <div data-depth="0.7" className="ec-t ec-t--broll">
-          <div style={{ transform: "rotate(2deg)" }}>
-            <Lens shape="rect" aspect="1 / 1" width="var(--w)">
-              <Clip eager id={236} filter={BRIGHT} />
-            </Lens>
-          </div>
-        </div>
-        <div data-depth="0.8" className="ec-t ec-t--cyc ec-desk">
-          <div style={{ transform: "rotate(-3deg)" }}>
-            <Lens shape="rect" aspect="4 / 5" width={220}>
-              <Clip id={40865} filter={CINE} />
-              <span className="ec-cine" />
-            </Lens>
-          </div>
-        </div>
-        <div data-depth="1.1" className="ec-t ec-t--c1 ec-desk">
-          <Lens shape="circle" width={112}>
-            <Clip id={42323} filter={SOFT} />
-          </Lens>
-        </div>
-        <div data-depth="1.2" className="ec-t ec-t--sq ec-desk">
-          <div style={{ transform: "rotate(5deg)" }}>
-            <Lens shape="rect" aspect="1 / 1" width={96}>
-              <Clip id={810} filter={BRIGHT} />
-            </Lens>
-          </div>
-        </div>
-        <div data-depth="1" className="ec-t ec-t--c2 ec-desk">
-          <Lens shape="circle" width={128}>
-            <Clip id={41181} filter="saturate(1.35) brightness(1.08)" />
-          </Lens>
-        </div>
-      </div>
-      <div className="ec-scrim" aria-hidden="true" />
+        <div className="ec-scrim" aria-hidden="true" />
 
-      <nav className="ec-nav" aria-label="main">
-        <a href="/" className="ec-nav__home">
-          <Lockup height={20} />
-        </a>
-        <span style={{ flex: 1 }} />
-        <a href="#how" className="ec-nav__link">how it works</a>
-        <a href="#pricing" className="ec-nav__link ec-desk">pricing</a>
-        <PillButton onClick={pick}>drop a clip</PillButton>
-      </nav>
+        <nav className="ec-nav" aria-label="main">
+          <a href="/" className="ec-nav__home">
+            <Lockup height={20} />
+          </a>
+          <span style={{ flex: 1 }} />
+          <a href="#how" className="ec-nav__link ec-desk">
+            how it works
+          </a>
+          <a href="#pricing" className="ec-nav__link ec-desk">
+            pricing
+          </a>
+          <PillButton onClick={pick}>drop a clip</PillButton>
+        </nav>
 
-      <div className="ec-hero__copy">
-        <span className="ec-eyebrow">ai video editor for creators and ugc ads</span>
-        <div className="ec-hero__line">
-          <h1 id="hero-title" className="ec-h1">
-            <span className="ec-line-a">{HERO_LINES.a}</span>
-            <span className="ec-line-b">{HERO_LINES.b}</span>
-          </h1>
+        <div className="ec-hero__copy">
+          <span className="ec-eyebrow">ai video editor for creators and ugc ads</span>
+          <div className="ec-hero__line">
+            <h1 id="hero-title" className="ec-h1">
+              <span className="ec-line-a">{HERO_LINES.a}</span>
+              <span className="ec-line-b">{HERO_LINES.b}</span>
+            </h1>
+          </div>
+          <p className="ec-hero__sub">Drop the awkward take. Get back the one you’d actually post.</p>
+          <div className="ec-hero__well">
+            <DropWell
+              id="drop"
+              testId="choose-clip"
+              title="drop your rawest clip"
+              hint="the more ums the better · mp4, mov"
+              height={172}
+            />
+          </div>
+          <span className="ec-meta">about a minute · ums out · captions in · your words stay yours</span>
         </div>
-        <p className="ec-hero__sub">Drop the awkward take. Get back the one you’d actually post.</p>
-        <div className="ec-hero__well">
-          <DropWell id="drop" testId="choose-clip" title="drop your rawest clip" hint="the more ums the better · mp4, mov" height={172} />
-        </div>
-        <span className="ec-meta">about a minute · ums out · captions in · your words stay yours</span>
-      </div>
+      </section>
+      {/* edits started in this browser: in flow just below the hero (always below the fold, so it shifts nothing seen) */}
       <div className="ec-hero__recent">
         <Recent />
       </div>
-    </section>
+    </>
   );
 }

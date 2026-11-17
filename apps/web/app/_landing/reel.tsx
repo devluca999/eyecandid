@@ -24,8 +24,8 @@ function Tile({ t, raw, onRaw }: { t: (typeof REEL)[number]; raw: boolean; onRaw
       aria-pressed={raw}
       onMouseEnter={() => hoverable() && onRaw(true)}
       onMouseLeave={() => hoverable() && onRaw(false)}
-      onClick={() => !hoverable() && onRaw(!raw)}
-      onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), onRaw(!raw))}
+      // a mouse previews on hover; a tap, the keyboard or a screen reader (click with detail 0) toggles
+      onClick={(e) => (e.detail === 0 || !hoverable()) && onRaw(!raw)}
     >
       <Lens shape={t.shape} aspect={t.aspect} width="var(--w)">
         <Clip id={t.clip} filter={raw ? RAW : WARM} style={{ transition: "filter .5s var(--ease-out)" }} />

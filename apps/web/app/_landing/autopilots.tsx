@@ -99,7 +99,7 @@ export function Autopilots() {
             {phase === "working" ? "working" : phase === "done" ? "ready" : "background"}
           </span>
         </Lens>
-        <span className="ec-meta" style={{ textAlign: "center" }}>select-and-talk · type your own</span>
+        <span className="ec-meta" style={{ textAlign: "center" }}>select-and-talk</span>
       </Reveal>
       <Reveal className="ec-copy ec-copy--wide">
         <span className="ec-eyebrow">autopilots</span>

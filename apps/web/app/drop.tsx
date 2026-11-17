@@ -43,7 +43,14 @@ export function UploaderProvider({ children }: { children: ReactNode }) {
         setError(e instanceof Error ? e.message : "couldn't read that file");
         return;
       }
-      const projectId = await create({ anonId, title: file.name.replace(/\.[^.]+$/, "").slice(0, 80) });
+      let projectId: Id<"projects">;
+      try {
+        projectId = await create({ anonId, title: file.name.replace(/\.[^.]+$/, "").slice(0, 80) });
+      } catch {
+        setBusy(false);
+        setError("couldn't start an edit · check your connection and try again");
+        return;
+      }
       session.put({ projectId, file, droppedAt });
       router.push(`/edit/${projectId}`);
       try {
@@ -58,6 +65,9 @@ export function UploaderProvider({ children }: { children: ReactNode }) {
     [addSource, create, router, track, uploadUrl],
   );
   const pick = useCallback(() => input.current?.click(), []);
+  // set once hydrated: the input's change handler exists from here on (tests wait for it before setInputFiles)
+  const [ready, setReady] = useState(false);
+  useEffect(() => setReady(true), []);
 
   return (
     <Ctx.Provider value={{ pick, busy, error }}>
@@ -69,6 +79,7 @@ export function UploaderProvider({ children }: { children: ReactNode }) {
         accept="video/*"
         hidden
         data-testid="file-input"
+        data-ready={ready ? "1" : undefined}
         onChange={(e) => {
           const f = e.target.files?.[0];
           e.target.value = "";

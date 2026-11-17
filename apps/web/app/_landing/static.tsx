@@ -22,7 +22,7 @@ function Drift({ k, at, clip, shape, w, aspect, rot, cine }: { k: number; at: Re
 export function FounderPlaceholder() {
   return (
     <div className="ec-breather" data-testid="founder-placeholder">
-      <Drift k={0.12} at={{ left: "6%", top: "18%" }} clip={5565} shape="circle" w={132} />
+      <Drift k={0.12} at={{ left: "6%", top: "18%" }} clip={41550} shape="circle" w={132} />
       <Drift k={0.2} at={{ right: "7%", bottom: "10%" }} clip={810} shape="rect" aspect="1 / 1" w={104} />
       <section className="ec-letter" aria-label="founder letter (placeholder)">
         <span className="ec-flag">PLACEHOLDER · PREVIEW ONLY · HIDDEN IN PRODUCTION</span>

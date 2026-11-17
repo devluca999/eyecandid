@@ -8,6 +8,7 @@ test("an edit can be found again from the landing and deleted for good", async (
   test.skip(info.project.name !== "desktop", "one pipeline at a time on the single CI worker");
   await page.goto("/");
   await expect(page.getByTestId("recent")).toHaveCount(0);
+  await expect(page.getByTestId("file-input")).toHaveAttribute("data-ready", "1"); // hydrated: the input's handler is live
   await page.getByTestId("file-input").setInputFiles(CLIP);
   await expect(page).toHaveURL(/\/edit\//);
   const editUrl = page.url();

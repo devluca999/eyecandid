@@ -99,7 +99,7 @@ html[data-hero="b"] .ec-line-a, html:not([data-hero="b"]) .ec-line-b { display: 
 .ec-h1 { margin: 0; max-width: 760px; font: var(--type-display); font-size: 1em; line-height: 1; letter-spacing: -0.035em; text-wrap: balance; }
 .ec-hero__sub { margin: 0; max-width: 420px; font: var(--type-body); font-size: 18px; line-height: 27px; color: var(--ink-secondary); text-wrap: pretty; }
 .ec-hero__well { width: min(460px, 100%); margin-top: 8px; }
-.ec-hero__recent { position: absolute; left: 0; right: 0; bottom: 12px; z-index: 3; display: flex; justify-content: center; padding: 0 20px; }
+.ec-hero__recent { display: flex; justify-content: center; padding: 16px 20px 0; }
 .ec-hero__recent ul { flex-direction: row; flex-wrap: wrap; justify-content: center; list-style: none; margin: 0; padding: 0; }
 
 /* shared section layout: media and copy side by side, wrapping to a column on narrow screens */

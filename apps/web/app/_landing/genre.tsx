@@ -81,7 +81,7 @@ export function Genre() {
             </PillButton>
           ))}
         </div>
-        <span className="ec-meta" aria-live="polite">{g.line}</span>
+        <span className="ec-meta" aria-live={auto ? "off" : "polite"}>{g.line}</span>
       </Reveal>
     </section>
   );
