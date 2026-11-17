@@ -1,7 +1,7 @@
 "use client";
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { useMutation, useQuery } from "convex/react";
+import { useConvex, useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { DropZone, Icon, StatusDot } from "@eyelore/ui";
@@ -22,6 +22,7 @@ export const useUploader = () => useContext(Ctx);
  */
 export function UploaderProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
+  const convex = useConvex();
   const create = useMutation(api.projects.create);
   const uploadUrl = useMutation(api.projects.uploadUrl);
   const addSource = useMutation(api.projects.addSource);
@@ -38,10 +39,19 @@ export function UploaderProvider({ children }: { children: ReactNode }) {
   }, []);
   const input = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusyState] = useState(false);
 
+  // one clip at a time: a second drop while the first is still being read would start a second edit
+  const starting = useRef(false);
   const start = useCallback(
     async (file: File, source: "drop" | "picker" | "sample") => {
+      if (starting.current) return;
+      starting.current = true;
+      // released once this clip is refused or its editor opens
+      const setBusy = (b: boolean) => {
+        if (!b) starting.current = false;
+        setBusyState(b);
+      };
       setError(null);
       setBusy(true);
       const anonId = getAnonId();
@@ -55,14 +65,6 @@ export function UploaderProvider({ children }: { children: ReactNode }) {
         setError(e instanceof Error ? e.message : "couldn't read that file");
         return;
       }
-      let projectId: Id<"projects">;
-      try {
-        projectId = await create({ anonId, title: file.name.replace(/\.[^.]+$/, "").slice(0, 80) });
-      } catch {
-        setBusy(false);
-        setError("couldn't start an edit · check your connection and try again");
-        return;
-      }
       // free tier on the visitor's device when it can (ADR 0012): no upload, no worker, the clip stays here
       // tests pin the engine (localStorage "eyelore.engine" = "server" | "device"); everyone else gets the best this device can do
       let forced: string | null = null;
@@ -72,6 +74,21 @@ export function UploaderProvider({ children }: { children: ReactNode }) {
         // storage blocked: no override
       }
       const onDevice = forced === "server" ? false : forced === "device" ? true : flags?.on_device !== false && (await deviceSupport()).ok;
+      // a clip we would refuse is refused here, before an edit exists or a byte is uploaded (the server checks again)
+      const refused = await convex.query(api.projects.preflight, { anonId, durationMs: meta.durationMs, bytes: file.size, onDevice }).catch(() => null);
+      if (refused) {
+        setBusy(false);
+        setError(refused);
+        return;
+      }
+      let projectId: Id<"projects">;
+      try {
+        projectId = await create({ anonId, title: file.name.replace(/\.[^.]+$/, "").slice(0, 80) });
+      } catch {
+        setBusy(false);
+        setError("couldn't start an edit · check your connection and try again");
+        return;
+      }
       if (onDevice) {
         let clipId: string;
         try {
@@ -82,6 +99,7 @@ export function UploaderProvider({ children }: { children: ReactNode }) {
           return;
         }
         session.put({ projectId, file, droppedAt, engine: "device" });
+        starting.current = false;
         router.push(`/edit/${projectId}`);
         let lastSent = 0;
         const onStage = (detail: string) => {
@@ -116,6 +134,7 @@ export function UploaderProvider({ children }: { children: ReactNode }) {
         return;
       }
       session.put({ projectId, file, droppedAt, engine: "server" });
+      starting.current = false;
       router.push(`/edit/${projectId}`);
       try {
         const storageId = await uploadFile(() => uploadUrl({ anonId, projectId }), file, (p) => session.update(projectId, { uploadProgress: p }));
@@ -126,21 +145,21 @@ export function UploaderProvider({ children }: { children: ReactNode }) {
         session.update(projectId, { error: "upload failed · check your connection and drop it again" });
       }
     },
-    [addDeviceSource, addSource, applyDeviceReframe, applyDeviceTranscript, create, deviceFailed, deviceProgress, flags?.on_device, router, track, uploadUrl],
+    [addDeviceSource, addSource, applyDeviceReframe, applyDeviceTranscript, convex, create, deviceFailed, deviceProgress, flags?.on_device, router, track, uploadUrl],
   );
   const pick = useCallback(() => input.current?.click(), []);
   // "try it with our clip": the hosted sample runs through the exact same pipeline as a dropped clip
   const trySample = useCallback(async () => {
     if (!env.sampleClipUrl) return;
     setError(null);
-    setBusy(true);
+    setBusyState(true);
     try {
       const res = await fetch(env.sampleClipUrl);
       if (!res.ok) throw new Error(String(res.status));
       const blob = await res.blob();
       await start(new File([blob], "sample.mp4", { type: blob.type || "video/mp4" }), "sample");
     } catch {
-      setBusy(false);
+      setBusyState(false);
       setError("couldn't load the sample · try your own clip");
     }
   }, [start]);
