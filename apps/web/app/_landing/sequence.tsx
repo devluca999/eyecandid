@@ -75,6 +75,11 @@ export function Sequence() {
       <div className="ec-seq__pin">
         <div className="ec-seq__media">
           <div className="ec-seq__tilt" style={{ transform: s === 0 ? "rotate(-3deg)" : "none" }}>
+            {/* the take on top of a pile of earlier takes; the pile tidies away once it becomes the finished edit */}
+            <div className={"ec-seq__stack" + (shape === "circle" ? " is-gone" : "")} aria-hidden="true">
+              <span className="ec-seq__take ec-seq__take--1"><span className="ec-seq__takeno">take 01</span></span>
+              <span className="ec-seq__take ec-seq__take--2"><span className="ec-seq__takeno">take 02</span></span>
+            </div>
             <Lens shape={shape} aspect="4 / 5" width={`var(--w-${shape})`} state={s === 1 ? "generating" : "rest"} label="one take, from raw to finished edit">
               <Clip id={SLOT.walkthrough} filter={filter} style={{ transition: "filter .7s var(--ease-out)" }} />
               <Clip id={SLOT.walkthroughBroll} filter={WARM} style={{ opacity: s === 3 ? 1 : 0, transition: "opacity .45s var(--ease-out)" }} />
