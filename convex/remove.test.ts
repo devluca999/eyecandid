@@ -106,8 +106,12 @@ describe("deleting an edit", () => {
   it("only that edit goes: the owner's other edit, and another person's, are untouched", async () => {
     const t = convexTest(schema, modules);
     const workerId = await worker(t);
+    // free sessions run one job at a time (convex/lib/limits.ts): let the background reframe finish before the next edit
+    const settle = () => t.run(async (ctx) => { for (const j of await ctx.db.query("jobs").collect()) if (j.status === "queued") await ctx.db.patch(j._id, { status: "succeeded" }); });
     const mine = await readyProject(t, workerId);
+    await settle();
     const kept = await readyProject(t, workerId);
+    await settle();
     const theirs = await readyProject(t, workerId, OTHER);
     const one = await counts(t);
     await t.mutation(api.projects.remove, { projectId: mine, anonId: ANON });

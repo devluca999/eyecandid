@@ -5,7 +5,8 @@ import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { addClipChange } from "@eyelore/core";
 import { caller, owns } from "./lib/owner";
-import { addUsage } from "./lib/entitle";
+import { addUsage, usageFor } from "./lib/entitle";
+import { admitFreeJob, MSG, rateLimit, refuse, sourceRefusal } from "./lib/limits";
 import { commitChanges, createDoc, headDoc } from "./lib/docs";
 import { enqueueJob } from "./jobs";
 import { mediaIdsIn, mediaStore } from "./lib/mediaStore";
@@ -18,9 +19,10 @@ export async function ownedProject(ctx: QueryCtx | MutationCtx, projectId: Id<"p
 
 /** Start a project with no signup (ADR 0006). */
 export const create = mutation({
-  args: { anonId: v.string(), title: v.optional(v.string()), script: v.optional(v.array(v.string())) },
-  handler: async (ctx, { anonId, title, script }) => {
+  args: { anonId: v.string(), title: v.optional(v.string()), script: v.optional(v.array(v.string())), clientHint: v.optional(v.string()) },
+  handler: async (ctx, { anonId, title, script, clientHint }) => {
     const who = await caller(ctx, anonId);
+    await rateLimit(ctx, "create", { anonId, clientHint });
     const projectId = await ctx.db.insert("projects", {
       ownerUserId: who.userId,
       ownerAnonId: anonId,
@@ -39,13 +41,40 @@ export const create = mutation({
 });
 
 export const uploadUrl = mutation({
-  args: { anonId: v.string(), projectId: v.id("projects") },
-  handler: async (ctx, { anonId, projectId }) => {
+  args: { anonId: v.string(), projectId: v.id("projects"), clientHint: v.optional(v.string()) },
+  handler: async (ctx, { anonId, projectId, clientHint }) => {
     await ownedProject(ctx, projectId, anonId);
+    await rateLimit(ctx, "uploadUrl", { anonId, clientHint });
+    // don't take bytes we would refuse: a paused or full free day says so before the upload, not after
+    const pro = (await usageFor(ctx, await caller(ctx, anonId))).plan !== "free";
+    if (!pro) await admitFreeJob(ctx, { count: false });
     await ctx.db.patch(projectId, { stage: "uploading" });
     return await mediaStore.uploadUrl(ctx);
   },
 });
+
+/**
+ * Free caps, enforced here and nowhere else (the client only shows the message). Size comes from Convex's `_storage`
+ * metadata, never the client. Duration is the client's probe: the server cannot decode video in a mutation, so it
+ * is a guard, not a proof (the worker's transcribe output carries the real duration).
+ * Known gap: a thrown refusal rolls back the whole mutation, so the refused upload's bytes cannot be deleted here;
+ * they stay in storage until an orphan sweep exists (not built). Upload URLs are rate limited and gated meanwhile.
+ */
+async function enforceSourceCaps(
+  ctx: MutationCtx,
+  a: { anonId: string; storageId: Id<"_storage">; durationMs: number },
+  project: Doc<"projects">,
+  size: number | undefined,
+) {
+  const pro = (await usageFor(ctx, await caller(ctx, a.anonId))).plan !== "free";
+  const why = sourceRefusal({ pro, size, durationMs: a.durationMs });
+  if (why) refuse(why);
+  if (pro) return;
+  // one pipeline job in flight per anonymous session
+  const mine = await ctx.db.query("jobs").withIndex("by_owner_anon", (q) => q.eq("ownerAnonId", project.ownerAnonId ?? a.anonId)).order("desc").take(50);
+  if (mine.some((j) => j.status === "queued" || j.status === "leased" || j.status === "running")) refuse(MSG.busy);
+  await admitFreeJob(ctx, { count: true });
+}
 
 /**
  * Register an uploaded source clip: add it to the edit model and start the pipeline
@@ -66,6 +95,7 @@ export const addSource = mutation({
   handler: async (ctx, a) => {
     const project = await ownedProject(ctx, a.projectId, a.anonId);
     const meta = await ctx.db.system.get(a.storageId);
+    await enforceSourceCaps(ctx, a, project, meta?.size);
     const mediaId = await ctx.db.insert("media", {
       projectId: a.projectId,
       kind: "source",

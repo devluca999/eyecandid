@@ -2,6 +2,7 @@ import { ConvexError, v } from "convex/values";
 import { mutation } from "./_generated/server";
 import { caller } from "./lib/owner";
 import { sha256Hex } from "./lib/workerAuth";
+import { rateLimit } from "./lib/limits";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** at most this many requests per email and per anonymous session in any 24 hours */
@@ -32,9 +33,10 @@ export function cleanAccessRequest(input: { email: string; note: string; link: s
 
 /** Pro is by request (docs: mvp-spec "Access model"). Anyone may ask; nothing is granted here. */
 export const request = mutation({
-  args: { anonId: v.string(), email: v.string(), note: v.string(), link: v.string() },
-  handler: async (ctx, { anonId, ...input }) => {
+  args: { anonId: v.string(), email: v.string(), note: v.string(), link: v.string(), clientHint: v.optional(v.string()) },
+  handler: async (ctx, { anonId, clientHint, ...input }) => {
     await caller(ctx, anonId); // validates the anon id's shape
+    await rateLimit(ctx, "access", { anonId, clientHint });
     const r = cleanAccessRequest(input);
     if ("error" in r) throw new ConvexError(r.error!);
     const { email, note, link } = r.value;

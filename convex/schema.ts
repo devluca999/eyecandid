@@ -65,7 +65,9 @@ export default defineSchema({
     /** for proxies: the source media this is a low-res copy of */
     proxyOf: v.optional(v.id("media")),
     createdAt: v.number(),
-  }).index("by_project", ["projectId"]),
+  })
+    .index("by_project", ["projectId"])
+    .index("by_kind_created", ["kind", "createdAt"]),
 
   exports: defineTable({
     projectId: v.id("projects"),
@@ -209,4 +211,10 @@ export default defineSchema({
   })
     .index("by_email_created", ["email", "createdAt"])
     .index("by_anon_created", ["anonHash", "createdAt"]),
+
+  // ── cost controls (convex/lib/limits.ts, convex/expiry.ts) ──
+  /** fixed-window rate limit counters; key = "<action>:anon|hint:<hash>", swept by the expiry cron */
+  rateLimits: defineTable({ key: v.string(), windowStart: v.number(), count: v.number() }).index("by_key", ["key"]).index("by_window", ["windowStart"]),
+  /** free server jobs started per UTC day ("2026-11-17") against EYELORE_FREE_DAILY_JOBS */
+  dailyUsage: defineTable({ day: v.string(), freeJobs: v.number() }).index("by_day", ["day"]),
 });
