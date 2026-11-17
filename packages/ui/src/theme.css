@@ -20,12 +20,13 @@
   --color-chrome-hi: var(--chrome-hi);
   --color-chrome-mid: var(--chrome-mid);
   --color-chrome-lo: var(--chrome-lo);
-  --font-sans: 'Geist', ui-sans-serif, system-ui, -apple-system, 'Helvetica Neue', Helvetica, sans-serif;
-  --font-mono: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --font-sans: 'Geist',ui-sans-serif,system-ui,-apple-system,sans-serif;
+  --font-mono: 'Geist Mono',ui-monospace,'SF Mono',Menlo,monospace;
   --font-hand: 'Caveat', 'Bradley Hand', cursive;
+  --radius-glass: 16px;
   --radius-chip: 6px;
   --radius-menu-item: 10px;
-  --radius-glass: 16px;
+  --radius-panel: 16px;
   --radius-lens: 20px;
   --radius-pill: 999px;
   --radius-circle: 50%;

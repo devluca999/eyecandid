@@ -11,7 +11,8 @@
     "predev": "node scripts/copy-brand.mjs",
     "lint": "eslint app lib e2e",
     "typecheck": "tsc --noEmit",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "test": "vitest run --dir lib"
   },
   "dependencies": {
     "@clerk/nextjs": "7.10.0",

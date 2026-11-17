@@ -1,0 +1,28 @@
+# Mixkit clips used by the landing (apps/web/app/_landing). One row per clip.
+# Each clip appears once on the page (apps/web/lib/clips.test.ts).
+# id	start_s	loop_s	crop	why
+# crop: "full" keeps the frame; "sq:X" takes a square at horizontal centre X (0..1) of a landscape frame
+#   (every tile is 1:1, 4:5, 9:16 or a circle, so a square loses nothing on screen and saves ~45% of the pixels).
+#   Portrait sources are kept whole.
+41550	2	5	sq:0.5	aerial meadow · hero far circle (replaces the design's 5565: Restricted licence)
+41272	1	5	sq:0.42	talking head · reel a
+42308	1	5	full	selfie at the gym (portrait) · reel b
+32800	1	6	sq:0.4	sprint, crouched start · hero runner
+2168	2	5	sq:0.4	sunset clouds over the sea · hero cine tile (replaces 9582: Restricted licence)
+236	1	5	sq:0.45	coffee pour · hero b-roll tile
+40865	1	5	sq:0.35	cyclist · hero lower right
+42323	1	5	full	talking to camera (portrait) · walkthrough
+810	2	5	sq:0.45	milk pour · hero small tile
+41181	1	5	sq:0.55	selfie at the window · reel c
+4851	0.5	5	sq:0.5	runner at sunset · real-or-ai "ai" tile (replaces 46653: Restricted licence)
+583	2	6	full	runner at dusk · pricing drift
+42316	1	5	full	creator behind a ring light (portrait) · hero blurred card
+42306	1	5	full	dancing against a colourful set (portrait) · hero blurred 4:5
+41290	0.3	4	full	vlogger talking to camera (portrait) · hero small circle
+49647	2	5	sq:0.25	creator filming by a lake · hero circle
+41281	3.4	5	sq:0.5	camera on a tripod · reel b-roll tile
+50422	1	5	sq:0.5	skincare products on a desk · walkthrough b-roll
+42319	1	5	full	creator talking to camera (portrait) · genre switcher
+609	1	5	sq:0.45	runner's legs on a track · genre sports ad
+34487	0.5	5	full	creator talking into her phone outdoors (portrait) · autopilots
+42310	1	5	full	creator holding up social icons (portrait) · real tile

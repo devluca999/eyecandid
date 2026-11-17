@@ -198,4 +198,15 @@ export default defineSchema({
     lastWakeMs: v.optional(v.number()),
   }),
 
+  /** Pro "request access" from the landing (convex/access.ts). anonHash (SHA-256 of the anon id) backs the rate limit. */
+  accessRequests: defineTable({
+    email: v.string(),
+    note: v.string(),
+    link: v.string(),
+    anonHash: v.optional(v.string()),
+    createdAt: v.number(),
+    status: v.union(v.literal("new"), v.literal("approved"), v.literal("declined")),
+  })
+    .index("by_email_created", ["email", "createdAt"])
+    .index("by_anon_created", ["anonHash", "createdAt"]),
 });

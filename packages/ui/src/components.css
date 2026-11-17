@@ -207,7 +207,7 @@
 .el-lens.is-hover, .el-lens--interactive:hover { transform: translateY(var(--hover-lift)); box-shadow: var(--shadow-lens-lift); }
 .el-lens.is-hover::before, .el-lens--interactive:hover::before { opacity: calc(var(--ambient-strength) * 1.25); }
 .el-lens.is-selected { transform: translateY(var(--hover-lift)); box-shadow: var(--ring-selected), var(--shadow-lens-lift); }
-.el-lens.is-receded { filter: blur(var(--recede-blur)); opacity: var(--recede-opacity); }
+.el-lens.is-receded { filter: var(--recede-blur); opacity: var(--recede-opacity); }
 .el-shimmer { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 5; }
 .el-shimmer::after { content: ""; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 20%, rgba(255,255,255,.18) 42%, rgba(255,255,255,.42) 50%, rgba(255,255,255,.18) 58%, transparent 80%); animation: el-shimmer var(--dur-shimmer) cubic-bezier(.45,.05,.35,1) infinite; }
 .el-shimmer--resolve { backdrop-filter: blur(8px) saturate(.6); -webkit-backdrop-filter: blur(8px) saturate(.6); }

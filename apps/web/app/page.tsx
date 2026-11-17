@@ -1,20 +1,52 @@
-import { Lens, Lockup } from "@eyelore/ui";
+import type { Metadata } from "next";
+import { showPlaceholders } from "@/lib/visibility";
 import { Hero } from "./hero";
-import { Drop } from "./drop";
-import { Recent } from "./recent";
+import { UploaderProvider } from "./drop";
+import { Motion } from "./_landing/motion";
+import { Reel } from "./_landing/reel";
+import { Sequence } from "./_landing/sequence";
+import { Genre } from "./_landing/genre";
+import { Autopilots } from "./_landing/autopilots";
+import { RealAi } from "./_landing/real-ai";
+import { Pricing } from "./_landing/pricing";
+import { Faq } from "./_landing/faq";
+import { FloatingPill } from "./_landing/pill";
+import { Final, Footer, FounderPlaceholder, PricingDrift, ProofPlaceholder } from "./_landing/static";
+import "./_landing/landing.css";
 
+export const metadata: Metadata = {
+  title: "Eyecandid · making real people look great",
+  description: "Drop the awkward take. Get back the one you’d actually post: cut, captioned and reframed in about a minute.",
+};
+
+/** The landing, ported from design/landing-v2 ("Eyecandid Landing v2"). Sections alternate media and copy. */
 export default function Landing() {
+  const placeholders = showPlaceholders(); // read at build/render on the server: production never ships them
   return (
-    <main className="min-h-dvh flex flex-col">
-      <header className="flex items-center justify-between px-24 py-16">
-        <Lockup height={22} />
-      </header>
-      <section className="flex flex-1 flex-col items-center justify-center gap-32 px-24 pb-64 text-center">
-        <Lens shape="circle" scene="sofa" width={280} label="a creator talking to camera" caption="this ring tracks my sleep" />
-        <Hero />
-        <Drop />
-        <Recent />
-      </section>
-    </main>
+    <UploaderProvider>
+      <Motion>
+        <div className="ec-grain" aria-hidden="true" />
+        <main>
+          <Hero />
+          <Reel />
+          <Sequence />
+          <Genre />
+          <Autopilots />
+          <RealAi />
+          {placeholders && <FounderPlaceholder />}
+          {placeholders && <ProofPlaceholder />}
+          <div className="ec-breather">
+            <PricingDrift />
+            <Pricing />
+          </div>
+          <div className="ec-breather">
+            <Faq />
+          </div>
+          <Final />
+        </main>
+        <Footer />
+        <FloatingPill />
+      </Motion>
+    </UploaderProvider>
   );
 }

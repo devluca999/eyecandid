@@ -1,17 +1,24 @@
 "use client";
-import { useCallback, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
-import { DropZone, PillButton, StatusDot } from "@eyelore/ui";
+import { DropZone, Icon, StatusDot } from "@eyelore/ui";
 import { getAnonId } from "@/lib/anon";
 import { session } from "@/lib/session";
 import { probeVideo, uploadFile } from "@/lib/upload";
 import { useTrack } from "@/lib/track";
 
-/** The landing's drop zone: no signup. Opens the editor at once and uploads in the background. */
-export function Drop() {
+type Uploader = { pick: () => void; busy: boolean; error: string | null };
+const Ctx = createContext<Uploader>({ pick: () => {}, busy: false, error: null });
+export const useUploader = () => useContext(Ctx);
+
+/**
+ * The landing's one uploader: no signup. Owns the hidden file input and the full-window drop target; every
+ * "drop a clip" on the page calls pick(). Opens the editor at once and uploads in the background.
+ */
+export function UploaderProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const create = useMutation(api.projects.create);
   const uploadUrl = useMutation(api.projects.uploadUrl);
@@ -19,10 +26,12 @@ export function Drop() {
   const track = useTrack();
   const input = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   const start = useCallback(
     async (file: File, source: "drop" | "picker") => {
       setError(null);
+      setBusy(true);
       const anonId = getAnonId();
       const droppedAt = Date.now();
       track("drop_started", { bytes: file.size, source });
@@ -30,10 +39,18 @@ export function Drop() {
       try {
         meta = await probeVideo(file);
       } catch (e) {
+        setBusy(false);
         setError(e instanceof Error ? e.message : "couldn't read that file");
         return;
       }
-      const projectId = await create({ anonId, title: file.name.replace(/\.[^.]+$/, "").slice(0, 80) });
+      let projectId: Id<"projects">;
+      try {
+        projectId = await create({ anonId, title: file.name.replace(/\.[^.]+$/, "").slice(0, 80) });
+      } catch {
+        setBusy(false);
+        setError("couldn't start an edit · check your connection and try again");
+        return;
+      }
       session.put({ projectId, file, droppedAt });
       router.push(`/edit/${projectId}`);
       try {
@@ -47,18 +64,74 @@ export function Drop() {
     },
     [addSource, create, router, track, uploadUrl],
   );
+  const pick = useCallback(() => input.current?.click(), []);
+  // set once hydrated: the input's change handler exists from here on (tests wait for it before setInputFiles)
+  const [ready, setReady] = useState(false);
+  useEffect(() => setReady(true), []);
 
   return (
-    <>
+    <Ctx.Provider value={{ pick, busy, error }}>
+      {children}
       <DropZone onDrop={(f) => void start(f, "drop")} />
-      <input ref={input} type="file" accept="video/*" hidden data-testid="file-input" onChange={(e) => e.target.files?.[0] && void start(e.target.files[0], "picker")} />
-      <div className="flex flex-col items-center gap-8">
-        <PillButton icon="plus" onClick={() => input.current?.click()} testId="choose-clip">
-          choose a clip
-        </PillButton>
-        <span className="text-meta text-ink-secondary">or drop your rawest clips anywhere</span>
-        {error && <StatusDot status="attention" label={error} />}
-      </div>
-    </>
+      <input
+        ref={input}
+        type="file"
+        accept="video/*"
+        hidden
+        data-testid="file-input"
+        data-ready={ready ? "1" : undefined}
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          e.target.value = "";
+          if (f) void start(f, "picker");
+        }}
+      />
+    </Ctx.Provider>
+  );
+}
+
+/**
+ * The drop well (design-system v2 DropZone, inline). Click or Enter opens the picker; a file dropped anywhere on the
+ * window, including here, goes through the window drop target, so one drop is always one project.
+ */
+export function DropWell({ title, hint, height, testId, id }: { title: string; hint: string; height: number; testId?: string; id?: string }) {
+  const { pick, busy, error } = useUploader();
+  const [over, setOver] = useState(false);
+  useEffect(() => {
+    if (!over) return;
+    const off = () => setOver(false);
+    window.addEventListener("drop", off);
+    window.addEventListener("dragend", off);
+    return () => {
+      window.removeEventListener("drop", off);
+      window.removeEventListener("dragend", off);
+    };
+  }, [over]);
+  return (
+    <div className="ec-wellbox">
+      <button
+        type="button"
+        id={id}
+        className={"ec-well" + (over ? " is-over" : "") + (busy ? " is-busy" : "")}
+        style={{ height }}
+        onClick={pick}
+        onDragEnter={() => setOver(true)}
+        onDragLeave={() => setOver(false)}
+        data-testid={testId}
+        aria-describedby={id ? `${id}-hint` : undefined}
+      >
+        {busy && <span className="ec-well__sweep" aria-hidden />}
+        <span className="ec-well__icon" aria-hidden>
+          {busy ? <Icon name="sparkles" size={22} /> : <Icon name="arrow-up" size={22} style={{ transform: "rotate(180deg)" }} />}
+        </span>
+        <span className="ec-well__text">
+          <span className="ec-well__title">{busy ? "reading your clip…" : over ? "let go" : title}</span>
+          <span className="ec-well__hint" id={id ? `${id}-hint` : undefined}>
+            {busy ? "finding the good parts · about a minute" : hint}
+          </span>
+        </span>
+      </button>
+      {error && <StatusDot status="attention" label={error} />}
+    </div>
   );
 }

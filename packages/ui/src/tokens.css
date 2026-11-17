@@ -1,152 +1,138 @@
-/* GENERATED from design/tokens/*.css — do not edit. Fonts are loaded by the app (geist, @fontsource/caveat). */
+/* GENERATED from design/system-v2/tokens/*.css and packages/ui/scripts/compat.css — do not edit. Fonts are loaded by the app (geist, @fontsource/caveat). */
 /* colors.css */
-/* Eyelore colour. Paper is default; Night (theater mode) via [data-theme="night"]. */
-:root {
-  --paper-canvas: #F7F5F0;
-  --paper-surface-raised: #FFFFFF;
-  --paper-surface-sunken: #EFECE5;
-  --paper-ink: #111111;
-  --paper-ink-secondary: #5E5E5E;
-  --paper-ink-tertiary: #8E8B85;
-  --paper-hairline: #DAD6CD;
-
-  --night-canvas: #0F0F10;
-  --night-surface-raised: #1A1A1C;
-  --night-surface-sunken: #08080A;
-  --night-ink: #F2F0EA;
-  --night-ink-secondary: #A6A39D;
-  --night-ink-tertiary: #6F6C67;
-  --night-hairline: #2A2A2D;
-
-  --chrome-hi: #FFFFFF;
-  --chrome-mid: #C9CCD1;
-  --chrome-lo: #9EA3AA;
-  --chrome-edge: linear-gradient(180deg, var(--chrome-hi) 0%, var(--chrome-mid) 50%, var(--chrome-lo) 100%);
-
-  --blue-500: #5B7CFA;
-  --blue-text-paper: #3D5BD9;
-  --blue-text-night: #8EA4FF;
-  --green-ready: #2F9E5F;
-  --amber-attention: #D9822B;
-
-  /* semantic — Paper */
-  --canvas: var(--paper-canvas);
-  --surface-raised: var(--paper-surface-raised);
-  --surface-sunken: var(--paper-surface-sunken);
-  --ink: var(--paper-ink);
-  --ink-secondary: var(--paper-ink-secondary);
-  --ink-tertiary: var(--paper-ink-tertiary);
-  --hairline: var(--paper-hairline);
-  --accent: var(--blue-500);
-  --accent-text: var(--blue-text-paper);
-  --accent-glow: rgba(91, 124, 250, 0.35);
-  --status-ready: var(--green-ready);
-  --status-working: var(--accent);
-  --status-attention: var(--amber-attention);
-  --glass-fill: rgba(255, 255, 255, 0.62);
-  --glass-edge: rgba(255, 255, 255, 0.85);
-  --text-on-ink: var(--paper-canvas);
-  --scrim-video: rgba(17, 17, 17, 0.0);
+:root{
+  /* base — paper */
+  --paper-canvas:#F7F5F0;--paper-raised:#FFFFFF;--paper-sunken:#EFECE5;
+  --paper-ink:#111111;--paper-ink-2:#5E5E5E;--paper-ink-3:#8E8B85;--paper-hairline:#DAD6CD;
+  /* base — night */
+  --night-canvas:#0F0F10;--night-raised:#1A1A1C;--night-sunken:#08080A;
+  --night-ink:#F2F0EA;--night-ink-2:#A6A39D;--night-ink-3:#6F6C67;--night-hairline:#2A2A2D;
+  /* chrome */
+  --chrome-1:#FFFFFF;--chrome-2:#C9CCD1;--chrome-3:#9EA3AA;
+  --chrome-gradient:linear-gradient(160deg,#FFFFFF 0%,#C9CCD1 55%,#9EA3AA 100%);/* @kind color */
+  /* accent (active selection only) */
+  --accent:#5B7CFA;--accent-text-paper:#3D5BD9;--accent-text-night:#8EA4FF;
+  /* status */
+  --status-ready:#2F9E5F;--status-working:#5B7CFA;--status-attention:#D9822B;
+  /* semantic (paper default) */
+  --canvas:var(--paper-canvas);--surface-raised:var(--paper-raised);--surface-sunken:var(--paper-sunken);
+  --ink:var(--paper-ink);--ink-secondary:var(--paper-ink-2);--ink-tertiary:var(--paper-ink-3);
+  --hairline:var(--paper-hairline);--accent-text:var(--accent-text-paper);
+  --glass-fill:rgba(255,255,255,.62);--glass-edge:rgba(255,255,255,.85);
+  --ink-inverse:#F7F5F0;--focus-ring:0 0 0 2px var(--canvas),0 0 0 4px var(--accent);/* @kind shadow */
+  --caption-ink:#FFFFFF;
 }
-
-[data-theme="night"] {
-  --canvas: var(--night-canvas);
-  --surface-raised: var(--night-surface-raised);
-  --surface-sunken: var(--night-surface-sunken);
-  --ink: var(--night-ink);
-  --ink-secondary: var(--night-ink-secondary);
-  --ink-tertiary: var(--night-ink-tertiary);
-  --hairline: var(--night-hairline);
-  --accent-text: var(--blue-text-night);
-  --accent-glow: rgba(91, 124, 250, 0.5);
-  --glass-fill: rgba(26, 26, 28, 0.55);
-  --glass-edge: rgba(255, 255, 255, 0.14);
-  --text-on-ink: var(--night-canvas);
+[data-theme="night"]{
+  --canvas:var(--night-canvas);--surface-raised:var(--night-raised);--surface-sunken:var(--night-sunken);
+  --ink:var(--night-ink);--ink-secondary:var(--night-ink-2);--ink-tertiary:var(--night-ink-3);
+  --hairline:var(--night-hairline);--accent-text:var(--accent-text-night);
+  --glass-fill:rgba(26,26,28,.55);--glass-edge:rgba(255,255,255,.14);
+  --ink-inverse:#111111;
 }
 
 /* typography.css */
-:root {
-  --font-sans: 'Geist', ui-sans-serif, system-ui, -apple-system, 'Helvetica Neue', Helvetica, sans-serif;
-  --font-mono: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace;
-
-  --type-display-size: 56px; --type-display-line: 60px; --type-display-weight: 500; --type-display-tracking: -0.02em;
-  --type-title-size: 28px;   --type-title-line: 34px;   --type-title-weight: 500;
-  --type-heading-size: 20px; --type-heading-line: 26px; --type-heading-weight: 500;
-  --type-body-size: 15px;    --type-body-line: 22px;    --type-body-weight: 400;
-  --type-ui-size: 15px;      --type-ui-line: 20px;      --type-ui-weight: 500;
-  --type-menu-size: 13px;    --type-menu-line: 18px;    --type-menu-weight: 500;
-  --font-hand: 'Caveat', 'Bradley Hand', cursive;
-  --type-meta-size: 12px;    --type-meta-line: 16px;    --type-meta-weight: 400;
-  --type-caption-size: 22px; --type-caption-line: 26px; --type-caption-weight: 700;
-  --type-timecode-size: 12px; --type-timecode-line: 16px;
-
-  --caption-shadow: 0 1px 2px rgba(0,0,0,.45), 0 2px 12px rgba(0,0,0,.35);
-
-  --font-display: var(--type-display-weight) var(--type-display-size)/var(--type-display-line) var(--font-sans);
-  --font-title: var(--type-title-weight) var(--type-title-size)/var(--type-title-line) var(--font-sans);
-  --font-heading: var(--type-heading-weight) var(--type-heading-size)/var(--type-heading-line) var(--font-sans);
-  --font-body: var(--type-body-weight) var(--type-body-size)/var(--type-body-line) var(--font-sans);
-  --font-ui: var(--type-ui-weight) var(--type-ui-size)/var(--type-ui-line) var(--font-sans);
-  --font-menu: var(--type-menu-weight) var(--type-menu-size)/var(--type-menu-line) var(--font-sans);
-  --font-hand-label: 600 22px/1 var(--font-hand);
-  --font-meta: var(--type-meta-weight) var(--type-meta-size)/var(--type-meta-line) var(--font-sans);
-  --font-caption: var(--type-caption-weight) var(--type-caption-size)/var(--type-caption-line) var(--font-sans);
-  --font-timecode: 400 var(--type-timecode-size)/var(--type-timecode-line) var(--font-mono);
+:root{
+  --font-sans:'Geist',ui-sans-serif,system-ui,-apple-system,sans-serif;
+  --font-mono:'Geist Mono',ui-monospace,'SF Mono',Menlo,monospace;
+  --type-display:500 56px/60px var(--font-sans);--tracking-display:-0.02em;
+  --type-title:500 28px/34px var(--font-sans);--tracking-title:-0.01em;
+  --type-heading:500 20px/26px var(--font-sans);
+  --type-body:400 15px/22px var(--font-sans);
+  --type-ui:500 13px/18px var(--font-sans);
+  --type-meta:400 12px/16px var(--font-sans);
+  --type-timecode:500 12px/16px var(--font-mono);
+  --type-caption:700 22px/26px var(--font-sans);
+  --caption-shadow:0 1px 2px rgba(0,0,0,.45),0 2px 12px rgba(0,0,0,.35);
 }
 
-/* layout.css */
-:root {
-  --space-2: 2px; --space-4: 4px; --space-8: 8px; --space-12: 12px; --space-16: 16px;
-  --space-24: 24px; --space-32: 32px; --space-48: 48px; --space-64: 64px; --space-96: 96px;
-
-  --radius-chip: 6px;
-  --radius-menu-item: 10px;
-  --radius-glass: 16px;
-  --radius-lens: 20px;
-  --radius-pill: 999px;
-  --radius-circle: 50%;
-
-  --hit-min: 44px;
-  --icon-size: 20px;
-  --icon-stroke: 1.5px;
-  --status-dot: 6px;
+/* spacing.css */
+:root{
+  --space-2:2px;--space-4:4px;--space-8:8px;--space-12:12px;--space-16:16px;--space-24:24px;--space-32:32px;--space-48:48px;--space-64:64px;--space-96:96px;
+  --radius-chip:6px;--radius-menu-item:10px;--radius-panel:16px;--radius-lens:20px;--radius-pill:999px;--radius-circle:50%;
+  --hit-min:44px;--icon-size:20px;--icon-stroke:1.5px;
 }
 
 /* effects.css */
+:root{
+  --shadow-lens-rest:0 1px 2px rgba(17,17,17,.08),0 12px 32px rgba(17,17,17,.10);
+  --shadow-lens-lift:0 2px 4px rgba(17,17,17,.10),0 24px 56px rgba(17,17,17,.16);
+  --shadow-glass:inset 0 1px 0 rgba(255,255,255,.9),0 8px 24px rgba(17,17,17,.10);
+  --glass-blur:blur(28px) saturate(1.6);/* @kind other */
+  --recede-blur:blur(12px);/* @kind other */--recede-opacity:.4;/* @kind other */
+  --grain:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .07 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");/* @kind other */
+  /* springs — CSS approximations of the Lens spring */
+  --spring:cubic-bezier(.34,1.36,.64,1);/* @kind other */
+  --spring-soft:cubic-bezier(.22,1.12,.36,1);/* @kind other */
+  --ease-out:cubic-bezier(.2,.8,.2,1);/* @kind other */
+  --dur-morph:450ms;/* @kind other */
+  --dur-lift:260ms;/* @kind other */
+  --dur-quick:160ms;/* @kind other */
+  --hover-lift:-4px;/* @kind spacing */
+}
+[data-theme="night"]{
+  --shadow-lens-rest:0 1px 2px rgba(0,0,0,.4),0 12px 32px rgba(0,0,0,.45);
+  --shadow-lens-lift:0 2px 4px rgba(0,0,0,.45),0 24px 56px rgba(0,0,0,.6);
+  --shadow-glass:inset 0 1px 0 rgba(255,255,255,.14),0 8px 24px rgba(0,0,0,.4);
+}
+
+/* compat.css */
+/*
+ * Names the editor (web + mobile) still uses that design/system-v2/tokens renamed or dropped.
+ * gen-tokens.ts appends this after the v2 tokens. v2 always wins: the generator fails if a name here is also defined
+ * by system-v2, so a renamed token is an alias to its v2 name, and only names v2 has no equivalent for keep their
+ * v1 (design/tokens) value. Delete an entry once nothing reads it.
+ */
 :root {
-  --shadow-lens-rest: 0 0 0 .5px rgba(17,17,17,.10), 0 1px 2px rgba(17,17,17,.08), 0 12px 32px rgba(17,17,17,.10);
-  --shadow-lens-lift: 0 0 0 .5px rgba(17,17,17,.12), 0 2px 4px rgba(17,17,17,.10), 0 24px 56px rgba(17,17,17,.16);
-  --shadow-glass: inset 0 1px 0 rgba(255,255,255,.9), 0 1px 2px rgba(17,17,17,.06), 0 8px 24px rgba(17,17,17,.10);
+  /* renamed in v2 */
+  --paper-surface-raised: var(--paper-raised);
+  --paper-surface-sunken: var(--paper-sunken);
+  --paper-ink-secondary: var(--paper-ink-2);
+  --paper-ink-tertiary: var(--paper-ink-3);
+  --night-surface-raised: var(--night-raised);
+  --night-surface-sunken: var(--night-sunken);
+  --night-ink-secondary: var(--night-ink-2);
+  --night-ink-tertiary: var(--night-ink-3);
+  --chrome-hi: var(--chrome-1);
+  --chrome-mid: var(--chrome-2);
+  --chrome-lo: var(--chrome-3);
+  --chrome-edge: var(--chrome-gradient);
+  --text-on-ink: var(--ink-inverse);
+  --ring-selected: var(--focus-ring);
+  --radius-glass: var(--radius-panel);
+  --glass-backdrop: var(--glass-blur);
+  --type-display-tracking: var(--tracking-display);
+
+  /* type shorthands: v1 called them --font-*, v2 calls them --type-*. v2's 13/18 "ui" is v1's "menu". */
+  --font-display: var(--type-display);
+  --font-title: var(--type-title);
+  --font-heading: var(--type-heading);
+  --font-body: var(--type-body);
+  --font-menu: var(--type-ui);
+  --font-meta: var(--type-meta);
+  --font-caption: var(--type-caption);
+  --font-timecode: var(--type-timecode);
+
+  /* not in v2: v1 values */
+  --font-ui: 500 15px/20px var(--font-sans);
+  --font-hand: 'Caveat', 'Bradley Hand', cursive;
+  --font-hand-label: 600 22px/1 var(--font-hand);
+  --accent-glow: rgba(91, 124, 250, 0.35);
+  --scrim-video: rgba(17, 17, 17, 0.0);
+  --status-dot: 6px;
   --shadow-glass-float: inset 0 1px 0 rgba(255,255,255,.9), 0 1px 2px rgba(17,17,17,.08), 0 22px 50px -14px rgba(17,17,17,.34);
-  --ring-selected: 0 0 0 2px var(--canvas), 0 0 0 4px var(--accent);
-
-  /* glass: blur + saturate everywhere; liquid refraction is layered on by eyelore.js where supported */
-  --glass-backdrop: blur(24px) saturate(1.7);
-  --glass-backdrop-liquid: url(#el-liquid) blur(10px) saturate(1.8) brightness(1.03);
-  --glass-blur: var(--glass-backdrop);
   --ambient-strength: .55;
-
-  --recede-blur: 12px;
-  --recede-opacity: 0.4;
-  --hover-lift: -4px;
-
-  /* springs — linear() approximations; nothing eases linearly */
   --spring-morph: linear(0, 0.009, 0.035 2.1%, 0.141 4.4%, 0.723 12.9%, 0.938 16.7%, 1.017 19.4%, 1.067, 1.099 24.3%, 1.108 26%, 1.103, 1.085 30.4%, 1.006 39.1%, 0.98 43.2%, 0.975 46.6%, 0.98 51.5%, 1.003 64%, 1.005 69.6%, 1);
-  --spring-soft: linear(0, 0.06 3%, 0.25 8%, 0.62 18%, 0.88 28%, 1.02 40%, 1.04 48%, 1.01 64%, 1);
   --spring-pop: linear(0, 0.12 4%, 0.5 12%, 0.92 22%, 1.12 32%, 1.08 40%, 0.98 54%, 1.01 70%, 1);
-  --dur-morph: 450ms;
   --dur-hover: 180ms;
   --dur-recede: 320ms;
   --dur-shimmer: 2.8s;
 }
-html.el-liquid { --glass-backdrop: var(--glass-backdrop-liquid); }
 [data-theme="night"] {
-  --shadow-lens-rest: 0 0 0 .5px rgba(255,255,255,.06), 0 1px 2px rgba(0,0,0,.4), 0 12px 32px rgba(0,0,0,.45);
-  --shadow-lens-lift: 0 0 0 .5px rgba(255,255,255,.08), 0 2px 4px rgba(0,0,0,.45), 0 24px 56px rgba(0,0,0,.6);
-  --shadow-glass: inset 0 1px 0 rgba(255,255,255,.16), 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.4);
+  --accent-glow: rgba(91, 124, 250, 0.5);
   --shadow-glass-float: inset 0 1px 0 rgba(255,255,255,.16), 0 1px 2px rgba(0,0,0,.35), 0 22px 50px -14px rgba(0,0,0,.7);
   --ambient-strength: .38;
 }
+/* v1 component keyframes (components.css uses these; v2 base.css redefines el-shimmer/el-pulse differently and is not imported) */
 @keyframes el-shimmer { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
 @keyframes el-pulse { 0% { box-shadow: 0 0 0 0 var(--accent-glow); } 70% { box-shadow: 0 0 0 6px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
 @keyframes el-breathe { 0%,100% { opacity: .35; } 50% { opacity: .9; } }

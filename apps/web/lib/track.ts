@@ -3,7 +3,8 @@ import { useCallback } from "react";
 import { useMutation } from "convex/react";
 import { track as vercelTrack } from "@vercel/analytics";
 import { api } from "@convex/_generated/api";
-import { heroVariant, type AnalyticsEvent } from "@eyelore/core";
+import { heroVariant } from "@eyelore/core/flags";
+import type { AnalyticsEvent } from "@eyelore/core";
 import { getAnonId } from "./anon";
 
 type Props<N extends AnalyticsEvent["name"]> = Omit<Extract<AnalyticsEvent, { name: N }>["props"], "platform" | "variant">;

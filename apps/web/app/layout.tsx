@@ -23,7 +23,7 @@ export const viewport: Viewport = { themeColor: [{ media: "(prefers-color-scheme
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`} data-theme="paper">
+    <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`} data-theme="paper" suppressHydrationWarning>
       <body>
         <Providers>{children}</Providers>
         <Analytics />
