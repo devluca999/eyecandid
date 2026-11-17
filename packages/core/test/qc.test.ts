@@ -194,7 +194,7 @@ describe("qcDoc on ordinary autocut output", () => {
       for (const i of issues) if (i.gate !== "note") bad.push(`seed ${seed}: ${i.code} · ${i.message}`);
     }
     expect(bad.slice(0, 10)).toEqual([]);
-    // today's autocut does leave wordless slivers between back-to-back cuts, and the chunker a few long captions
-    expect(slivers).toBeGreaterThan(0);
+    // notes are allowed: today's autocut leaves wordless slivers between back-to-back cuts (none once #49 merges them)
+    expect(slivers).toBeGreaterThanOrEqual(0);
   }, 60_000);
 });
