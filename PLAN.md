@@ -169,6 +169,7 @@ Integration is built behind a labelled stub until the key exists. Set them in Ve
 | SendPulse | `SENDPULSE_CLIENT_ID`, `SENDPULSE_CLIENT_SECRET` | Convex | **not built yet** (Phase 2: "your edit is ready") |
 | Sentry | `SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_DSN`, `EXPO_PUBLIC_SENTRY_DSN`, `SENTRY_AUTH_TOKEN` | all | **not built yet**: `@sentry/nextjs` installed, no init; mobile and worker not instrumented |
 | Engine wake | `EYELORE_WAKE_URL` | Convex | built (`convex/wake.ts`, Modal `wake` endpoint); **not deployed**: needs the Modal spend cap raised, a redeploy, and the printed URL set on each Convex deployment |
+| Pro access (Phase 4) | `EYELORE_ADMIN_TOKEN`, `EYELORE_PRO_SEATS` (default 100), `EYELORE_WEB_URL`; reuses `SENDPULSE_*`, `STRIPE_SECRET_KEY`, `STRIPE_PRICE_CREATOR`, `STRIPE_WEBHOOK_SECRET` | Convex | built: `/admin/access` (says "not configured" without the admin token), approve → `pro` allow list + "you're in" email (row reads "not sent · SendPulse not configured" without SendPulse; **resend** once it is) → `/pro/checkout` (says "billing isn't switched on yet" until `STRIPE_SECRET_KEY` + the `billing` flag). Pro is sold as the `creator` price. GPU jobs are refused without an approved, paid, credited owner. **Needs:** the keys above, `billing` flag on, Stripe webhook registered |
 | Worker | `EYELORE_WORKER_TOKEN`, `EYELORE_CONVEX_SITE_URL` | Colab/Modal/RunPod secrets | generated per worker by `convex run workers:register`; CI's dev worker token is in GitHub secrets as `EYELORE_DEV_WORKER_TOKEN` |
 
 ## 8. Notes and conflicts found
