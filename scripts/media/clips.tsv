@@ -5,13 +5,13 @@
 #   (every tile is 1:1, 4:5, 9:16 or a circle, so a square loses nothing on screen and saves ~45% of the pixels).
 #   Portrait sources are kept whole.
 41550	2	5	sq:0.5	aerial meadow · hero far circle (replaces the design's 5565: Restricted licence)
-41272	1	5	sq:0.42	talking head · reel a
-42308	1	5	full	selfie at the gym (portrait) · reel b
+44031	4	5	sq:0.45	podcaster talking into the mic · reel a (replaces 41272: cast diversity, owner request 17 Nov)
+51251	3	5	sq:0.48	two friends filming a selfie video by a neon sign · reel b (replaces 42308: cast diversity, owner request 17 Nov)
 32800	1	6	sq:0.4	sprint, crouched start · hero runner
 2168	2	5	sq:0.4	sunset clouds over the sea · hero cine tile (replaces 9582: Restricted licence)
 2300	2.4	4	sq:0.5	unboxing (box flaps open, seen from inside) · hero b-roll tile
 40865	1	5	sq:0.35	cyclist · hero lower right
-42323	1	5	full	talking to camera (portrait) · walkthrough
+52180	1	5	sq:0.42	podcaster talking at the mic · walkthrough (replaces 42323: cast diversity, owner request 17 Nov)
 810	2	5	sq:0.45	milk pour · hero small tile
 41181	1	5	sq:0.55	selfie at the window · reel c
 4851	0.5	5	sq:0.5	runner at sunset · real-or-ai "ai" tile (replaces 46653: Restricted licence)
@@ -20,9 +20,9 @@
 42306	1	5	full	dancing against a colourful set (portrait) · hero blurred 4:5
 41290	0.3	4	full	vlogger talking to camera (portrait) · hero small circle
 49647	2	5	sq:0.25	creator filming by a lake · hero circle
-41281	3.4	5	sq:0.5	camera on a tripod · reel b-roll tile
+34481	5	5	sq:0.55	a friend filming her dancing in the street · reel b-roll tile (replaces 41281: cast diversity, owner request 17 Nov)
 50422	1	5	sq:0.5	skincare products on a desk · walkthrough b-roll
 42319	1	5	full	creator talking to camera (portrait) · genre switcher
 609	1	5	sq:0.45	runner's legs on a track · genre sports ad
 34487	0.5	5	full	creator talking into her phone outdoors (portrait) · autopilots
-42310	1	5	full	creator holding up social icons (portrait) · real tile
+12125	5.5	4	sq:0.42	two friends filming a selfie on the sofa · real tile (replaces 42310: cast diversity, owner request 17 Nov)
