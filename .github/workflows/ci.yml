@@ -171,11 +171,10 @@ jobs:
           filters: |
             mobile:
               - 'apps/mobile/**'
-              - 'packages/**'
-              - 'convex/**'
-              - 'services/**'
+              - 'packages/core/src/**'
+              - 'packages/ui/src/**'
+              - 'convex/_generated/**'
               - 'pnpm-lock.yaml'
-              - '.github/workflows/ci.yml'
 
   # The APK is built on this runner, not in the EAS cloud: a free-tier cloud build waits ~17 min in the queue and then
   # builds for 14-26 min, so `eas build --wait` outlived every push (and each cancelled run left its build queued).
@@ -214,7 +213,7 @@ jobs:
         id: apk
         with:
           path: app.apk
-          key: apk-x86_64-${{ hashFiles('apps/mobile/**', '!apps/mobile/.maestro/**', 'packages/**', 'convex/_generated/**', 'pnpm-lock.yaml') }}
+          key: apk-x86_64-${{ hashFiles('apps/mobile/**', '!apps/mobile/.maestro/**', 'packages/core/src/**', 'packages/ui/src/**', 'convex/_generated/*.js', 'pnpm-lock.yaml') }}
       - name: release apk for the emulator (x86_64 only, signed with the debug key)
         if: steps.apk.outputs.cache-hit != 'true'
         working-directory: apps/mobile
