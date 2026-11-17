@@ -1,0 +1,6 @@
+# core-loop is the timed Phase 2 proof; delete then removes the edit it made.
+executionOrder:
+  continueOnFailure: false
+  flowsOrder:
+    - core-loop
+    - delete
