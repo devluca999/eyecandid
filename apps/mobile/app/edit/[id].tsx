@@ -161,7 +161,7 @@ export default function Edit() {
     setSaved({ exportId, state: "saving" });
     void (async () => {
       try {
-        const file = await downloadExport(latest.url!, `eyelore-${exportId}`);
+        const file = await downloadExport(latest.url!, `eyecandid-${exportId}`);
         const perm = await MediaLibrary.requestPermissionsAsync(true);
         if (!perm.granted) return setSaved({ exportId, state: "denied", uri: file });
         await MediaLibrary.saveToLibraryAsync(file);

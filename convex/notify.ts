@@ -85,7 +85,7 @@ export const send = internalAction({
       const res = await fetch("https://api.sendpulse.com/smtp/emails", {
         method: "POST",
         headers: { "content-type": "application/json", authorization: `Bearer ${access_token}` },
-        body: JSON.stringify({ email: { subject: "Your edit is ready", from: { name: "Eyelore", email: from }, to: [{ email: n.to }], text, html: b64(html) } }),
+        body: JSON.stringify({ email: { subject: "Your edit is ready", from: { name: "Eyecandid", email: from }, to: [{ email: n.to }], text, html: b64(html) } }),
       });
       if (!res.ok) return await done("failed", `sendpulse send ${res.status}`);
       return await done("sent");

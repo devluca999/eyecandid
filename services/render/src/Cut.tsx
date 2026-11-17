@@ -24,7 +24,7 @@ export function Cut({ doc, media, watermark }: CutProps) {
       <Captions chunks={tl.captions} />
       {watermark && (
         <div style={{ position: "absolute", right: "4%", bottom: "3%", color: "rgba(255,255,255,.8)", font: "500 34px Geist, sans-serif", textShadow: "0 1px 2px rgba(0,0,0,.4)" }}>
-          eyelore
+          eyecandid
         </div>
       )}
     </AbsoluteFill>

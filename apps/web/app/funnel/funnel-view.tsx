@@ -110,7 +110,7 @@ export function FunnelView() {
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-[760px] flex-col gap-32 px-16 py-24 sm:px-24">
       <header className="flex items-center justify-between gap-16">
-        <Link href="/" aria-label="eyelore home"><Lockup height={22} theme={theme} /></Link>
+        <Link href="/" aria-label="eyecandid home"><Lockup height={22} theme={theme} /></Link>
         <div className="el-seg" role="group" aria-label="theme">
           {(["paper", "night"] as const).map((t) => (
             <button key={t} type="button" className={"el-seg__opt" + (theme === t ? " is-on" : "")} aria-pressed={theme === t} onClick={() => setTheme(t)}>

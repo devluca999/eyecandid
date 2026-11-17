@@ -1,6 +1,6 @@
-# eyelore
+# Eyecandid
 
-*Making real people look great.* A video editor for creators and UGC ads: drop in raw clips, get back a polished, captioned, well-paced edit in about a minute.
+*Making real people look great.* (Formerly Eyelore.) A video editor for creators and UGC ads: drop in raw clips, get back a polished, captioned, well-paced edit in about a minute.
 
 - Plan, data model, job contract, funnel, risks, milestones: [`PLAN.md`](PLAN.md)
 - Decisions: [`docs/adr/`](docs/adr) · Brief: [`docs/BUILD_PROMPT.md`](docs/BUILD_PROMPT.md)

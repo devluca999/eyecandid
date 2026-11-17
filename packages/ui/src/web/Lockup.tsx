@@ -9,8 +9,8 @@ export function Lockup({ height = 20, theme = "paper", wordmark = true, base = "
   const file = "eyelore-mark" + (small ? "-small" : "") + (theme === "night" ? "-inverse" : "") + ".svg";
   return (
     <span className="el-lockup" style={{ ["--h" as string]: height + "px", color: theme === "night" ? "#F2F0EA" : "#111111", ...style }}>
-      <img src={`${base}/brand/${file}`} alt={wordmark ? "" : "eyelore"} />
-      {wordmark && <span>eyelore</span>}
+      <img src={`${base}/brand/${file}`} alt={wordmark ? "" : "eyecandid"} />
+      {wordmark && <span>eyecandid</span>}
     </span>
   );
 }
