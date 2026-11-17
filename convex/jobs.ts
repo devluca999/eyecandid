@@ -98,7 +98,9 @@ export const workerPresence = query({
     const state = await ctx.db.query("engineState").first();
     const r = state?.lastWakeResult ?? "";
     const wake: "asked" | "none" | "failing" | null = !state ? null : r.startsWith("ok") || r === "asking" ? "asked" : r.startsWith("not configured") || r.startsWith("no wake-able") ? "none" : "failing";
-    return { live: live.length, providers: [...new Set(live.map((w) => w.provider))], wake };
+    // can a cold engine be woken at all: a wake URL is set and a wake-able (modal) worker is registered (convex/wake.ts)
+    const wakeable = !!process.env.EYELORE_WAKE_URL && recent.some((w) => !w.disabled && w.provider === "modal");
+    return { live: live.length, providers: [...new Set(live.map((w) => w.provider))], wake, wakeable };
   },
 });
 
