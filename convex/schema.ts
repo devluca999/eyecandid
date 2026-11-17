@@ -141,5 +141,12 @@ export default defineSchema({
     watermark: v.boolean(),
   }).index("by_user", ["userId"]),
 
+  /** one row: when the engine was last woken and how that went (scale-to-zero workers, ADR 0010) */
+  engineState: defineTable({
+    lastWakeAt: v.number(),
+    lastWakeResult: v.optional(v.string()),
+    lastWakeMs: v.optional(v.number()),
+  }),
+
   stripeEvents: defineTable({ eventId: v.string(), at: v.number() }).index("by_eventId", ["eventId"]),
 });

@@ -28,6 +28,13 @@ const STAGE_WORD: Record<string, string> = {
   ready: "ready",
   failed: "needs you",
 };
+
+/** No worker is polling. Say what is actually happening: asked one to start, nothing to ask, or asking isn't working. */
+function coldLine(wake: "asked" | "none" | "failing" | null | undefined) {
+  if (wake === "failing") return "the engine isn't answering · we keep trying, your clip is safe";
+  if (wake === "none") return "no engine is running right now · your clip starts when one comes online";
+  return "the engine is waking up · usually under a minute";
+}
 const ASPECT_RATIO: Record<Aspect, number> = { "9:16": 9 / 16, "4:5": 4 / 5, "1:1": 1, "16:9": 16 / 9 };
 const MODES = ["theater", "edit", "board"] as const;
 type Mode = (typeof MODES)[number];
@@ -330,7 +337,7 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
       : stage === "failed"
         ? data?.project.stageDetail ?? "something went wrong"
         : cold
-          ? "the engine is cold · waiting for a worker to start"
+          ? coldLine(presence?.wake)
           : stage === "ready"
             ? null
             : `${STAGE_WORD[stage] ?? stage}${activeJob?.status === "running" ? ` · ${Math.round(activeJob.progress * 100)}%` : ""}`;
