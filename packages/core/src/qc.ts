@@ -78,7 +78,14 @@ function theirs(doc: EditDoc, clipId: string, srcMs: number): boolean {
 
 /** Problems visible in the edit itself, before anything is rendered. */
 export function qcDoc(doc: EditDoc, opts: { captionMaxChars?: number } = {}): QcIssue[] {
-  const { segments, captions, durationMs } = toTimeline(doc);
+  const { segments: pieces, captions, durationMs } = toTimeline(doc);
+  // beads tile the take, so two pieces that meet in source time play straight through: only a jump is a cut
+  const segments: typeof pieces = [];
+  for (const p of pieces) {
+    const last = segments.at(-1);
+    if (last && last.clipId === p.clipId && Math.abs(last.toMs - p.fromMs) <= 1) segments[segments.length - 1] = { ...last, toMs: p.toMs };
+    else segments.push(p);
+  }
   const issues: QcIssue[] = [];
   if (durationMs < QC.flashMs) {
     return [{ code: "empty", atMs: 0, spanMs: durationMs, ours: false, gate: "block", message: "nothing is left in this edit · restore a bead first" }];

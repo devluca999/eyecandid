@@ -39,6 +39,12 @@ describe("qcDoc", () => {
     expect(codes(docWith([strike(700, 900 + QC.wordEdgeToleranceMs)]))).toEqual([]);
   });
 
+  it("pieces that meet in source time (a bead edge) are not a cut and not a sliver", () => {
+    // the 120 ms breath kept after "sleep." belongs to the first bead; the take plays straight on into the pause cut
+    const d = docWith([strike(1920, 2380)]);
+    expect(qcDoc(d)).toEqual([]);
+  });
+
   it("doesn't treat the start and end of the edit as cuts", () => {
     const d = docWith([]);
     expect(toTimeline(d).segments.length).toBeGreaterThan(1);
