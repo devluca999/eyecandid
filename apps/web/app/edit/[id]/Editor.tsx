@@ -8,6 +8,7 @@ import type { Id } from "@convex/_generated/dataModel";
 import { coverBox, faceAt, outputAt, punchAt, toTimeline, type Aspect, type Bead, type EditDoc, type EditOp } from "@eyelore/core";
 import { ContextMenu, ExportPill, Icon, Lens, Lockup, StatusDot, RATIOS, type MenuItem } from "@eyelore/ui";
 import { getAnonId } from "@/lib/anon";
+import { probeVideo } from "@/lib/upload";
 import { session } from "@/lib/session";
 import { useTrack } from "@/lib/track";
 import { renderOnDevice } from "@/lib/device-engine";
@@ -237,7 +238,7 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
   const [devExport, setDevExport] = useState<{ phase: "idle" | "rendering" | "done" | "failed"; progress: number; url?: string; error?: string; watermark?: boolean }>({ phase: "idle", progress: 0 });
   const deviceExporter = async (x: { aspect: Aspect; requestId: string; maxDurationMs?: 15000 | 30000 | 60000; mode: "best" | "free" }) => {
     const local = session.get(projectId)?.url;
-    if (!local) throw new Error("this clip stays on the device you dropped it on · drop it again here to export");
+    if (!local) throw new Error("this clip stays on the device you dropped it on · choose it again below to export");
     const auth = await authorizeDeviceExport({ anonId, projectId, ...x });
     setDevExport({ phase: "rendering", progress: 0 });
     try {
@@ -256,7 +257,7 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
     // [around-the-loop] signup (Clerk), paywall and the export call itself: see ExportGate.tsx
     const exportArgs = { aspect, requestId: `${Date.now()}-${exportReq}`, ...(useCut ? { maxDurationMs: (Number(useCut) * 1000) as 15000 | 30000 | 60000 } : {}) };
     if (isDevice && !session.get(projectId)?.url) {
-      setNotice("this clip stays on the device you dropped it on · drop it again here to export");
+      setNotice("this clip stays on the device you dropped it on · choose it again below to export");
       return;
     }
     try {
@@ -384,7 +385,7 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
   const deviceLine = isDevice && stage !== "ready" && stage !== "failed"
     ? pending
       ? pending.deviceStage ?? data?.project.stageDetail ?? "on this device"
-      : "this edit runs in the browser it was dropped in · keep that tab open, or drop the clip again here"
+      : "this edit runs in the browser it was dropped in · keep that tab open, or drop it again on the home page"
     : null;
   const activeJob = data?.jobs.find((j) => j.status === "running" || j.status === "leased" || j.status === "queued");
   const stageLine = pending?.error
@@ -641,6 +642,10 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
           </div>
         )}
 
+        {/* an on-device edit opened after a reload or in a new tab: the edit is here, the clip isn't (ADR 0012) */}
+        {isDevice && !pending && stage === "ready" && mode === "edit" && (
+          <ChooseAgain projectId={projectId} durationMs={sourceMedia?.durationMs ?? clip?.durationMs} onNotice={setNotice} />
+        )}
         {stage === "ready" && serverDoc && mode === "edit" && (
           <ExportPill
             value={view === "source" ? serverDoc.aspect : view}
@@ -705,6 +710,38 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
       {mode !== "theater" && <Help open={sheet} onToggle={() => setSheet((s) => !s)} onTour={() => (setSheet(false), setMode("edit"), setTour(0))} />}
       {tour !== null && ready && mode === "edit" && <Tour step={tour} onNext={() => stepTour(1)} onPrev={() => stepTour(-1)} onSkip={endTour} />}
     </Shell>
+  );
+}
+
+/** Put the clip back into this tab: same length as the one the edit was made from (within a second), then it plays and exports again. */
+function ChooseAgain({ projectId, durationMs, onNotice }: { projectId: string; durationMs?: number; onNotice: (s: string) => void }) {
+  const input = useRef<HTMLInputElement>(null);
+  return (
+    <p className="text-meta text-ink-secondary flex flex-wrap items-center justify-center gap-8" style={{ textAlign: "center" }} data-testid="choose-again">
+      <span>the clip stays in the browser it was dropped in, so it isn&apos;t here</span>
+      <button type="button" className="el-pill el-pill--secondary el-pill--sm" onClick={() => input.current?.click()}>
+        choose it again
+      </button>
+      <input
+        ref={input}
+        type="file"
+        accept="video/*"
+        hidden
+        aria-label="choose the clip again"
+        onChange={async (e) => {
+          const file = e.target.files?.[0];
+          e.target.value = "";
+          if (!file) return;
+          try {
+            const meta = await probeVideo(file);
+            if (durationMs && Math.abs(meta.durationMs - durationMs) > 1000) return onNotice("that's a different clip · choose the one this edit was made from");
+            session.put({ projectId, file, droppedAt: Date.now(), engine: "device" });
+          } catch (err) {
+            onNotice(err instanceof Error ? err.message : "couldn't read that file");
+          }
+        }}
+      />
+    </p>
   );
 }
 
