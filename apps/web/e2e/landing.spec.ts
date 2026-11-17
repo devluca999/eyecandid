@@ -54,9 +54,9 @@ test("landing: with reduced motion the clips stay posters and nothing pins", asy
 
 test("landing: with motion, clips on screen get self-hosted sources and play", async ({ page }) => {
   await page.goto("/");
-  const v = page.locator('.ec-hero video[data-clip="236"]');
+  const v = page.locator('.ec-hero video[data-clip="2300"]');
   await expect(v.locator("source")).toHaveCount(2, { timeout: 15_000 });
-  await expect(v.locator("source").first()).toHaveAttribute("src", /^\/media\/236-(480|720)\.webm$/);
+  await expect(v.locator("source").first()).toHaveAttribute("src", /^\/media\/2300-(480|720)\.webm$/);
 });
 
 test("landing: start now takes you to the drop well", async ({ page }) => {
