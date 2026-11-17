@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { fileURLToPath } from "node:url";
+import { unnamedControls } from "./a11y";
 
 const CLIP = fileURLToPath(new URL("../../../services/engine/tests/fixtures/talk.mp4", import.meta.url));
 
@@ -24,6 +25,7 @@ test("drop a raw clip → polished, captioned 9:16 export in under 3 minutes", a
   // first run: a short tour points at the real controls; it never blocks, and it can be skipped
   await expect(page.getByTestId("tour")).toBeVisible();
   await shot(page, "edit-tour");
+  expect(await unnamedControls(page)).toEqual([]); // the ready editor, its busiest state: every control has a name
   await page.getByTestId("tour-skip").click();
   await expect(page.getByTestId("tour")).toHaveCount(0);
   const struck = page.getByTestId("struck-word");
@@ -47,6 +49,12 @@ test("drop a raw clip → polished, captioned 9:16 export in under 3 minutes", a
   const res = await page.request.get(href!);
   expect(res.ok()).toBe(true);
   expect((await res.body()).byteLength).toBeGreaterThan(20_000);
+  // clicking it saves a named file and the editor stays (a plain cross-origin link would replace the page)
+  const [file] = await Promise.all([page.waitForEvent("download"), download.click()]);
+  expect(file.suggestedFilename()).toBe("talk - eyecandid.mp4");
+  await expect(page).toHaveURL(/\/edit\//);
+  // the free export's one next step: Pro, offered once, never pushed
+  await expect(page.getByTestId("pro-offer")).toContainText("request pro access");
 
   const secs = (Date.now() - t0) / 1000;
   console.log(`core loop: ${secs.toFixed(1)}s (restored '${word}')`);

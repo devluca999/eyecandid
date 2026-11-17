@@ -43,7 +43,7 @@ export async function transcribeOnDevice(file: File, durationMs: number, onStage
   if (!cached) {
     await wh.downloadWhisperModel({
       model: DEVICE_MODEL,
-      onProgress: (p) => onStage(`getting the editor ready · ${Math.round(p.loadedBytes / 1e6)} of ${Math.round(p.totalBytes / 1e6)} MB · once per device`),
+      onProgress: (p) => onStage(`getting the editor ready · ${Math.round(Math.min(p.loadedBytes, p.totalBytes) / 1e6)} of ${Math.round(p.totalBytes / 1e6)} MB · once per device`),
     });
   }
   onStage("listening · on this device");

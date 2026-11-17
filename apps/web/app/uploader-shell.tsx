@@ -43,7 +43,7 @@ export function LandingUploader({ children }: { children: ReactNode }) {
         started.current = false;
         pending.current = null;
         setQueued(false);
-        setLoadError("couldn't load · check your connection and try again");
+        setLoadError("couldn't load the uploader · check your connection and try again");
       });
   }, []);
 
@@ -191,7 +191,7 @@ export function DropWell({ title, hint, height, testId, id }: { title: string; h
           </span>
         </span>
       </button>
-      {error && <StatusDot status="attention" label={error} />}
+      {error && <StatusDot status="attention" label={error} style={{ whiteSpace: "normal", maxWidth: "100%" }} />}
     </div>
   );
 }

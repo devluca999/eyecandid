@@ -8,6 +8,7 @@ import type { Id } from "@convex/_generated/dataModel";
 import { coverBox, faceAt, outputAt, punchAt, toTimeline, type Aspect, type Bead, type EditDoc, type EditOp } from "@eyelore/core";
 import { ContextMenu, ExportPill, Icon, Lens, Lockup, StatusDot, RATIOS, type MenuItem } from "@eyelore/ui";
 import { getAnonId } from "@/lib/anon";
+import { probeVideo } from "@/lib/upload";
 import { session } from "@/lib/session";
 import { useTrack } from "@/lib/track";
 import { renderOnDevice } from "@/lib/device-engine";
@@ -64,6 +65,7 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
   const data = useQuery(api.projects.get, anonId ? { projectId, anonId } : "skip");
   const history = useQuery(api.edits.history, anonId && data?.doc?.beads.length ? { projectId, anonId, limit: 300 } : "skip");
   const presence = useQuery(api.jobs.workerPresence, {});
+  const limits = useQuery(api.limits.status, anonId ? { anonId } : "skip");
   const apply = useMutation(api.edits.apply);
   const undo = useMutation(api.edits.undo);
   const remove = useMutation(api.projects.remove);
@@ -234,15 +236,15 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
   // on-device engine (ADR 0012): the clip lives in this browser; exports are authorized by the server, rendered here
   const isDevice = data?.project.engine === "device";
   const authorizeDeviceExport = useMutation(api.pipeline.authorizeDeviceExport);
-  const [devExport, setDevExport] = useState<{ phase: "idle" | "rendering" | "done" | "failed"; progress: number; url?: string; error?: string }>({ phase: "idle", progress: 0 });
+  const [devExport, setDevExport] = useState<{ phase: "idle" | "rendering" | "done" | "failed"; progress: number; url?: string; error?: string; watermark?: boolean }>({ phase: "idle", progress: 0 });
   const deviceExporter = async (x: { aspect: Aspect; requestId: string; maxDurationMs?: 15000 | 30000 | 60000; mode: "best" | "free" }) => {
     const local = session.get(projectId)?.url;
-    if (!local) throw new Error("this clip stays on the device you dropped it on · drop it again here to export");
+    if (!local) throw new Error("this clip stays on the device you dropped it on · choose it again below to export");
     const auth = await authorizeDeviceExport({ anonId, projectId, ...x });
     setDevExport({ phase: "rendering", progress: 0 });
     try {
       const { blob, durationMs } = await renderOnDevice(auth.doc as EditDoc, local, x.aspect, auth.watermark, (p) => setDevExport({ phase: "rendering", progress: p }));
-      setDevExport({ phase: "done", progress: 1, url: URL.createObjectURL(blob) });
+      setDevExport({ phase: "done", progress: 1, url: URL.createObjectURL(blob), watermark: auth.watermark });
       track("export_done", { durationMs, watermark: auth.watermark });
     } catch (e) {
       setDevExport({ phase: "failed", progress: 0, error: e instanceof Error ? e.message : String(e) });
@@ -256,7 +258,7 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
     // [around-the-loop] signup (Clerk), paywall and the export call itself: see ExportGate.tsx
     const exportArgs = { aspect, requestId: `${Date.now()}-${exportReq}`, ...(useCut ? { maxDurationMs: (Number(useCut) * 1000) as 15000 | 30000 | 60000 } : {}) };
     if (isDevice && !session.get(projectId)?.url) {
-      setNotice("this clip stays on the device you dropped it on · drop it again here to export");
+      setNotice("this clip stays on the device you dropped it on · choose it again below to export");
       return;
     }
     try {
@@ -277,6 +279,27 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
       setNotice("couldn't delete that · try again");
     }
   };
+  const downloadUrl = isDevice ? devExport.url : latestExport?.url ?? undefined;
+  const filename = `${(data?.project.title ?? "").replace(/[^\w\- ]+/g, "").trim().slice(0, 60) || "edit"} - eyecandid.mp4`;
+  const exportedFree = isDevice ? devExport.phase === "done" && devExport.watermark !== false : latestExport?.status === "succeeded" && latestExport.watermark;
+  // the worker's file lives on the storage origin, where browsers ignore `download` and open the video in place of
+  // the editor; fetched on click it saves as a named file. If that fails, the video opens in a new tab instead.
+  const saveServerExport = isDevice
+    ? undefined
+    : (e: React.MouseEvent<HTMLAnchorElement>) => {
+        const href = e.currentTarget.href;
+        e.preventDefault();
+        void fetch(href)
+          .then((r) => (r.ok ? r.blob() : Promise.reject(new Error(String(r.status)))))
+          .then((b) => {
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(b);
+            a.download = filename;
+            a.click();
+            setTimeout(() => URL.revokeObjectURL(a.href), 30_000);
+          })
+          .catch(() => window.open(href, "_blank", "noopener"));
+      };
   const doneSent = useRef<string | null>(null);
   useEffect(() => {
     if (!isDevice && latestExport?.status === "succeeded" && doneSent.current !== latestExport._id) {
@@ -362,8 +385,8 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
   const cold = !isDevice && presence && presence.live === 0 && stage !== "ready" && stage !== "failed" && !uploading;
   const deviceLine = isDevice && stage !== "ready" && stage !== "failed"
     ? pending
-      ? pending.deviceStage ?? data?.project.stageDetail ?? "on this device"
-      : "this edit runs in the browser it was dropped in · keep that tab open, or drop the clip again here"
+      ? pending.deviceStage ?? data?.project.stageDetail ?? "editing on this device · your clip isn't uploaded"
+      : "this edit runs in the browser it was dropped in · keep that tab open, or drop it again on the home page"
     : null;
   const activeJob = data?.jobs.find((j) => j.status === "running" || j.status === "leased" || j.status === "queued");
   const stageLine = pending?.error
@@ -606,7 +629,7 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
             {notice ? (
               <span>{notice}</span>
             ) : stageLine ? (
-              <StatusDot status={stage === "failed" || pending?.error ? "attention" : "working"} label={stageLine} />
+              <StatusDot status={stage === "failed" || pending?.error ? "attention" : "working"} label={stageLine} style={{ whiteSpace: "normal", textAlign: "left" }} />
             ) : explain ? (
               <>
                 {explain.action}
@@ -620,6 +643,10 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
           </div>
         )}
 
+        {/* an on-device edit opened after a reload or in a new tab: the edit is here, the clip isn't (ADR 0012) */}
+        {isDevice && !pending && stage === "ready" && mode === "edit" && (
+          <ChooseAgain projectId={projectId} durationMs={sourceMedia?.durationMs ?? clip?.durationMs} onNotice={setNotice} />
+        )}
         {stage === "ready" && serverDoc && mode === "edit" && (
           <ExportPill
             value={view === "source" ? serverDoc.aspect : view}
@@ -630,11 +657,22 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
             phase={isDevice ? (devExport.phase === "failed" ? "idle" : devExport.phase) : exporting ? "rendering" : latestExport?.status === "succeeded" ? "done" : "idle"}
             progress={isDevice ? (devExport.phase === "rendering" ? devExport.progress : undefined) : exporting ? latestExport!.progress : undefined}
             stage={isDevice ? (devExport.phase === "rendering" ? "rendering on this device" : undefined) : exporting ? latestExport!.stage : undefined}
-            downloadUrl={isDevice ? devExport.url : latestExport?.url}
+            downloadUrl={downloadUrl}
+            filename={filename}
+            onDownload={saveServerExport}
           />
         )}
-        {isDevice && devExport.phase === "failed" && mode === "edit" && <StatusDot status="attention" label={`export failed · ${devExport.error ?? ""}`.slice(0, 120)} />}
-        {!isDevice && latestExport?.status === "failed" && mode === "edit" && <StatusDot status="attention" label={`export failed · ${latestExport.error ?? ""}`.slice(0, 120)} />}
+        {/* the Pro ask comes after value is felt: a free (watermarked) export just finished; never pushed */}
+        {stage === "ready" && mode === "edit" && exportedFree && !limits?.pro && (
+          <p className="text-meta text-ink-secondary" style={{ textAlign: "center" }} data-testid="pro-offer">
+            no watermark, clips up to 5 min?{" "}
+            <Link href="/#pricing" style={{ color: "var(--ink)", textDecoration: "underline", textUnderlineOffset: 3 }} onClick={() => track("edit_interaction", { kind: "pro_offer" })}>
+              request pro access
+            </Link>
+          </p>
+        )}
+        {isDevice && devExport.phase === "failed" && mode === "edit" && <StatusDot status="attention" label={`export failed · ${devExport.error ?? ""}`.slice(0, 160)} style={{ whiteSpace: "normal" }} />}
+        {!isDevice && latestExport?.status === "failed" && mode === "edit" && <StatusDot status="attention" label={`export failed · ${latestExport.error ?? ""}`.slice(0, 160)} style={{ whiteSpace: "normal" }} />}
         {gate.element /* [around-the-loop] modals work in every mode; the meta line only shows in edit */}
       </div>
 
@@ -673,6 +711,38 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
       {mode !== "theater" && <Help open={sheet} onToggle={() => setSheet((s) => !s)} onTour={() => (setSheet(false), setMode("edit"), setTour(0))} />}
       {tour !== null && ready && mode === "edit" && <Tour step={tour} onNext={() => stepTour(1)} onPrev={() => stepTour(-1)} onSkip={endTour} />}
     </Shell>
+  );
+}
+
+/** Put the clip back into this tab: same length as the one the edit was made from (within a second), then it plays and exports again. */
+function ChooseAgain({ projectId, durationMs, onNotice }: { projectId: string; durationMs?: number; onNotice: (s: string) => void }) {
+  const input = useRef<HTMLInputElement>(null);
+  return (
+    <p className="text-meta text-ink-secondary flex flex-wrap items-center justify-center gap-8" style={{ textAlign: "center" }} data-testid="choose-again">
+      <span>the clip stays in the browser it was dropped in, so it isn&apos;t here</span>
+      <button type="button" className="el-pill el-pill--secondary el-pill--sm" onClick={() => input.current?.click()}>
+        choose it again
+      </button>
+      <input
+        ref={input}
+        type="file"
+        accept="video/*"
+        hidden
+        aria-label="choose the clip again"
+        onChange={async (e) => {
+          const file = e.target.files?.[0];
+          e.target.value = "";
+          if (!file) return;
+          try {
+            const meta = await probeVideo(file);
+            if (durationMs && Math.abs(meta.durationMs - durationMs) > 1000) return onNotice("that's a different clip · choose the one this edit was made from");
+            session.put({ projectId, file, droppedAt: Date.now(), engine: "device" });
+          } catch (err) {
+            onNotice(err instanceof Error ? err.message : "couldn't read that file");
+          }
+        }}
+      />
+    </p>
   );
 }
 
