@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Icon, Lens, StatusDot, type Status } from "@eyelore/ui";
 import { Clip, useReducedMotion, watch } from "./media";
-import { WARM } from "./clips";
+import { SLOT, WARM } from "./clips";
 import { Reveal } from "./motion";
 
 const PROMPT = "make the background space";
@@ -92,7 +92,7 @@ export function Autopilots() {
           <span className="ec-bubble__tail" />
         </div>
         <Lens shape="rect" aspect="4 / 5" width="var(--w)" state={phase === "working" ? "generating" : "selected"} label="a talking-head clip with its background selected">
-          <Clip id={41272} filter={filter} style={{ transition: "filter 1s var(--ease-out)" }} />
+          <Clip id={SLOT.autopilots} filter={filter} style={{ transition: "filter 1s var(--ease-out)" }} />
           <span className="ec-space" style={{ opacity: phase === "done" ? 1 : 0 }} />
           <span className="ec-chip ec-chip--tl">
             <StatusDot status={phase === "done" ? "ready" : "working"} showLabel={false} />

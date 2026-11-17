@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Lens, PillButton } from "@eyelore/ui";
 import { Clip, useReducedMotion, watch } from "./media";
-import { CINE, WARM } from "./clips";
+import { CINE, SLOT, WARM } from "./clips";
 import { Reveal } from "./motion";
 
 const GENRES = ["comedy", "horror", "thriller", "sports"] as const;
@@ -42,24 +42,13 @@ export function Genre() {
       <Reveal className="ec-genre__media">
         <div ref={ref} className="ec-genre__stage">
           <Lens shape="rect" aspect="4 / 5" width="var(--w)" label={`the same clip, graded as ${g.label}`}>
-            <Clip id={42323} filter={g.f} style={{ opacity: sports ? 0 : 1, transition: "filter .6s var(--ease-out), opacity .4s var(--ease-out)" }} />
-            <Clip id={32800} filter={CINE} position="50% 60%" style={{ opacity: sports ? 1 : 0, transition: "opacity .4s var(--ease-out)" }} />
+            <Clip id={SLOT.genre} filter={g.f} style={{ opacity: sports ? 0 : 1, transition: "filter .6s var(--ease-out), opacity .4s var(--ease-out)" }} />
+            <Clip id={SLOT.genreSports} filter={CINE} style={{ opacity: sports ? 1 : 0, transition: "opacity .4s var(--ease-out)" }} />
             <span className="ec-cine" style={{ opacity: sports ? 1 : 0 }} />
             <span className="ec-vignette" style={{ opacity: g.vig }} />
             <span className="ec-cap ec-cap--big">it lives on my nightstand</span>
             <span className="ec-chip ec-chip--tl">{g.cue}</span>
           </Lens>
-          <div className="ec-genre__pip" style={{ opacity: sports ? 1 : 0, transform: sports ? "none" : "translateY(16px) scale(.8)" }} aria-hidden="true">
-            <Lens shape="circle" width="var(--pip)" glow={false}>
-              <Clip id={42323} filter={WARM} />
-            </Lens>
-          </div>
-          <div className="ec-genre__cyc" style={{ opacity: sports ? 1 : 0, transform: sports ? "rotate(-4deg)" : "translateY(24px) rotate(-4deg) scale(.85)" }} aria-hidden="true">
-            <Lens shape="rect" aspect="1 / 1" width="var(--cyc)">
-              <Clip id={40865} filter={CINE} />
-              <span className="ec-cine" />
-            </Lens>
-          </div>
         </div>
       </Reveal>
       <Reveal className="ec-copy ec-copy--down">

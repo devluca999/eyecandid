@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Lens, StatusDot, type Status } from "@eyelore/ui";
 import { Clip, useReducedMotion, watch } from "./media";
-import { CINE, RAW, WARM } from "./clips";
+import { CINE, RAW, SLOT, WARM } from "./clips";
 
 const SEQ: { t: string; b: string; chip: string; dot: Status }[] = [
   { t: "You film it. Awkwardly.", b: "Three takes, two ums, one long look at the ceiling. Normal.", chip: "raw · take 3 · 2 ums", dot: "attention" },
@@ -76,8 +76,8 @@ export function Sequence() {
         <div className="ec-seq__media">
           <div className="ec-seq__tilt" style={{ transform: s === 0 ? "rotate(-3deg)" : "none" }}>
             <Lens shape={shape} aspect="4 / 5" width={`var(--w-${shape})`} state={s === 1 ? "generating" : "rest"} label="one take, from raw to finished edit">
-              <Clip id={42323} filter={filter} style={{ transition: "filter .7s var(--ease-out)" }} />
-              <Clip id={236} filter={WARM} style={{ opacity: s === 3 ? 1 : 0, transition: "opacity .45s var(--ease-out)" }} />
+              <Clip id={SLOT.walkthrough} filter={filter} style={{ transition: "filter .7s var(--ease-out)" }} />
+              <Clip id={SLOT.walkthroughBroll} filter={WARM} style={{ opacity: s === 3 ? 1 : 0, transition: "opacity .45s var(--ease-out)" }} />
               <span className="ec-cine" style={{ opacity: s === 6 ? 1 : 0, transition: "opacity .7s var(--ease-out)" }} />
               <span className="ec-cap ec-cap--seq" style={{ bottom: shape === "circle" ? "20%" : "10%", opacity: s >= 2 ? 1 : 0 }}>
                 it lives on my nightstand

@@ -11,7 +11,7 @@ import { RealAi } from "./_landing/real-ai";
 import { Pricing } from "./_landing/pricing";
 import { Faq } from "./_landing/faq";
 import { FloatingPill } from "./_landing/pill";
-import { FaqDrift, Final, Footer, FounderPlaceholder, PricingDrift, ProofPlaceholder } from "./_landing/static";
+import { Final, Footer, FounderPlaceholder, PricingDrift, ProofPlaceholder } from "./_landing/static";
 import "./_landing/landing.css";
 
 export const metadata: Metadata = {
@@ -40,7 +40,6 @@ export default function Landing() {
             <Pricing />
           </div>
           <div className="ec-breather">
-            <FaqDrift />
             <Faq />
           </div>
           <Final />

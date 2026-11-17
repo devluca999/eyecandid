@@ -2,14 +2,14 @@
 import { useState } from "react";
 import { Lens } from "@eyelore/ui";
 import { Clip } from "./media";
-import { RAW, WARM } from "./clips";
+import { RAW, SLOT, WARM, type ClipId } from "./clips";
 import { Reveal } from "./motion";
 import { hoverable } from "./reel";
 
 /** 06 · real and ai: media left, copy right. Hover (tap, Enter) shows both raw. */
 export function RealAi() {
   const [raw, setRaw] = useState(false);
-  const tile = (id: 42308 | 4851, cap: string, name: string, off?: boolean) => (
+  const tile = (id: ClipId, cap: string, name: string, off?: boolean) => (
     <div className={"ec-pair__tile" + (off ? " ec-pair__tile--off" : "")}>
       <Lens shape="card" width="var(--w)">
         <Clip id={id} filter={raw ? RAW : WARM} style={{ transition: "filter .5s var(--ease-out)" }} />
@@ -29,8 +29,8 @@ export function RealAi() {
           onMouseLeave={() => hoverable() && setRaw(false)}
           onClick={(e) => (e.detail === 0 || !hoverable()) && setRaw((r) => !r)}
         >
-          {tile(42308, "yes, even at the gym", "real")}
-          {tile(4851, "every single morning", "ai", true)}
+          {tile(SLOT.real, "yes, even at the gym", "real")}
+          {tile(SLOT.ai, "every single morning", "ai", true)}
           <span className="ec-sr">show both raw</span>
         </button>
       </Reveal>

@@ -39,7 +39,7 @@ while IFS=$'\t' read -r id start loop crop _why; do
 
   [[ -n "${POSTERS_ONLY:-}" ]] || for s in 720 480; do
     if (( w >= h )) || [[ "$crop" == sq:* ]]; then sc="scale=-2:$s"; else sc="scale=$s:-2"; fi
-    if [[ $s == 720 ]]; then mr=1500k; vb=900k; crf=25; vcrf=37; else mr=650k; vb=380k; crf=28; vcrf=40; fi
+    if [[ $s == 720 ]]; then mr=1300k; vb=800k; crf=27; vcrf=38; else mr=650k; vb=380k; crf=28; vcrf=40; fi
     ffmpeg -nostdin -v error -y -i "$tmp" -vf "$sc" -an -c:v libx264 -profile:v high -preset slow -crf $crf -maxrate $mr -bufsize $mr \
       -pix_fmt yuv420p -movflags +faststart "$out/$id-$s.mp4"
     ffmpeg -nostdin -v error -y -i "$tmp" -vf "$sc" -an -c:v libvpx-vp9 -crf $vcrf -b:v $vb -maxrate $mr -bufsize $mr -row-mt 1 \
