@@ -58,7 +58,6 @@ is larger than a fix.
 
 ## Needs the owner
 
-0. CI's "preview · convex + vercel" check fails on PRs opened since the Convex team hit its preview-deployment quota (40). Old preview deployments need deleting (not done here).
 
 1. Production has no worker (#7): raise the Modal cap or decide what non-WebGPU browsers are told.
 2. The sample clip (#16): host one and set `NEXT_PUBLIC_SAMPLE_CLIP_URL`.
