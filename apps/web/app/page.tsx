@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { showPlaceholders } from "@/lib/visibility";
 import { Hero } from "./hero";
-import { UploaderProvider } from "./drop";
+import { LandingUploader } from "./uploader-shell";
 import { Motion } from "./_landing/motion";
 import { Reel } from "./_landing/reel";
 import { Sequence } from "./_landing/sequence";
@@ -23,7 +23,7 @@ export const metadata: Metadata = {
 export default function Landing() {
   const placeholders = showPlaceholders(); // read at build/render on the server: production never ships them
   return (
-    <UploaderProvider>
+    <LandingUploader>
       <Motion>
         <div className="ec-grain" aria-hidden="true" />
         <main>
@@ -47,6 +47,6 @@ export default function Landing() {
         <Footer />
         <FloatingPill />
       </Motion>
-    </UploaderProvider>
+    </LandingUploader>
   );
 }

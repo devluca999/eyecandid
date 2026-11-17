@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Lens, Lockup } from "@eyelore/ui";
 import { Clip } from "./media";
 import { CINE, SLOT, WARM, type ClipId } from "./clips";
-import { DropWell } from "../drop";
+import { DropWell } from "../uploader-shell";
 
 /** A breather tile that slides against the scroll (the Motion loop moves [data-drift]); desktop only, decorative. */
 function Drift({ k, at, clip, shape, w, aspect, rot, cine }: { k: number; at: React.CSSProperties; clip: ClipId; shape: "circle" | "rect" | "card"; w: number; aspect?: string; rot?: number; cine?: boolean }) {

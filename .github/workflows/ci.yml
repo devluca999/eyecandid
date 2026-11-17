@@ -88,6 +88,9 @@ jobs:
           (npx convex dev > convex.log 2>&1 &)
           for i in $(seq 1 60); do curl -sf $EYELORE_CONVEX_SITE_URL/worker/hello && break; sleep 2; done
           curl -sf $EYELORE_CONVEX_SITE_URL/worker/hello || (cat convex.log; exit 1)
+      - name: admin token for /funnel and /admin/access (a throwaway value for this local backend only)
+        run: npx convex env set EYELORE_ADMIN_TOKEN "$E2E_ADMIN_TOKEN"
+        env: { E2E_ADMIN_TOKEN: ci-local-admin }
       - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
       - name: start a real cpu worker (transcribe, autocut, reframe, render)
         run: |
@@ -99,7 +102,7 @@ jobs:
       - run: pnpm --filter @eyelore/web exec playwright install --with-deps chromium
       - name: playwright (functional + visual regression)
         run: pnpm --filter @eyelore/web exec playwright test --update-snapshots=missing
-        env: { E2E_WORKER: "1", E2E_REAL_WORKER: "1", CI: "1" }
+        env: { E2E_WORKER: "1", E2E_REAL_WORKER: "1", CI: "1", E2E_ADMIN_TOKEN: ci-local-admin }
       - if: always()
         uses: actions/upload-artifact@v4
         with:
