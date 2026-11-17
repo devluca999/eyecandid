@@ -6,9 +6,9 @@
 
 ## Decision
 
-**Model: [Tongyi-MAI/Z-Image-Turbo](https://huggingface.co/Tongyi-MAI/Z-Image-Turbo)**, loaded through diffusers `ZImagePipeline` (pinned `diffusers==0.36.0`, the first release that exports it, checked in the wheel), bf16, 9 scheduler steps (8 forward passes), guidance 0 as its model card says.
-- *Licence:* the model card's licence tag is **Apache-2.0**, checked 2026-11-17. The repository has no separate LICENSE file; the tag covers the whole repo, including the text encoder, VAE and tokenizer. Its text encoder is derived from Qwen3-4B, whose own card is also tagged Apache-2.0. Commercial use is allowed. Apache-2.0 asks us to keep the notice, which is in `docs/credits.md`.
-- *Fit:* 6B parameters. In bf16 that is about 12 GB for the transformer and about 8 GB for the text encoder, which fits one 24 GB L4 with no CPU offload. `EYELORE_STILL_OFFLOAD=1` turns offload on if real runs show it doesn't fit.
+**Model: [Tongyi-MAI/Z-Image-Turbo](https://huggingface.co/Tongyi-MAI/Z-Image-Turbo)**, loaded through diffusers `ZImagePipeline` (pinned `diffusers==0.36.0`: its wheel was checked to export `ZImagePipeline`, and the model's `model_index.json` was written with `0.36.0.dev0`; the full pin set resolves for linux/x86_64 with `uv pip compile`), bf16, 9 scheduler steps (8 forward passes), guidance 0 as its model card says.
+- *Licence:* the model card's licence tag is **Apache-2.0**, checked 2026-11-17. The repository has no separate LICENSE file; the tag covers the whole repo, including the text encoder, VAE and tokenizer. Its `text_encoder/config.json` is a `qwen3` model with Qwen3-4B's shape (hidden 2560, 36 layers, bf16), and Qwen3-4B's own card is also tagged Apache-2.0. The VAE is a diffusers `AutoencoderKL` (16 latent channels) in the same repo. The Hugging Face API reports the repo as not gated. Commercial use is allowed. Apache-2.0 asks us to keep the notice, which is in `docs/credits.md`.
+- *Fit (an estimate, unmeasured):* 6B parameters. In bf16 that is about 12 GB for the transformer and about 8 GB for the text encoder: about 20 GB of weights on an L4 with about 22 GiB usable, before activations and the VAE decode. It is expected to fit without offload, but tightly. If it doesn't, `EYELORE_STILL_OFFLOAD=1` (set at deploy time or in the Modal secret) moves modules to the GPU only while they run, at the cost of speed. The other remedy is `EYELORE_GPU=L40S` (48 GB, about 2.4× the L4's price); an A10 is also 24 GB and doesn't help.
 - *Access:* ungated, so there is no Hugging Face token or click-through for the owner. The repo is 32.9 GB, downloaded once into the `eyelore-gpu-weights` Modal volume.
 - `docs/engine-assessment.md` shows the legacy Colab engine already used Z-Image-Turbo for t2i.
 - *Runner-up:* **FLUX.1-schnell** (Apache-2.0, 4 steps). Rejected for now: it is **gated** on Hugging Face (an HF token in the worker secret, plus the owner accepting the terms), and at 12B it needs CPU offload on a 24 GB card.
@@ -39,6 +39,7 @@
 - On success (`onStillDone`), the media row joins the project (listed with the edit, deleted with it), and an `autopilot:broll` change inserts or replaces the bead's slot `broll.<beadId>` on `/tracks/broll`. The reason is "b-roll · generated still for '<first words>'". A pinned slot or a pinned b-roll track is left alone: the still is kept and the editor says so.
 - Removing it is a user change ("remove b-roll"), and ⌘Z puts it back.
 - A failure never fails the edit. The credit is refunded once by the existing `refundJobCredits` path.
+- *Stranded jobs:* a GPU job that has been queued for over 10 minutes, while no GPU worker has made any call (poll, heartbeat or progress) for 2 minutes, is failed by the minute cron ("the gpu didn't start") and refunded. This covers an app that is registered but not deployed, or stopped by the spend cap. A paid job is never held forever, and the bead can be asked again.
 
 **Rendering.**
 - The still's span is never stored. `brollOverlays(doc)` in core derives it from the bead's kept segments (`Segment.beadId`), so striking a word moves it.
@@ -82,5 +83,7 @@ Against a placeholder 1 credit per still and 50 credits a month on Pro (`plans.t
 
 - No GPU spend at all until the owner deploys. Then spend follows requests, capped at one container.
 - A Pro user's first still after a quiet spell waits for a cold start (unmeasured; likely 1–3 minutes including the weight load). The editor says what is happening instead of spinning.
-- Real image quality, VRAM headroom on an L4 and timings are unproven until the first GPU run. Measure them and update this ADR.
+- *Observed so far:* Remotion `Cut` with a b-roll item, rendered locally with `remotion still` on CPU, shows the still over its bead and the clip after it.
+- *Unproven until the first GPU run:* real image quality, VRAM headroom on an L4, and timings. Measure them and update this ADR.
+- *Never run in a browser yet:* the editor's pill, job line and Lens overlay, and `CutWeb` drawing a cross-origin still.
 - New job types (i2v, voice, …) only need a handler and the `modal-gpu` provider's capability list. The pool, gate, credits, wake and refunds are shared.

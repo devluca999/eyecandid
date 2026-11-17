@@ -1,5 +1,5 @@
 import { convexTest } from "convex-test";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { addClipChange, applyChange, beadChanges, brollOverlays, emptyEditDoc, PRO_PLAN, type EditDoc } from "@eyelore/core";
 import schema from "./schema";
 import { api, internal } from "./_generated/api";
@@ -238,5 +238,38 @@ describe("still jobs on the worker side", () => {
     await t.run((ctx) => ctx.db.patch(projectId, { engine: "device" }));
     const r = await t.withIdentity(ALICE).mutation(api.pipeline.authorizeDeviceExport, { anonId: ANON, projectId, aspect: "9:16", requestId: "e1", mode: "free" });
     expect(Object.keys(r.stills)).toEqual([mediaId]);
+  });
+
+  it("a paid still nobody runs (GPU registered but never starts) fails after 10 minutes and refunds; a heartbeating GPU keeps it waiting", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-11-17T12:00:00Z"));
+      const t = mk();
+      const userId = await proUser(t, { credits: 1 });
+      const gpu = await worker(t, "modal-gpu"); // registered and seen once, then the app never comes up
+      const projectId = await project(t);
+      const jobId = await ask(t, projectId);
+      expect(await credits(t, userId)).toBe(0);
+      vi.setSystemTime(new Date("2026-11-17T12:09:00Z"));
+      await t.mutation(internal.jobs.requeueExpired, {});
+      expect((await t.run((ctx) => ctx.db.get(jobId)))!.status).toBe("queued"); // not yet
+      // a busy GPU worker (loading the model, generating) heartbeats: the queue behind it is left alone
+      vi.setSystemTime(new Date("2026-11-17T12:11:00Z"));
+      const tokenHash = (await t.run((ctx) => ctx.db.get(gpu)))!.tokenHash;
+      await t.mutation(internal.workers.touch, { tokenHash });
+      await t.mutation(internal.jobs.requeueExpired, {});
+      expect((await t.run((ctx) => ctx.db.get(jobId)))!.status).toBe("queued");
+      // nothing heard for over two minutes: failed for good, credit back once, the edit untouched
+      vi.setSystemTime(new Date("2026-11-17T12:14:00Z"));
+      await t.mutation(internal.jobs.requeueExpired, {});
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+      expect((await t.run((ctx) => ctx.db.get(jobId)))!).toMatchObject({ status: "failed", error: "the gpu didn't start" });
+      expect(await credits(t, userId)).toBe(1);
+      await t.mutation(internal.jobs.requeueExpired, {});
+      expect(await credits(t, userId)).toBe(1);
+      expect((await t.withIdentity(ALICE).query(api.projects.get, { projectId, anonId: ANON }))!.project.stage).toBe("ready");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

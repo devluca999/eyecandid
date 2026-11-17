@@ -3,7 +3,7 @@ import { internalMutation, mutation, query } from "./_generated/server";
 import { internal } from "./_generated/api";
 import type { MutationCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
-import { JOB_SPECS, JobTypeSchema, DEFAULT_LEASE_MS, DEFAULT_MAX_ATTEMPTS, MAX_LEASE_MS, evaluateFlag, isGpuWorkerProvider, poolClaims } from "@eyelore/core";
+import { JOB_SPECS, JOB_TYPES, JobTypeSchema, DEFAULT_LEASE_MS, DEFAULT_MAX_ATTEMPTS, MAX_LEASE_MS, evaluateFlag, isGpuJobType, isGpuWorkerProvider, poolClaims } from "@eyelore/core";
 import type { JobType } from "@eyelore/core";
 import { caller, owns } from "./lib/owner";
 import { mediaIdsIn, mediaStore } from "./lib/mediaStore";
@@ -296,9 +296,40 @@ export const requeueExpired = internalMutation({
         n++;
       }
     }
+    n += await expireStrandedGpuJobs(ctx, now);
     // canceled shells (edit deleted mid-job) whose worker never reported back: nothing can arrive a day later
     const dead = await ctx.db.query("jobs").withIndex("by_status_lease", (q) => q.eq("status", "canceled").lt("leaseExpiresAt", now - CANCELED_KEEP_MS)).take(100);
     for (const job of dead) await ctx.db.delete(job._id);
     return n;
   },
 });
+
+/** A paid GPU job waits this long for a GPU worker before it is failed and its credits refunded (ADR 0013). */
+export const GPU_QUEUE_TIMEOUT_MS = 10 * 60_000;
+/** A GPU worker heard from this recently (any call: poll, heartbeat, progress) may still get to the queue. */
+const GPU_SEEN_MS = 2 * 60_000;
+
+/**
+ * GPU jobs nobody will run: queued past GPU_QUEUE_TIMEOUT_MS with no GPU worker heard from lately (the app isn't
+ * deployed, Modal's spend cap stopped it, the wake keeps failing). Fail them for good so the credit comes back and the
+ * editor can ask again, instead of holding a paid job forever. A GPU worker that is busy (loading the model,
+ * generating) heartbeats, so the jobs queued behind it are left alone.
+ */
+async function expireStrandedGpuJobs(ctx: MutationCtx, now: number) {
+  const workers = await ctx.db.query("workers").order("desc").take(100);
+  if (workers.some((w) => !w.disabled && isGpuWorkerProvider(w.provider) && w.lastSeenAt && now - w.lastSeenAt < GPU_SEEN_MS)) return 0;
+  let n = 0;
+  for (const type of JOB_TYPES.filter((t) => isGpuJobType(t))) {
+    const stale = await ctx.db
+      .query("jobs")
+      .withIndex("by_status_type_created", (q) => q.eq("status", "queued").eq("type", type).lt("createdAt", now - GPU_QUEUE_TIMEOUT_MS))
+      .take(50);
+    for (const job of stale) {
+      await ctx.db.patch(job._id, { status: "failed", stage: "failed · no gpu", error: "the gpu didn't start", finishedAt: now });
+      await refundJobCredits(ctx, job._id);
+      if (job.projectId) await ctx.scheduler.runAfter(0, internal.pipeline.onJobDone, { jobId: job._id });
+      n++;
+    }
+  }
+  return n;
+}

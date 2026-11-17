@@ -41,7 +41,9 @@ if modal.is_local():
         modal.Image.debian_slim(python_version="3.12")
         .pip_install("httpx>=0.28", "jsonschema>=4.23", "sentry-sdk>=2.0")
         .pip_install("torch==2.9.1", "diffusers==0.36.0", "transformers==4.57.3", "accelerate==1.12.0", "pillow==12.0.0")
-        .env({"EYELORE_PROVIDER": "modal-gpu", "EYELORE_ENV": ENV, "HF_HOME": HF_HOME, "HF_HUB_ENABLE_HF_TRANSFER": "0"})
+        .env({"EYELORE_PROVIDER": "modal-gpu", "EYELORE_ENV": ENV, "HF_HOME": HF_HOME, "HF_HUB_ENABLE_HF_TRANSFER": "0",
+              # set EYELORE_STILL_OFFLOAD=1 when deploying (or in the Modal secret) if the L4 runs out of memory
+              "EYELORE_STILL_OFFLOAD": os.environ.get("EYELORE_STILL_OFFLOAD", "0")})
         .add_local_dir(str(ENGINE / "eyelore_engine"), "/root/eyelore_engine", copy=True)
         .add_local_file(str(REPO / "packages/core/schema/jobs.schema.json"), "/root/eyelore_engine/jobs.schema.json", copy=True)
     )

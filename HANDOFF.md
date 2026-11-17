@@ -31,11 +31,11 @@
 6. **First real still:** as an approved, paid Pro test user, select a bead and choose "add b-roll". The first one downloads the 32.9 GB model into the `eyelore-gpu-weights` volume, so it takes minutes. Check:
    - the image quality;
    - the time from cold and from warm;
-   - VRAM on the L4: if it runs out of memory, set `EYELORE_STILL_OFFLOAD=1` on the image env, or `EYELORE_GPU=A10`.
+   - VRAM on the L4: if it runs out of memory, add `EYELORE_STILL_OFFLOAD=1` to the `eyelore-gpu` Modal secret, or redeploy with `EYELORE_GPU=L40S` (48 GB; an A10 is also 24 GB and won't help).
    
    Record the numbers in ADR 0013. Until this has run once, real generation is **untested**.
 
-Until steps 2–5 are done, Pro users who choose "add b-roll" get "the gpu isn't set up yet · nothing was charged".
+Until step 2 is done, Pro users who choose "add b-roll" get "the gpu isn't set up yet · nothing was charged". After step 2, if the app isn't deployed or isn't answering, a still is charged and then waits. After 10 minutes with no GPU worker heard from, it fails with "the gpu didn't start" and the credit is refunded.
 
 ## 1b. Landing (Eyecandid v2, PR #17) — measured on production, 2026-11-17
 

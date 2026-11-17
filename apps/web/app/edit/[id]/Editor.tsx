@@ -48,9 +48,11 @@ function stillLine(j: StillJob | undefined, gpu: GpuPresence): { text: string; a
   if (!j) return null;
   if (j.status === "queued") {
     if (gpu && gpu.live > 0) return { text: "waiting for the gpu · a still is ahead of yours", attention: false };
-    if (gpu?.wake === "failing") return { text: "the gpu isn't answering · we keep trying, your credit is safe", attention: true };
-    if (gpu?.wake === "none") return { text: "no gpu is running right now · your still starts when one comes online", attention: false };
-    return { text: "the gpu is asleep · waking it", attention: false };
+    // a paid still nobody runs is failed and refunded after 10 minutes (jobs.ts expireStrandedGpuJobs)
+    if (gpu?.wake === "failing") return { text: "the gpu isn't answering · we keep trying, your credit comes back if it doesn't start", attention: true };
+    if (gpu?.wake === "none") return { text: "no gpu is running right now · your credit comes back if none starts", attention: false };
+    if (gpu?.wake === "asked") return { text: "the gpu is asleep · waking it", attention: false };
+    return { text: "waiting for the gpu", attention: false };
   }
   if (j.status === "leased" || j.status === "running") {
     return { text: `generating a still · on the gpu${j.progress > 0 ? ` · ${Math.round(j.progress * 100)}%` : ""}`, attention: false };
@@ -606,7 +608,7 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
             )}
             {mode === "edit" && ready && (
               <div className={"eyl-dialbox" + (dialsShown ? " is-shown" : "") + (dialsInside ? " is-inside" : "")} data-tour="dials">
-                <DialStrip dials={dialState.dials} onChange={turnDial} busy={dialState.busy} onActive={setActiveDial} />
+                <DialStrip dials={dialState.dials} onChange={turnDial} busy={dialState.busy} onActive={setActiveDial} stills={doc?.tracks.broll.length ?? 0} />
               </div>
             )}
           </div>
