@@ -30,6 +30,8 @@ export default defineSchema({
     stageDetail: v.optional(v.string()),
     createdAt: v.number(),
     readyAt: v.optional(v.number()),
+    /** where the core loop runs for this project: the visitor's device (free tier, ADR 0012) or the worker queue */
+    engine: v.optional(v.union(v.literal("device"), v.literal("server"))),
   })
     .index("by_owner_user", ["ownerUserId"])
     .index("by_owner_anon", ["ownerAnonId"]),
@@ -56,7 +58,8 @@ export default defineSchema({
   media: defineTable({
     projectId: v.optional(v.id("projects")),
     kind: v.union(v.literal("source"), v.literal("proxy"), v.literal("generated"), v.literal("render"), v.literal("preview")),
-    storage: v.object({ provider: v.union(v.literal("convex"), v.literal("s3")), key: v.string() }),
+    /** "device": the bytes never left the visitor's device (on-device engine, ADR 0012); there is nothing to fetch or delete */
+    storage: v.object({ provider: v.union(v.literal("convex"), v.literal("s3"), v.literal("device")), key: v.string() }),
     contentType: v.string(),
     bytes: v.optional(v.number()),
     w: v.optional(v.number()),
@@ -69,7 +72,9 @@ export default defineSchema({
 
   exports: defineTable({
     projectId: v.id("projects"),
-    jobId: v.id("jobs"),
+    /** the render job; absent for an on-device export, which the visitor's browser rendered (ADR 0012) */
+    jobId: v.optional(v.id("jobs")),
+    device: v.optional(v.boolean()),
     aspect: v.string(),
     maxDurationMs: v.optional(v.number()),
     watermark: v.boolean(),

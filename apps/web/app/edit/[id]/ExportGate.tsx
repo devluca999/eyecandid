@@ -20,7 +20,9 @@ import { env } from "@/lib/env";
 import { useTrack } from "@/lib/track";
 
 export type ExportArgs = { aspect: Aspect; requestId: string; maxDurationMs?: 15000 | 30000 | 60000 };
-export type Gate = { run: (args: ExportArgs) => Promise<void>; element: ReactNode };
+/** Who renders: default is the worker (pipeline.startExport); the on-device engine passes its own (ADR 0012). */
+export type Exporter = (args: ExportArgs & { mode: "best" | "free" }) => Promise<void>;
+export type Gate = { run: (args: ExportArgs, exporter?: Exporter) => Promise<void>; element: ReactNode };
 
 type Paywall = { args: ExportArgs; reason: string; freeAvailable: boolean };
 type AuthState = { enabled: boolean; isSignedIn: boolean; isAuthenticated: boolean };
@@ -60,6 +62,7 @@ function useGateCore(projectId: Id<"projects">, anonId: string, ready: boolean, 
   const checkout = useAction(api.billing.checkout);
   const flags = useQuery(api.flags.forSubject, anonId ? { subject: anonId } : "skip");
 
+  const exporterRef = useRef<Exporter | null>(null);
   const latest = useRef({ auth, flags });
   latest.current = { auth, flags };
   const claimed = useRef(false);
@@ -126,12 +129,13 @@ function useGateCore(projectId: Id<"projects">, anonId: string, ready: boolean, 
 
   const attempt = useCallback(
     async (args: ExportArgs, mode: "best" | "free") => {
+      const go: Exporter = exporterRef.current ?? (async (x) => void (await startExport({ anonId, projectId, ...x })));
       try {
-        await startExport({ anonId, projectId, ...args, mode });
+        await go({ ...args, mode });
       } catch (e) {
         const data = e instanceof ConvexError ? (e.data as { code?: string; reason?: string; freeAvailable?: boolean }) : undefined;
         if (data?.code !== "paid_required") throw e;
-        if (!latest.current.flags?.billing) return await startExport({ anonId, projectId, ...args, mode: "free" }); // paywall not switched on: keep the free export
+        if (!latest.current.flags?.billing) return await go({ ...args, mode: "free" }); // paywall not switched on: keep the free export
         track("paywall_shown", { reason: String(data.reason ?? "unknown") });
         setPaywall({ args, reason: String(data.reason ?? ""), freeAvailable: !!data.freeAvailable });
       }
@@ -140,7 +144,8 @@ function useGateCore(projectId: Id<"projects">, anonId: string, ready: boolean, 
   );
 
   const run = useCallback(
-    async (args: ExportArgs) => {
+    async (args: ExportArgs, exporter?: Exporter) => {
+      exporterRef.current = exporter ?? null;
       setNote(null);
       if (auth.enabled) {
         await waitFor(() => latest.current.flags !== undefined, 3000);
