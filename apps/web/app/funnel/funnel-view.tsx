@@ -31,6 +31,7 @@ function store(token: string | null) {
 
 const int = new Intl.NumberFormat("en");
 const pct = (r: number | null) => (r === null ? "·" : `${(r * 100).toFixed(r > 0 && r < 0.1 ? 1 : 0)}%`);
+const usd = (n: number | null) => (n === null ? "·" : n < 0.01 ? `$${n.toFixed(4)}` : `$${n.toFixed(2)}`);
 const secs = (ms: number | null) => (ms === null ? "·" : `${(ms / 1000).toFixed(ms < 10_000 ? 1 : 0)}s`);
 
 export function FunnelView() {
@@ -229,6 +230,22 @@ function Report({ data }: { data: Configured }) {
         {median !== null ? (
           <StatusDot status={median <= TIME_TO_WOW_TARGET_MS ? "ready" : "attention"} label={median <= TIME_TO_WOW_TARGET_MS ? "median within target" : "median over target"} />
         ) : null}
+      </section>
+
+      <section aria-labelledby="funnel-cost" className="flex flex-col gap-12">
+        <h2 id="funnel-cost" className="text-ink" style={{ font: "var(--font-ui)" }}>cost per free edit</h2>
+        <dl className="grid grid-cols-[auto_1fr] items-baseline gap-x-24 gap-y-4 sm:grid-cols-[repeat(5,auto)] sm:justify-start">
+          <Pair label="worker time" value={secs(data.cost.workerSeconds * 1000)} />
+          <Pair label="server exports" value={int.format(data.cost.serverExports)} />
+          <Pair label="on-device exports" value={int.format(data.cost.deviceExports)} />
+          <Pair label="per server export" value={usd(data.cost.usdPerServerExport)} />
+          <Pair label="per export, all" value={usd(data.cost.usdPerExport)} />
+        </dl>
+        <p className="text-meta text-ink-secondary">
+          {data.cost.workerUsd === null
+            ? "rate not set · set EYELORE_CPU_USD_PER_HOUR on the Convex deployment from the worker's pricing page"
+            : `estimate: worker seconds × the rate you set (${usd(data.cost.workerUsd)} in this window) · the provider's bill is the real number · on-device edits cost no compute`}
+        </p>
       </section>
 
       <Split title="platform" rows={data.byPlatform} />

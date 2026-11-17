@@ -43,7 +43,7 @@ function Form() {
       </label>
       <label>
         <span>a link to your work <em>optional</em></span>
-        <input name="link" type="text" inputMode="url" maxLength={300} placeholder="tiktok.com/@you" />
+        <input name="link" type="text" inputMode="url" maxLength={300} placeholder="your site or a profile link" />
       </label>
       <PillButton type="submit" disabled={state === "sending"} testId="access-submit">
         {state === "sending" ? "sending" : "send request"}

@@ -1,0 +1,36 @@
+name: preview cleanup
+# Deletes a PR's Convex preview deployment when the PR closes. Previews otherwise live 5 days, and the team's 40
+# deployments run out (every PR's preview job then fails with DeploymentQuotaReached).
+# The preview deploy key can only delete preview deployments of this project; it cannot touch dev or production.
+on:
+  pull_request:
+    types: [closed]
+permissions: { contents: read, pull-requests: read, statuses: read }
+
+jobs:
+  delete-preview:
+    name: delete this PR's convex preview
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          CONVEX_PREVIEW_DEPLOY_KEY: ${{ secrets.CONVEX_PREVIEW_DEPLOY_KEY }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.number }}
+        run: |
+          [ -n "$CONVEX_PREVIEW_DEPLOY_KEY" ] || { echo "::notice::skipped · needs CONVEX_PREVIEW_DEPLOY_KEY"; exit 0; }
+          # the preview job leaves a "convex preview" status on the commit it built; the newest one names the live deployment
+          name=""
+          for sha in $(gh api "repos/$REPO/pulls/$PR/commits" --paginate -q '.[].sha' | tac); do
+            name=$(gh api "repos/$REPO/commits/$sha/statuses" -q '[.[] | select(.context == "convex preview")][0].description // ""')
+            [ -n "$name" ] && break
+          done
+          [ -n "$name" ] || { echo "::notice::no preview recorded for this PR · nothing to delete"; exit 0; }
+          [[ "$name" =~ ^[a-z]+-[a-z]+-[0-9]+$ ]] || { echo "::warning::'$name' is not a deployment name · left alone"; exit 0; }
+          case "$name" in hushed-heron-814|deafening-hedgehog-824) echo "::error::refusing to delete $name (production or dev)"; exit 1 ;; esac
+          code=$(curl -s -o /tmp/out -w '%{http_code}' -X POST -H "Authorization: Bearer $CONVEX_PREVIEW_DEPLOY_KEY" "https://api.convex.dev/v1/deployments/$name/delete")
+          case "$code" in
+            200) echo "::notice::deleted preview $name" ;;
+            404) echo "::notice::preview $name was already gone" ;;
+            *) echo "::warning::could not delete preview $name (HTTP $code) · delete it in the Convex dashboard"; head -c 300 /tmp/out ;;
+          esac
