@@ -1,6 +1,6 @@
 "use client";
-import type { Aspect, EditDoc } from "@eyelore/core";
-import { toTimeline } from "@eyelore/core";
+import type { Aspect, EditDoc, FaceSample, ReframeKeyframe } from "@eyelore/core";
+import { smoothFaceTrack, toTimeline } from "@eyelore/core";
 
 /**
  * The on-device engine (free tier, ADR 0012): Whisper on WebGPU for word timings and @remotion/web-renderer for the
@@ -71,4 +71,68 @@ export async function renderOnDevice(doc: EditDoc, src: string, aspect: Aspect, 
     signal,
   } as never);
   return { blob: await getBlob(), durationMs };
+}
+
+/**
+ * Face-centred reframing in the browser (free tier). Samples the local clip at ~4 fps (capped), runs MediaPipe's
+ * BlazeFace short-range detector (self-hosted under /mediapipe, never a CDN), takes the largest face per frame and
+ * hands the samples to smoothFaceTrack, the twin of the server's reframe handler. Runs after the edit is ready.
+ */
+const MAX_FACE_FRAMES = 240;
+
+export async function faceTrackOnDevice(file: File, durationMs: number): Promise<{ keyframes: ReframeKeyframe[]; faces: number; frames: number; ms: number }> {
+  const t0 = performance.now();
+  const { FaceDetector, FilesetResolver } = await import("@mediapipe/tasks-vision");
+  const fileset = await FilesetResolver.forVisionTasks("/mediapipe");
+  const detector = await FaceDetector.createFromOptions(fileset, {
+    baseOptions: { modelAssetPath: "/mediapipe/blaze_face_short_range.tflite", delegate: "CPU" },
+    runningMode: "IMAGE",
+    minDetectionConfidence: 0.5,
+  });
+  const url = URL.createObjectURL(file);
+  const video = document.createElement("video");
+  video.muted = true;
+  video.playsInline = true;
+  video.preload = "auto";
+  video.src = url;
+  try {
+    await new Promise<void>((res, rej) => {
+      video.onloadeddata = () => res();
+      video.onerror = () => rej(new Error("could not read the video"));
+    });
+    const dur = (Number.isFinite(video.duration) && video.duration > 0 ? video.duration * 1000 : durationMs) || 0;
+    const step = Math.max(250, dur / MAX_FACE_FRAMES);
+    // downscale: BlazeFace short-range works on 128px anyway
+    const scale = Math.min(1, 480 / Math.max(video.videoWidth, video.videoHeight));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
+    canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
+    const g = canvas.getContext("2d");
+    if (!g) throw new Error("no canvas");
+    const samples: FaceSample[] = [];
+    for (let ms = 0; ms < dur; ms += step) {
+      await new Promise<void>((res) => {
+        video.onseeked = () => res();
+        video.currentTime = Math.min(ms, Math.max(0, dur - 50)) / 1000;
+      });
+      g.drawImage(video, 0, 0, canvas.width, canvas.height);
+      let best: FaceSample["face"] = null;
+      let area = 0;
+      for (const d of detector.detect(canvas).detections) {
+        const b = d.boundingBox;
+        if (b && b.width * b.height > area) {
+          area = b.width * b.height;
+          best = { x: b.originX / canvas.width, y: b.originY / canvas.height, w: b.width / canvas.width, h: b.height / canvas.height };
+        }
+      }
+      samples.push({ ms: Math.round(ms), face: best });
+      // let the page breathe between frames: this runs while the user is already editing
+      await new Promise((r) => setTimeout(r, 0));
+    }
+    const out = smoothFaceTrack(samples);
+    return { ...out, frames: samples.length, ms: Math.round(performance.now() - t0) };
+  } finally {
+    detector.close();
+    URL.revokeObjectURL(url);
+  }
 }
