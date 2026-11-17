@@ -57,14 +57,14 @@ export async function transcribeOnDevice(file: File, durationMs: number, onStage
 const SIZE: Record<Aspect, [number, number]> = { "9:16": [1080, 1920], "4:5": [1080, 1350], "1:1": [1080, 1080], "16:9": [1920, 1080] };
 
 /** Render the current edit to an MP4 in the browser. Returns a Blob the page downloads; nothing is uploaded. */
-export async function renderOnDevice(doc: EditDoc, src: string, aspect: Aspect, watermark: boolean, onProgress: (p: number) => void, signal?: AbortSignal): Promise<{ blob: Blob; durationMs: number }> {
+export async function renderOnDevice(doc: EditDoc, src: string, aspect: Aspect, watermark: boolean, onProgress: (p: number) => void, signal?: AbortSignal, stills: Record<string, string> = {}): Promise<{ blob: Blob; durationMs: number }> {
   const [{ renderMediaOnWeb }, { CutWeb }] = await Promise.all([import("@remotion/web-renderer"), import("./cut-web")]);
   const d: EditDoc = { ...doc, aspect };
   const durationMs = toTimeline(d).durationMs;
   const [width, height] = SIZE[aspect];
   const { getBlob } = await renderMediaOnWeb({
     composition: { id: "Cut", component: CutWeb as never, durationInFrames: Math.max(30, Math.round((durationMs / 1000) * 30)), fps: 30, width, height },
-    inputProps: { doc: d, src, watermark },
+    inputProps: { doc: d, src, watermark, stills },
     container: "mp4",
     videoCodec: "h264",
     onProgress: (p: { progress: number }) => onProgress(p.progress),

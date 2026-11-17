@@ -5,9 +5,10 @@ import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
-import { coverBox, faceAt, outputAt, punchAt, toTimeline, type Aspect, type Bead, type EditDoc, type EditOp } from "@eyelore/core";
+import { brollAt, brollOverlays, brollPath, coverBox, faceAt, firstWords, kenBurnsAt, outputAt, punchAt, toTimeline, type Aspect, type Bead, type EditDoc, type EditOp } from "@eyelore/core";
 import { ContextMenu, ExportPill, Icon, Lens, Lockup, StatusDot, RATIOS, type MenuItem } from "@eyelore/ui";
 import { getAnonId } from "@/lib/anon";
+import { refusalMessage } from "@/lib/refusal";
 import { session } from "@/lib/session";
 import { useTrack } from "@/lib/track";
 import { renderOnDevice } from "@/lib/device-engine";
@@ -37,6 +38,26 @@ function coldLine(wake: "asked" | "none" | "failing" | null | undefined) {
   if (wake === "failing") return "the engine isn't answering · we keep trying, your clip is safe";
   if (wake === "none") return "no engine is running right now · your clip starts when one comes online";
   return "the engine is waking up · usually under a minute";
+}
+
+type StillJob = { beadId: string; status: string; stage: string; progress: number; error?: string; placed?: boolean };
+type GpuPresence = { live: number; registered: boolean; wake: "asked" | "none" | "failing" | null } | undefined;
+
+/** A generated still's honest state (Pro b-roll, ADR 0013): waiting on a cold GPU, generating, failed or kept aside. */
+function stillLine(j: StillJob | undefined, gpu: GpuPresence): { text: string; attention: boolean } | null {
+  if (!j) return null;
+  if (j.status === "queued") {
+    if (gpu && gpu.live > 0) return { text: "waiting for the gpu · a still is ahead of yours", attention: false };
+    if (gpu?.wake === "failing") return { text: "the gpu isn't answering · we keep trying, your credit is safe", attention: true };
+    if (gpu?.wake === "none") return { text: "no gpu is running right now · your still starts when one comes online", attention: false };
+    return { text: "the gpu is asleep · waking it", attention: false };
+  }
+  if (j.status === "leased" || j.status === "running") {
+    return { text: `generating a still · on the gpu${j.progress > 0 ? ` · ${Math.round(j.progress * 100)}%` : ""}`, attention: false };
+  }
+  if (j.status === "failed") return { text: `still failed · ${(j.error ?? "unknown").slice(0, 80)} · your credit is back`, attention: true };
+  if (j.status === "succeeded" && j.placed === false) return { text: "still saved · your own b-roll here stays, so it wasn't replaced", attention: false };
+  return null;
 }
 const ASPECT_RATIO: Record<Aspect, number> = { "9:16": 9 / 16, "4:5": 4 / 5, "1:1": 1, "16:9": 16 / 9 };
 const MODES = ["theater", "edit", "board"] as const;
@@ -84,6 +105,11 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
   const [raw, setRaw] = useState(false);
   const player = usePlayer(raw ? null : tl?.segments ?? null, clip?.id ?? null);
   const thumbs = useThumbs(src, useMemo(() => serverDoc?.beads.map((b) => b.inMs) ?? [], [serverDoc?.beads]));
+  // generated b-roll (Pro, ADR 0013): who may ask is decided on the server; stills are this edit's generated media
+  const brollState = useQuery(api.broll.state, anonId && data?.project.stage === "ready" ? { anonId, projectId } : "skip");
+  const requestStill = useMutation(api.broll.requestStill);
+  const stills = useMemo(() => Object.fromEntries((data?.media ?? []).flatMap((m) => (m.kind === "generated" && m.url ? [[m.id as string, m.url]] : []))), [data?.media]);
+  const overlays = useMemo(() => (doc && tl ? brollOverlays(doc, tl.segments) : []), [doc, tl]);
 
   const [mode, setModeState] = useState<Mode>("edit");
   const [themeOverride, setThemeOverride] = useState<"paper" | "night" | null>(null);
@@ -213,6 +239,20 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
   };
   const toggleBead = (b: Bead) =>
     void commit([{ op: "set", path: `/beads/@${b.id}/struck`, value: !b.struck }], `${b.struck ? "kept" : "cut"} bead · '${b.words.slice(0, 3).map((w) => w.text).join(" ")}…'`, "bead");
+  const [asking, setAsking] = useState<string | null>(null);
+  const addBroll = async (b: Bead) => {
+    setAsking(b.id);
+    try {
+      await requestStill({ anonId, projectId, beadId: b.id, requestId: `${Date.now()}` });
+      track("edit_interaction", { kind: "broll_request" });
+    } catch (e) {
+      // Pro gate, credits, a cold or missing GPU: the server's one line, verbatim
+      setNotice(refusalMessage(e, "couldn't ask for a still · try again"));
+    } finally {
+      setAsking(null);
+    }
+  };
+  const removeBroll = (b: Bead) => void commit([{ op: "remove", path: brollPath(b.id) }], `removed b-roll · '${serverDoc ? firstWords(serverDoc, b) : b.id}'`, "broll_remove");
   const retype = (wordId: string, from: string, to: string) =>
     void commit([{ op: "insert", path: "/captions/overrides/-", value: { wordId, text: to } }], `caption · '${from}' → '${to}'`, "caption");
   const setAspect = (a: Aspect) => {
@@ -241,7 +281,7 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
     const auth = await authorizeDeviceExport({ anonId, projectId, ...x });
     setDevExport({ phase: "rendering", progress: 0 });
     try {
-      const { blob, durationMs } = await renderOnDevice(auth.doc as EditDoc, local, x.aspect, auth.watermark, (p) => setDevExport({ phase: "rendering", progress: p }));
+      const { blob, durationMs } = await renderOnDevice(auth.doc as EditDoc, local, x.aspect, auth.watermark, (p) => setDevExport({ phase: "rendering", progress: p }), undefined, auth.stills);
       setDevExport({ phase: "done", progress: 1, url: URL.createObjectURL(blob) });
       track("export_done", { durationMs, watermark: auth.watermark });
     } catch (e) {
@@ -365,7 +405,12 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
       ? pending.deviceStage ?? data?.project.stageDetail ?? "on this device"
       : "this edit runs in the browser it was dropped in · keep that tab open, or drop the clip again here"
     : null;
-  const activeJob = data?.jobs.find((j) => j.status === "running" || j.status === "leased" || j.status === "queued");
+  const activeJob = data?.jobs.find((j) => j.type !== "still" && (j.status === "running" || j.status === "leased" || j.status === "queued"));
+  // a still on its way (any bead), or the selected bead's failed / kept-aside one
+  const stillJobs = brollState?.jobs ?? [];
+  const liveStill = stillJobs.find((j) => j.status === "queued" || j.status === "leased" || j.status === "running");
+  const selStill = selected ? stillJobs.find((j) => j.beadId === selected) : undefined;
+  const still = stillLine(liveStill ?? (selStill && (selStill.status === "failed" || selStill.placed === false) ? selStill : undefined), presence?.gpu);
   const stageLine = pending?.error
     ? pending.error
     : uploading
@@ -414,6 +459,10 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
       ? coverBox(clip.w, clip.h, frameSize.w, frameSize.h, trueAspect ? { cx: 0.5, cy: 0.5, scale: punch } : { ...face, scale: face.scale * punch })
       : null;
   const outMs = tl && clip ? outputAt(tl.segments, clip.id, player.srcMs) : null;
+  // a generated still over this moment's bead, with the same slow push the renderers use
+  const brollNow = !raw && mode !== "board" && outMs != null ? brollAt(overlays, outMs) : undefined;
+  const brollUrl = brollNow ? stills[brollNow.mediaId] : undefined;
+  const kb = brollNow && outMs != null ? kenBurnsAt(brollNow, outMs) : null;
   // paused before the first kept word (e.g. on a struck "um"): show the first caption, not nothing
   const chunk = outMs != null ? tl?.captions.find((c) => outMs >= c.startMs && outMs < c.endMs) : !player.playing ? tl?.captions[0] : undefined;
   const playheadBead = doc?.beads.find((b) => player.srcMs >= b.inMs && player.srcMs < b.outMs)?.id ?? null;
@@ -531,6 +580,14 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
                     style={box ? { position: "absolute", left: box.left, top: box.top, width: box.width, height: box.height, maxWidth: "none", transition: "left 120ms linear, top 120ms linear" } : { width: "100%", height: "100%", objectFit: "cover" }}
                   />
                 )}
+                {brollUrl && kb && (
+                  <img
+                    src={brollUrl}
+                    alt=""
+                    data-testid="broll-still"
+                    style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: kb.opacity, transform: `scale(${kb.scale})`, pointerEvents: "none" }}
+                  />
+                )}
                 {doc?.captions.enabled && mode !== "board" && !raw && <Captions chunk={chunk} outMs={outMs ?? 0} look={doc.captions.look} onRetype={retype} readOnly={mode === "theater"} />}
                 {!player.playing && src && stage === "ready" && mode === "edit" && (
                   <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", pointerEvents: "none" }}>
@@ -615,10 +672,27 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
                     {explain.bead.struck ? "keep" : "cut"}
                   </button>
                 )}
+                {"bead" in explain && explain.bead && serverDoc?.tracks.broll.some((t) => t.params.beadId === explain.bead!.id) ? (
+                  <button className="el-pill el-pill--quiet el-pill--sm" data-testid="broll-remove" onClick={() => removeBroll(explain.bead!)}>
+                    remove b-roll
+                  </button>
+                ) : "bead" in explain && explain.bead && !explain.bead.struck && brollState?.pro ? (
+                  // Pro only, decided on the server (broll.state); everyone else never sees it
+                  <button
+                    className="el-pill el-pill--quiet el-pill--sm"
+                    data-testid="broll-add"
+                    disabled={asking === explain.bead.id || !!liveStill}
+                    title={`a generated still over this bead · ${brollState.cost} credit · ${brollState.credits} left`}
+                    onClick={() => void addBroll(explain.bead!)}
+                  >
+                    add b-roll
+                  </button>
+                ) : null}
               </>
             ) : null}
           </div>
         )}
+        {mode === "edit" && still && <StatusDot status={still.attention ? "attention" : "working"} label={still.text} />}
 
         {stage === "ready" && serverDoc && mode === "edit" && (
           <ExportPill
@@ -657,6 +731,7 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
             outDurationMs={tl.durationMs}
             playing={player.playing}
             thumbs={thumbs}
+            stills={stills}
             onSeek={player.seekSrc}
             onToggle={player.toggle}
             onClose={() => setDrawer(false)}

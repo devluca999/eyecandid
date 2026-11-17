@@ -1,20 +1,22 @@
 "use client";
-import { AbsoluteFill, Sequence, useCurrentFrame, useVideoConfig } from "remotion";
+import { AbsoluteFill, Img, Sequence, useCurrentFrame, useVideoConfig } from "remotion";
 import { Video } from "@remotion/media";
 import { loadFont } from "@remotion/google-fonts/Geist";
-import { coverBox, faceAt, toTimeline, type EditDoc, type Segment } from "@eyelore/core";
+import { brollOverlays, coverBox, faceAt, kenBurnsAt, toTimeline, type BrollOverlay, type EditDoc, type Segment } from "@eyelore/core";
 
 const { fontFamily } = loadFont("normal", { weights: ["500", "700"], subsets: ["latin"] });
 
-export type CutWebProps = { doc: EditDoc; src: string; watermark: boolean };
+/** `stills`: signed URLs of the doc's generated b-roll stills, by mediaId (from authorizeDeviceExport); empty on Free. */
+export type CutWebProps = { doc: EditDoc; src: string; watermark: boolean; stills?: Record<string, string> };
 
 /**
  * The browser twin of services/render/src/Cut.tsx for @remotion/web-renderer: same timeline maths
- * (toTimeline from core), <Video> from @remotion/media instead of <OffthreadVideo>, Geist via google-fonts.
+ * (toTimeline and brollOverlays from core), <Video> from @remotion/media instead of <OffthreadVideo>, Geist via google-fonts.
  */
-export function CutWeb({ doc, src, watermark }: CutWebProps) {
+export function CutWeb({ doc, src, watermark, stills = {} }: CutWebProps) {
   const { fps, width: W, height: H } = useVideoConfig();
   const tl = toTimeline(doc);
+  const broll = brollOverlays(doc, tl.segments);
   let at = 0;
   return (
     <AbsoluteFill style={{ backgroundColor: "#0F0F10", overflow: "hidden" }}>
@@ -25,6 +27,16 @@ export function CutWeb({ doc, src, watermark }: CutWebProps) {
         return (
           <Sequence key={i} from={start} durationInFrames={frames}>
             <Shot seg={s} doc={doc} src={src} W={W} H={H} fps={fps} />
+          </Sequence>
+        );
+      })}
+      {broll.map((o) => {
+        const url = stills[o.mediaId];
+        if (!url) return null;
+        const from = Math.round((o.startMs / 1000) * fps);
+        return (
+          <Sequence key={o.id} from={from} durationInFrames={Math.max(1, Math.round((o.endMs / 1000) * fps) - from)}>
+            <BrollStill o={o} src={url} fps={fps} />
           </Sequence>
         );
       })}
@@ -50,6 +62,18 @@ function Shot({ seg, doc, src, W, H, fps }: { seg: Segment; doc: EditDoc; src: s
       trimBefore={Math.round((seg.fromMs / 1000) * fps)}
       style={{ position: "absolute", left: box.left, top: box.top, width: box.width, height: box.height }}
     />
+  );
+}
+
+/** A generated still over its bead: cover-cropped, a slow Ken Burns push, a short fade (same as Cut's BrollStill). */
+function BrollStill({ o, src, fps }: { o: BrollOverlay; src: string; fps: number }) {
+  const frame = useCurrentFrame();
+  const { scale, opacity } = kenBurnsAt(o, o.startMs + (frame / fps) * 1000);
+  return (
+    <AbsoluteFill style={{ opacity, overflow: "hidden" }}>
+      {/* crossOrigin: the canvas this is drawn into must stay readable for the encoder */}
+      <Img src={src} crossOrigin="anonymous" style={{ width: "100%", height: "100%", objectFit: "cover", transform: `scale(${scale})` }} />
+    </AbsoluteFill>
   );
 }
 
