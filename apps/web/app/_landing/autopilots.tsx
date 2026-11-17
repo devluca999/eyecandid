@@ -104,7 +104,7 @@ export function Autopilots() {
       <Reveal className="ec-copy ec-copy--wide">
         <span className="ec-eyebrow">autopilots</span>
         <h2 id="auto-title" className="ec-h2">Every track drives itself.</h2>
-        <p className="ec-body">Five tracks, five autopilots. You only step in when one raises its hand. Or point at the thing and say what you want.</p>
+        <p className="ec-body">Five tracks, five autopilots. You only step in when one raises its hand. Cuts, voice and captions drive themselves today; b-roll, music and select-and-talk are next.</p>
         <ul className="ec-tracks">
           {TRACKS.map((t) => (
             <li key={t.name}>

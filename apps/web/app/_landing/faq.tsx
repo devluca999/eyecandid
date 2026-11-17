@@ -6,8 +6,9 @@ const FAQ = [
   { q: "do I need to be good on camera?", a: "No. That’s sort of the point. Film it the way you’d film it, and we handle the pauses, the ums and the shaky start." },
   { q: "will it change what I said?", a: "Never. We trim, caption and fix spelling. Your words stay your words, even in horror mode." },
   { q: "does it work with AI footage?", a: "Yes. Real and AI clips get the same edit, side by side on one timeline." },
-  { q: "what does autopilot actually decide?", a: "Takes, cuts, b-roll, music, captions and the grade. Every decision says why in one line, and you can undo any of it." },
-  { q: "what can I export?", a: "mp4 at 9:16, 1:1, 4:5 or 16:9." },
+  { q: "what does autopilot actually decide?", a: "Today: takes, cuts, pauses, captions and framing. B-roll, music and the grade come next. Every decision says why in one line, and you can undo any of it." },
+  { q: "do you upload my clip?", a: "Not when your browser can do the edit itself. Then the clip stays on your device and only the words come to us, so the edit can be saved. The first time, your browser downloads a speech model once (about 200 MB). If it can’t, the clip uploads, and free clips are deleted after 7 days." },
+  { q: "what can I export?", a: "An mp4 at 9:16, 1:1, 4:5 or 16:9. Free exports carry a small watermark." },
   { q: "is the pricing final?", a: "Not yet. Anything on this page marked placeholder is exactly that." },
 ];
 
