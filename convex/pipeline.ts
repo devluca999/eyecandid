@@ -10,6 +10,7 @@ import { enqueueJob } from "./jobs";
 import { ownedProject } from "./projects";
 import { caller } from "./lib/owner";
 import { flagOn } from "./lib/flags";
+import { freeState, MSG, refuse } from "./lib/limits";
 import { addUsage, anonHashOf, usageFor } from "./lib/entitle";
 
 /**
@@ -118,6 +119,8 @@ async function planExport(ctx: MutationCtx, a: ExportArgs) {
   if (!head) throw new Error("nothing to export");
   let doc: EditDoc = { ...head.doc, aspect: a.aspect as Aspect };
   const usage = await usageFor(ctx, who);
+  // the manual budget pause also stops free renders, on the worker and on device (the daily cap only gates new edits)
+  if (usage.plan === "free" && (await freeState(ctx)).reason === "flag") refuse(MSG.paused);
   const input = { requestedMs: a.maxDurationMs, fullMs: toTimeline(head.doc).durationMs };
   // Paywall rules bite only when payments can actually be taken: the `billing` flag is on for this caller AND
   // Stripe is configured. Otherwise behave as before: watermark, silent clamp to the free cap, no minutes block,

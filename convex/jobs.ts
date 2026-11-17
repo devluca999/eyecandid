@@ -241,6 +241,8 @@ export const fail = internalMutation({
       finishedAt: retry ? undefined : Date.now(),
     });
     if (!retry && job.projectId) await ctx.scheduler.runAfter(0, internal.pipeline.onJobDone, { jobId: job._id });
+    // a job that failed for good goes to Sentry (alert on failure rate lives in Sentry); a no-op without SENTRY_DSN
+    if (!retry && process.env.SENTRY_DSN) await ctx.scheduler.runAfter(0, internal.sentry.jobFailed, { type: job.type, error: error.slice(0, 300), attempts: job.attempts });
     return true;
   },
 });

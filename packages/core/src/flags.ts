@@ -11,6 +11,8 @@ export const FLAGS = {
   weave: "Phase 3",
   take_mixer: "Phase 3",
   select_and_talk: "Phase 3",
+  /** budget switch: on = free server jobs are refused with an honest message (convex/lib/limits.ts) */
+  free_paused: "pause free server jobs",
 } as const;
 export type FlagKey = keyof typeof FLAGS;
 
