@@ -14,6 +14,7 @@ import { usePlayer } from "./usePlayer";
 import { Thread, type Hover } from "./Thread";
 import { Captions } from "./Captions";
 import { useThumbs } from "./useThumbs";
+import { useExportGate } from "./ExportGate"; // [around-the-loop] signup + paywall + presence live in ExportGate.tsx
 import { DialStrip, dialLine, useDials, type DialKey } from "./Dials";
 import { Drawer } from "./Drawer";
 import { Board } from "./Board";
@@ -28,6 +29,13 @@ const STAGE_WORD: Record<string, string> = {
   ready: "ready",
   failed: "needs you",
 };
+
+/** No worker is polling. Say what is actually happening: asked one to start, nothing to ask, or asking isn't working. */
+function coldLine(wake: "asked" | "none" | "failing" | null | undefined) {
+  if (wake === "failing") return "the engine isn't answering · we keep trying, your clip is safe";
+  if (wake === "none") return "no engine is running right now · your clip starts when one comes online";
+  return "the engine is waking up · usually under a minute";
+}
 const ASPECT_RATIO: Record<Aspect, number> = { "9:16": 9 / 16, "4:5": 4 / 5, "1:1": 1, "16:9": 16 / 9 };
 const MODES = ["theater", "edit", "board"] as const;
 type Mode = (typeof MODES)[number];
@@ -56,7 +64,6 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
   const presence = useQuery(api.jobs.workerPresence, {});
   const apply = useMutation(api.edits.apply);
   const undo = useMutation(api.edits.undo);
-  const startExport = useMutation(api.pipeline.startExport);
   const remove = useMutation(api.projects.remove);
   const router = useRouter();
   const track = useTrack();
@@ -219,13 +226,14 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
 
   const latestExport = data?.exports[0];
   const exporting = latestExport && (latestExport.status === "queued" || latestExport.status === "leased" || latestExport.status === "running");
+  const gate = useExportGate(projectId, anonId, data?.project.stage === "ready", mode === "edit"); // [around-the-loop]
   const doExport = async (cutOverride?: string | null) => {
     const useCut = cutOverride === undefined ? cut : cutOverride;
     if (!serverDoc || !data || data.project.stage !== "ready") return;
     const aspect = (view === "source" ? serverDoc.aspect : view) as Aspect;
     track("export_clicked", { aspect });
-    // Clerk signup at export arrives with keys (PLAN: Needs keys); until then exports are anonymous and watermarked
-    await startExport({ anonId, projectId, aspect, requestId: `${Date.now()}-${exportReq}`, ...(useCut ? { maxDurationMs: (Number(useCut) * 1000) as 15000 | 30000 | 60000 } : {}) });
+    // [around-the-loop] signup (Clerk), paywall and the export call itself: see ExportGate.tsx
+    await gate.run({ aspect, requestId: `${Date.now()}-${exportReq}`, ...(useCut ? { maxDurationMs: (Number(useCut) * 1000) as 15000 | 30000 | 60000 } : {}) });
     setExportReq((n) => n + 1);
   };
   const doDelete = async () => {
@@ -330,7 +338,7 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
       : stage === "failed"
         ? data?.project.stageDetail ?? "something went wrong"
         : cold
-          ? "the engine is cold · waiting for a worker to start"
+          ? coldLine(presence?.wake)
           : stage === "ready"
             ? null
             : `${STAGE_WORD[stage] ?? stage}${activeJob?.status === "running" ? ` · ${Math.round(activeJob.progress * 100)}%` : ""}`;
@@ -582,6 +590,7 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
           />
         )}
         {latestExport?.status === "failed" && mode === "edit" && <StatusDot status="attention" label={`export failed · ${latestExport.error ?? ""}`.slice(0, 120)} />}
+        {gate.element /* [around-the-loop] modals work in every mode; the meta line only shows in edit */}
       </div>
 
       {ready && doc && tl && clip && (
