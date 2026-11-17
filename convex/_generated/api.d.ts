@@ -22,6 +22,7 @@ import type * as lib_workerAuth from "../lib/workerAuth.js";
 import type * as media from "../media.js";
 import type * as pipeline from "../pipeline.js";
 import type * as projects from "../projects.js";
+import type * as wake from "../wake.js";
 import type * as workers from "../workers.js";
 
 import type {
@@ -45,6 +46,7 @@ declare const fullApi: ApiFromModules<{
   media: typeof media;
   pipeline: typeof pipeline;
   projects: typeof projects;
+  wake: typeof wake;
   workers: typeof workers;
 }>;
 
