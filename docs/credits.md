@@ -2,7 +2,7 @@
 
 The landing page (apps/web/app/page.tsx) uses demo edits made from stock footage from [Mixkit](https://mixkit.co). `scripts/media/build.sh` trims the clips into short loops, re-encodes them and saves them to `apps/web/public/media/`, so the site never loads anything from mixkit.co. The public page is `/credits`.
 
-**Licence:** every clip is under the **Mixkit Stock Video Free License** ([mixkit.co/license](https://mixkit.co/license/#videoFree)). The license allows commercial projects and online marketing, and attribution is not required. Each clip's own page was checked on 17 Nov 2026 and states "Free" (its `copyrightNotice`).
+**Licence:** every clip is under the **Mixkit Stock Video Free License** ([mixkit.co/license](https://mixkit.co/license/#videoFree)). The license allows commercial projects and online marketing, and attribution is not required. Each clip's own page was checked on 17 Nov 2026 (42290, 41174 and 42284 too, added the same day) and states "Free" (its `copyrightNotice`).
 
 **Each clip appears once on the whole page**, desktop and phone, including blurred and background tiles. `SLOT` in `apps/web/app/_landing/clips.ts` places every clip, and `apps/web/lib/clips.test.ts` fails on a repeat.
 
@@ -39,8 +39,11 @@ The landing page (apps/web/app/page.tsx) uses demo edits made from stock footage
 | 12125 | Couple of friends hugging taking selfies with the cell phone | [mixkit.co](https://mixkit.co/free-stock-video/couple-of-friends-hugging-taking-selfies-with-the-cell-phone-12125/) | real or ai ("real", friends filming together) |
 | 4851 | Girl running during sunset ties her shoelaces | [mixkit.co](https://mixkit.co/free-stock-video/girl-running-during-sunset-ties-her-shoelaces-4851/) | real or ai ("ai": a stock clip standing in for AI footage) |
 | 583 | Woman doing warm up exercises | [mixkit.co](https://mixkit.co/free-stock-video/woman-doing-warm-up-exercises-583/) | pricing |
+| 42290 | Portrait of two fashion girls in a nightclub | [mixkit.co](https://mixkit.co/free-stock-video/portrait-of-two-fashion-girls-in-a-nightclub-42290/) | right on the picture (the reference look) |
+| 41174 | Happy man texting on his smartphone | [mixkit.co](https://mixkit.co/free-stock-video/happy-man-texting-on-his-smartphone-41174/) | right on the picture (the selected clip) |
+| 42284 | Girls playing and taking selfies | [mixkit.co](https://mixkit.co/free-stock-video/girls-playing-and-taking-selfies-42284/) | right on the picture |
 
-**To change the list:** edit `scripts/media/clips.tsv` and `SLOT`, then run `scripts/media/build.sh`. The script needs curl and ffmpeg, and puts raw downloads in the git-ignored `scripts/media/.raw/`. Check the licence on each new clip's page first. The committed media stays under about 30 MB; it is 26 MB now.
+**To change the list:** edit `scripts/media/clips.tsv` and `SLOT`, then run `scripts/media/build.sh`. The script needs curl and ffmpeg, and puts raw downloads in the git-ignored `scripts/media/.raw/`. Check the licence on each new clip's page first. The committed media stays under about 30 MB; it is 29 MB now.
 
 ## MediaPipe face detection (on-device reframe)
 

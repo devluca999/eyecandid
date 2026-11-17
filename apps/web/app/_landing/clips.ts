@@ -22,6 +22,9 @@ export const CLIPS = {
   12125: "two friends filming a selfie on the sofa",
   4851: "a woman running along a path at sunset",
   583: "a woman warming up on a running track at dusk",
+  42290: "two friends under neon light in a club",
+  41174: "a man smiling at his phone",
+  42284: "two friends taking a selfie by a graffiti wall",
 } as const;
 export type ClipId = keyof typeof CLIPS;
 
@@ -46,6 +49,9 @@ export const SLOT = {
   reelD: 34481,
   walkthrough: 52180,
   walkthroughBroll: 50422,
+  inlineRef: 42290,
+  inlineSelected: 41174,
+  inlineThird: 42284,
   genre: 42319,
   genreSports: 609,
   autopilots: 34487,

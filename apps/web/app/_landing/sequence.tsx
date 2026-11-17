@@ -71,7 +71,7 @@ export function Sequence() {
 
   return (
     <section ref={ref} className={"ec-seq" + (reduced ? " is-static" : "")} aria-labelledby="seq-title" data-step={s}>
-      <a href="#genre" className="ec-skip">skip the walkthrough</a>
+      <a href="#inline" className="ec-skip">skip the walkthrough</a>
       <div className="ec-seq__pin">
         <div className="ec-seq__media">
           <div className="ec-seq__tilt" style={{ transform: s === 0 ? "rotate(-3deg)" : "none" }}>
