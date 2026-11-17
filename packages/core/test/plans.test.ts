@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decideExport, periodKey, PLANS } from "../src";
+import { decideExport, FREE_CPU_JOB_TYPES, gpuCreditCost, isGpuJobType, JOB_TYPES, periodKey, PLANS, PRO_PLAN } from "../src";
 
 const base = { mode: "best" as const, fullMs: 30_000, minutesUsed: 0 };
 
@@ -33,5 +33,22 @@ describe("decideExport", () => {
   it("period keys are UTC months", () => {
     expect(periodKey(Date.UTC(2026, 10, 30, 23, 59))).toBe("2026-11");
     expect(periodKey(Date.UTC(2026, 11, 1))).toBe("2026-12");
+  });
+});
+
+describe("GPU job types", () => {
+  it("everything outside the free CPU set is GPU work and costs credits", () => {
+    for (const t of JOB_TYPES) {
+      const free = (FREE_CPU_JOB_TYPES as readonly string[]).includes(t);
+      expect(isGpuJobType(t)).toBe(!free);
+      expect(gpuCreditCost(t) > 0).toBe(!free);
+    }
+    expect(isGpuJobType("still")).toBe(true);
+    expect(isGpuJobType("render")).toBe(false);
+    expect(gpuCreditCost("some_future_type")).toBe(1);
+  });
+  it("only paid plans get monthly credits", () => {
+    expect(PLANS.free.monthlyCredits).toBe(0);
+    expect(PLANS[PRO_PLAN].monthlyCredits).toBeGreaterThan(0);
   });
 });

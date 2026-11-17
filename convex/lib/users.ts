@@ -50,3 +50,17 @@ export async function setPlan(ctx: MutationCtx, userId: Id<"users">, plan: PlanI
   await ctx.db.patch(ent._id, { plan, minutesLimit: PLANS[plan].monthlyMinutes, watermark: PLANS[plan].watermark, ...extra });
   await ctx.db.patch(userId, { plan });
 }
+
+/**
+ * Grant the plan's monthly GPU credits, at most once per UTC month (keyed by `creditsPeriod`), so a Stripe retry,
+ * a renewal `customer.subscription.updated` and the first checkout can never double-grant. Unused credits carry over.
+ */
+export async function grantMonthlyCredits(ctx: MutationCtx, userId: Id<"users">, plan: PlanId, now = Date.now()) {
+  const monthly = PLANS[plan].monthlyCredits;
+  if (monthly <= 0) return false;
+  const ent = await ensureEntitlement(ctx, userId, now);
+  const period = periodKey(now);
+  if (ent.creditsPeriod === period) return false;
+  await ctx.db.patch(ent._id, { credits: ent.credits + monthly, creditsPeriod: period });
+  return true;
+}
