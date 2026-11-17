@@ -38,9 +38,10 @@ export const forSend = internalQuery({
   handler: async (ctx, { notificationId }) => {
     const n = await ctx.db.get(notificationId);
     if (!n || n.status !== "queued") return null;
-    const [user, project] = await Promise.all([ctx.db.get(n.userId), ctx.db.get(n.projectId)]);
-    if (!user?.email || !project) return null;
-    return { to: user.email, title: project.title, projectId: project._id };
+    const [user, project] = await Promise.all([n.userId ? ctx.db.get(n.userId) : null, ctx.db.get(n.projectId)]);
+    const to = n.email ?? user?.email;
+    if (!to || !project) return null;
+    return { to, title: project.title, projectId: project._id };
   },
 });
 
@@ -92,5 +93,23 @@ export const send = internalAction({
     } catch (e) {
       return await done("failed", `sendpulse error · ${String(e).slice(0, 120)}`);
     }
+  },
+});
+
+/**
+ * The edit itself is ready (server pipeline) and the owner left an email for it: queue one "your edit is ready"
+ * email, unless they're watching the editor right now. Same flag, sender and honest outcomes as export emails.
+ */
+export const onEditReady = internalMutation({
+  args: { projectId: v.id("projects"), jobId: v.id("jobs") },
+  handler: async (ctx, { projectId, jobId }) => {
+    const project = await ctx.db.get(projectId);
+    if (!project?.readyEmail) return;
+    if (!(await flagOn(ctx, "ready_email", project.ownerUserId ?? project.ownerAnonId ?? ""))) return;
+    if (await ctx.db.query("notifications").withIndex("by_job", (q) => q.eq("jobId", jobId)).unique()) return;
+    const presence = await ctx.db.query("presence").withIndex("by_project", (q) => q.eq("projectId", projectId)).unique();
+    if (presence && Date.now() - presence.lastSeenAt < WATCHING_MS) return;
+    const id = await ctx.db.insert("notifications", { kind: "edit_ready", email: project.readyEmail, projectId, jobId, status: "queued", createdAt: Date.now() });
+    await ctx.scheduler.runAfter(0, internal.notify.send, { notificationId: id });
   },
 });
