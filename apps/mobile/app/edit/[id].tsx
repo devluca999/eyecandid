@@ -81,7 +81,7 @@ export default function Edit() {
       : stage === "failed"
         ? (data?.project.stageDetail ?? "something went wrong")
         : cold
-          ? "the engine is cold · waiting for a worker to start"
+          ? "the engine is waking up · usually under a minute"
           : ready
             ? null
             : `${STAGE_WORD[stage] ?? stage}${activeJob?.status === "running" ? ` · ${Math.round(activeJob.progress * 100)}%` : ""}`;

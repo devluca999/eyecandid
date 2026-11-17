@@ -6,6 +6,7 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { JOB_SPECS, JobTypeSchema, DEFAULT_LEASE_MS, DEFAULT_MAX_ATTEMPTS, MAX_LEASE_MS, evaluateFlag } from "@eyelore/core";
 import type { JobType } from "@eyelore/core";
 import { caller, owns } from "./lib/owner";
+import { requestWake } from "./wake";
 
 /** Insert a job, validating input against the contract. Idempotent on idempotencyKey. */
 export async function enqueueJob(
@@ -28,6 +29,7 @@ export async function enqueueJob(
   if (existing) return existing._id;
   const spec = JOB_SPECS[args.type];
   const input = spec.input.parse(args.input);
+  await requestWake(ctx); // scale-to-zero hosts: start a worker if none is polling (convex/wake.ts)
   return await ctx.db.insert("jobs", {
     type: args.type,
     version: spec.version,
