@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Animated, Modal, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions } from "react-native";
+import { Alert, Animated, Modal, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -53,6 +53,7 @@ export default function Edit() {
   const apply = useMutation(api.edits.apply);
   const undo = useMutation(api.edits.undo);
   const startExport = useMutation(api.pipeline.startExport);
+  const remove = useMutation(api.projects.remove);
 
   const doc = data?.doc ?? null;
   const clip = doc?.clips[0] ?? null;
@@ -166,6 +167,28 @@ export default function Edit() {
       }
     })();
   }, [latest, saved, track]);
+  // delete for good: the clip, the edit and its exports. Asked once, natively; never while the upload is in flight
+  const confirmDelete = () =>
+    Alert.alert("Delete this edit?", "Its clip and exports are removed for good. This can't be undone.", [
+      { text: "Keep", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: () => {
+          if (!anonId) return;
+          player.player.pause();
+          remove({ projectId, anonId })
+            .then(() => {
+              success();
+              router.replace("/");
+            })
+            .catch(() => {
+              warn();
+              setNotice("couldn't delete that · try again");
+            });
+        },
+      },
+    ]);
   const share = async () => {
     if (!saved?.uri) return;
     track("share", { target: "share_sheet" });
@@ -243,7 +266,10 @@ export default function Edit() {
         <Text numberOfLines={1} style={[T.meta, { color: c["ink-tertiary"], flexShrink: 1 }]}>
           {data?.project.title ?? ""}
         </Text>
-        <Pill theme="night" kind="quiet" testID="lens-mode" label={frame ? "theater" : "frame"} hint={frame ? "shows the circle Lens" : "shows the frame at your chosen ratio"} onPress={() => setFrame((f) => !f)} />
+        <View style={{ flexDirection: "row" }}>
+          {data && !uploading && <Pill theme="night" kind="quiet" testID="delete" label="delete" hint="deletes this edit, its clip and its exports for good" onPress={confirmDelete} />}
+          <Pill theme="night" kind="quiet" testID="lens-mode" label={frame ? "theater" : "frame"} hint={frame ? "shows the circle Lens" : "shows the frame at your chosen ratio"} onPress={() => setFrame((f) => !f)} />
+        </View>
       </View>
 
       <View style={{ height: availH + 8, alignItems: "center", justifyContent: "center" }}>

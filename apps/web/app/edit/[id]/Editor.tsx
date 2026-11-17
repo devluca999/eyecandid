@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
@@ -34,6 +35,8 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
   const presence = useQuery(api.jobs.workerPresence, {});
   const apply = useMutation(api.edits.apply);
   const undo = useMutation(api.edits.undo);
+  const remove = useMutation(api.projects.remove);
+  const router = useRouter();
   const track = useTrack();
   const pending = useSyncExternalStore(session.subscribe, () => session.get(projectId), () => undefined);
 
@@ -54,6 +57,8 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
   const [cut, setCut] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [exportReq, setExportReq] = useState(0);
+  // delete: a quiet verb, then one in-app step that says what goes and that it is final
+  const [del, setDel] = useState<"idle" | "confirm" | "deleting" | "gone">("idle");
   const frame = useRef<HTMLDivElement>(null);
   const [frameSize, setFrameSize] = useState({ w: 0, h: 0 });
 
@@ -130,6 +135,17 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
     await gate.run({ aspect, requestId: `${Date.now()}-${exportReq}`, ...(useCut ? { maxDurationMs: (Number(useCut) * 1000) as 15000 | 30000 | 60000 } : {}) });
     setExportReq((n) => n + 1);
   };
+  const doDelete = async () => {
+    setDel("deleting");
+    try {
+      await remove({ projectId, anonId });
+      setDel("gone");
+      router.replace("/");
+    } catch {
+      setDel("idle");
+      setNotice("couldn't delete that · try again");
+    }
+  };
   const doneSent = useRef<string | null>(null);
   useEffect(() => {
     if (latestExport?.status === "succeeded" && doneSent.current !== latestExport._id) {
@@ -151,6 +167,7 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
         void undo({ anonId, projectId, baseVersion: doc.version });
       }
       if (e.key === "Escape") {
+        setDel((d) => (d === "confirm" ? "idle" : d));
         setMenu(null);
         setSelected(null);
       }
@@ -163,6 +180,13 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
     return () => window.removeEventListener("keydown", onKey);
   });
 
+  if (del === "gone") {
+    return (
+      <Shell title="">
+        <StatusDot status="ready" label="deleted" />
+      </Shell>
+    );
+  }
   if (data === null) {
     return (
       <Shell title="not found">
@@ -188,6 +212,24 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
           : stage === "ready"
             ? null
             : `${STAGE_WORD[stage] ?? stage}${activeJob?.status === "running" ? ` · ${Math.round(activeJob.progress * 100)}%` : ""}`;
+
+  // deletable once the clip is registered (or its upload failed): deleting under a live upload would strand the file
+  const canDelete = !!data && (!!sourceMedia || !!pending?.error || !pending);
+  const actions = !canDelete ? null : del === "idle" ? (
+    <button className="el-pill el-pill--quiet el-pill--sm" data-testid="delete" onClick={() => setDel("confirm")}>
+      delete
+    </button>
+  ) : (
+    <div className="flex flex-wrap items-center justify-end gap-8" role="alertdialog" aria-label="delete this edit" data-testid="delete-confirm">
+      <span className="text-meta text-ink-secondary">delete this edit, its clip and exports for good? this can&apos;t be undone</span>
+      <button className="el-pill el-pill--quiet el-pill--sm" data-testid="delete-keep" disabled={del === "deleting"} onClick={() => setDel("idle")}>
+        keep
+      </button>
+      <button className="el-pill el-pill--secondary el-pill--sm" data-testid="delete-yes" disabled={del === "deleting"} onClick={() => void doDelete()}>
+        {del === "deleting" ? "deleting" : "delete"}
+      </button>
+    </div>
+  );
 
   // Lens geometry: true aspect while editing, chosen ratio when morphed
   const srcRatio = clip ? clip.w / clip.h : sourceMedia?.w && sourceMedia.h ? sourceMedia.w / sourceMedia.h : 16 / 9;
@@ -232,7 +274,7 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
   };
 
   return (
-    <Shell title={data?.project.title ?? ""}>
+    <Shell title={data?.project.title ?? ""} actions={actions}>
       <div className="flex flex-col items-center gap-16" onClick={() => setMenu(null)}>
         <div
           style={{ width, transition: "width var(--dur-morph) var(--spring-morph)" }}
@@ -336,14 +378,15 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
   );
 }
 
-function Shell({ title, children }: { title: string; children: React.ReactNode }) {
+function Shell({ title, actions, children }: { title: string; actions?: React.ReactNode; children: React.ReactNode }) {
   return (
     <main className="min-h-dvh flex flex-col">
-      <header className="flex items-center gap-16 px-24 py-16">
+      <header className="flex flex-wrap items-center gap-16 px-24 py-16">
         <Link href="/" aria-label="home">
           <Lockup height={22} />
         </Link>
         <span className="text-meta text-ink-secondary truncate">{title}</span>
+        {actions && <div className="ml-auto">{actions}</div>}
       </header>
       <section className="flex flex-1 flex-col items-center justify-start gap-24 px-24 pb-64 pt-16">{children}</section>
     </main>
