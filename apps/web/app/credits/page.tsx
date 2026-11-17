@@ -5,20 +5,19 @@ import { Lockup } from "@eyelore/ui";
 export const metadata: Metadata = { title: "Footage credits · Eyecandid" };
 
 const FREE = "Mixkit Stock Video Free License";
-const RESTRICTED = "Mixkit Stock Video Restricted License";
-/** Mirrors docs/credits.md (the licence each clip's Mixkit page states). */
+/** Mirrors docs/credits.md: every clip is under the licence its own Mixkit page states, the Free License. */
 const CREDITS: { id: number; title: string; slug: string; licence: string }[] = [
-  { id: 5565, title: "Cinematic aerial view of countryside meadow", slug: "cinematic-aerial-view-of-countryside-meadow-5565", licence: RESTRICTED },
+  { id: 41550, title: "Aerial tour of a large meadow covered with vegetation", slug: "aerial-tour-of-a-large-meadow-covered-with-vegetation-41550", licence: FREE },
   { id: 41272, title: "Youtuber vlogging in his studio", slug: "youtuber-vlogging-in-his-studio-41272", licence: FREE },
   { id: 42308, title: "Cheerful girl recording herself with a colorful background", slug: "cheerful-girl-recording-herself-with-a-colorful-background-42308", licence: FREE },
   { id: 32800, title: "Young woman getting into position for sprinting", slug: "young-woman-getting-into-position-for-sprinting-32800", licence: FREE },
-  { id: 9582, title: "Sunbeams in a cloudy sunset", slug: "sunbeams-in-a-cloudy-sunset-9582", licence: RESTRICTED },
+  { id: 2168, title: "Bright orange sunset on beach", slug: "bright-orange-sunset-on-beach-2168", licence: FREE },
   { id: 236, title: "Filling a white cup of coffee", slug: "filling-a-white-cup-of-coffee-236", licence: FREE },
   { id: 40865, title: "A person riding a bicycle to the side of a cycling track", slug: "a-person-riding-a-bicycle-to-the-side-of-a-40865", licence: FREE },
   { id: 42323, title: "Portrait of an influencer talking to the camera", slug: "portrait-of-an-influencer-talking-to-the-camera-42323", licence: FREE },
   { id: 810, title: "Latte art", slug: "latte-art-810", licence: FREE },
   { id: 41181, title: "Woman taking a selfie in the morning", slug: "woman-taking-a-selfie-in-the-morning-41181", licence: FREE },
-  { id: 46653, title: "Slow motion of a woman running under a city bridge", slug: "slow-motion-of-a-woman-running-under-a-city-bridge-46653", licence: RESTRICTED },
+  { id: 4851, title: "Girl running during sunset ties her shoelaces", slug: "girl-running-during-sunset-ties-her-shoelaces-4851", licence: FREE },
   { id: 583, title: "Woman doing warm up exercises", slug: "woman-doing-warm-up-exercises-583", licence: FREE },
 ];
 

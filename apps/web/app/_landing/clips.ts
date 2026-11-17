@@ -1,16 +1,16 @@
 /** Self-hosted landing loops (scripts/media/build.sh → public/media). Credits: docs/credits.md, /credits. */
 export const CLIPS = {
-  5565: "a green countryside meadow under a blue sky",
+  41550: "an aerial view over a green meadow",
   41272: "a man talking to camera in his studio",
   42308: "a woman filming herself in front of a rainbow umbrella",
   32800: "a sprinter in the starting crouch, then off the blocks",
-  9582: "sunbeams breaking through clouds at sunset",
+  2168: "an orange sunset over the sea between palm trees",
   236: "coffee pouring into a white cup",
   40865: "a cyclist riding along a track",
   42323: "a woman with curly hair talking to camera",
   810: "milk poured into a latte",
   41181: "a woman taking a selfie by the window with her coffee",
-  46653: "a runner in silhouette under a city bridge",
+  4851: "a woman running along a path at sunset",
   583: "a woman warming up on a running track at dusk",
 } as const;
 export type ClipId = keyof typeof CLIPS;
