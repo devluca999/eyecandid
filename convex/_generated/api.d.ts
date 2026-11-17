@@ -32,6 +32,7 @@ import type * as pipeline from "../pipeline.js";
 import type * as presence from "../presence.js";
 import type * as projects from "../projects.js";
 import type * as users from "../users.js";
+import type * as wake from "../wake.js";
 import type * as workers from "../workers.js";
 
 import type {
@@ -65,6 +66,7 @@ declare const fullApi: ApiFromModules<{
   presence: typeof presence;
   projects: typeof projects;
   users: typeof users;
+  wake: typeof wake;
   workers: typeof workers;
 }>;
 
