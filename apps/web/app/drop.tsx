@@ -9,8 +9,10 @@ import { getAnonId } from "@/lib/anon";
 import { session } from "@/lib/session";
 import { probeVideo, uploadFile } from "@/lib/upload";
 import { useTrack } from "@/lib/track";
-import { deviceSupport, transcribeOnDevice } from "@/lib/device-engine";
+import { deviceSupport, faceTrackOnDevice, transcribeOnDevice } from "@/lib/device-engine";
 import { env } from "@/lib/env";
+import { getClientHint } from "@/lib/client-hint";
+import { refusalMessage } from "@/lib/refusal";
 
 type Uploader = { pick: () => void; trySample: (() => void) | null; busy: boolean; error: string | null };
 const Ctx = createContext<Uploader>({ pick: () => {}, trySample: null, busy: false, error: null });
@@ -28,6 +30,7 @@ export function UploaderProvider({ children }: { children: ReactNode }) {
   const addDeviceSource = useMutation(api.projects.addDeviceSource);
   const deviceProgress = useMutation(api.projects.deviceProgress);
   const applyDeviceTranscript = useMutation(api.projects.applyDeviceTranscript);
+  const applyDeviceReframe = useMutation(api.projects.applyDeviceReframe);
   const deviceFailed = useMutation(api.projects.deviceFailed);
   const flags = useQuery(api.flags.forSubject, typeof window === "undefined" ? "skip" : { subject: getAnonId() });
   const track = useTrack();
@@ -56,10 +59,10 @@ export function UploaderProvider({ children }: { children: ReactNode }) {
       }
       let projectId: Id<"projects">;
       try {
-        projectId = await create({ anonId, title: file.name.replace(/\.[^.]+$/, "").slice(0, 80) });
-      } catch {
+        projectId = await create({ anonId, title: file.name.replace(/\.[^.]+$/, "").slice(0, 80), clientHint: await getClientHint() });
+      } catch (e) {
         setBusy(false);
-        setError("couldn't start an edit · check your connection and try again");
+        setError(refusalMessage(e, "couldn't start an edit · check your connection and try again"));
         return;
       }
       // free tier on the visitor's device when it can (ADR 0012): no upload, no worker, the clip stays here
@@ -77,7 +80,7 @@ export function UploaderProvider({ children }: { children: ReactNode }) {
           clipId = (await addDeviceSource({ anonId, projectId, contentType: file.type || "video/mp4", bytes: file.size, ...meta })).clipId;
         } catch (e) {
           setBusy(false);
-          setError(e instanceof Error ? e.message.replace(/^.*Uncaught Error: /, "").split("\n")[0]! : "couldn't start an edit");
+          setError(refusalMessage(e, "couldn't start an edit · check your connection and try again"));
           return;
         }
         session.put({ projectId, file, droppedAt, engine: "device" });
@@ -97,6 +100,14 @@ export function UploaderProvider({ children }: { children: ReactNode }) {
           } else {
             session.update(projectId, { deviceStage: "trimming the ums" });
             await applyDeviceTranscript({ anonId, projectId, clipId, transcript });
+            // the edit is ready; the face pass runs behind it (like the server's background reframe). Non-fatal:
+            // on any failure the doc keeps its centred crop, and an export before it lands uses whatever the doc has.
+            void faceTrackOnDevice(file, meta.durationMs)
+              .then((r) => {
+                console.info(`[reframe] ${r.faces}/${r.frames} frames with a face · ${r.keyframes.length} keyframes · ${r.ms} ms`);
+                return applyDeviceReframe({ anonId, projectId, clipId, keyframes: r.keyframes, faces: r.faces });
+              })
+              .catch((e) => console.warn("[reframe] skipped, keeping the clip centred", e));
           }
         } catch (e) {
           const why = e instanceof Error ? e.message : String(e);
@@ -109,15 +120,16 @@ export function UploaderProvider({ children }: { children: ReactNode }) {
       session.put({ projectId, file, droppedAt, engine: "server" });
       router.push(`/edit/${projectId}`);
       try {
-        const storageId = await uploadFile(() => uploadUrl({ anonId, projectId }), file, (p) => session.update(projectId, { uploadProgress: p }));
+        const clientHint = await getClientHint();
+        const storageId = await uploadFile(() => uploadUrl({ anonId, projectId, clientHint }), file, (p) => session.update(projectId, { uploadProgress: p }));
         track("upload_done", { ms: Date.now() - droppedAt });
         await addSource({ anonId, projectId, storageId: storageId as Id<"_storage">, contentType: file.type || "video/mp4", source: "upload", ...meta });
         session.update(projectId, { uploadProgress: 1 });
-      } catch {
-        session.update(projectId, { error: "upload failed · check your connection and drop it again" });
+      } catch (e) {
+        session.update(projectId, { error: refusalMessage(e, "upload failed · check your connection and drop it again") });
       }
     },
-    [addDeviceSource, addSource, applyDeviceTranscript, create, deviceFailed, deviceProgress, flags?.on_device, router, track, uploadUrl],
+    [addDeviceSource, addSource, applyDeviceReframe, applyDeviceTranscript, create, deviceFailed, deviceProgress, flags?.on_device, router, track, uploadUrl],
   );
   const pick = useCallback(() => input.current?.click(), []);
   // "try it with our clip": the hosted sample runs through the exact same pipeline as a dropped clip

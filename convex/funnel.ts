@@ -1,7 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import { query } from "./_generated/server";
 import { FUNNEL, aggregateFunnel, costSummary, parseRate, type FunnelEventRow } from "@eyelore/core";
-import { sha256Hex } from "./lib/workerAuth";
+import { tokensMatch } from "./lib/workerAuth";
 
 /**
  * Rows read per event name. Convex caps a query at 16,384 documents, and 11 steps are read, so the bound is
@@ -13,14 +13,6 @@ const DAY_MS = 86_400_000;
 /** the free pipeline's job types (all CPU); GPU types are paid with credits and aren't part of the free cost */
 const CPU_TYPES = ["transcribe", "autocut", "reframe", "render"] as const;
 const COST_ROW_LIMIT = 500;
-
-/** Constant-time compare: both sides are hashed to equal length, then XOR-folded without early exit. */
-async function tokensMatch(given: string, expected: string): Promise<boolean> {
-  const [a, b] = await Promise.all([sha256Hex(given), sha256Hex(expected)]);
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return diff === 0;
-}
 
 /** Token-gated funnel summary for /funnel. Reads via `by_name_ts`, bounded per event name; never scans the table. */
 export const summary = query({

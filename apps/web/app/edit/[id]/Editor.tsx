@@ -64,6 +64,7 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
   const data = useQuery(api.projects.get, anonId ? { projectId, anonId } : "skip");
   const history = useQuery(api.edits.history, anonId && data?.doc?.beads.length ? { projectId, anonId, limit: 300 } : "skip");
   const presence = useQuery(api.jobs.workerPresence, {});
+  const limits = useQuery(api.limits.status, anonId ? { anonId } : "skip");
   const apply = useMutation(api.edits.apply);
   const undo = useMutation(api.edits.undo);
   const remove = useMutation(api.projects.remove);
@@ -362,7 +363,7 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
   const cold = !isDevice && presence && presence.live === 0 && stage !== "ready" && stage !== "failed" && !uploading;
   const deviceLine = isDevice && stage !== "ready" && stage !== "failed"
     ? pending
-      ? pending.deviceStage ?? data?.project.stageDetail ?? "on this device"
+      ? pending.deviceStage ?? data?.project.stageDetail ?? "editing on this device · your clip isn't uploaded"
       : "this edit runs in the browser it was dropped in · keep that tab open, or drop the clip again here"
     : null;
   const activeJob = data?.jobs.find((j) => j.status === "running" || j.status === "leased" || j.status === "queued");
@@ -632,6 +633,15 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
             stage={isDevice ? (devExport.phase === "rendering" ? "rendering on this device" : undefined) : exporting ? latestExport!.stage : undefined}
             downloadUrl={isDevice ? devExport.url : latestExport?.url}
           />
+        )}
+        {/* the Pro ask comes after value is felt: a free export just finished (MVP spec, Access model) */}
+        {mode === "edit" && limits && !limits.pro && (isDevice ? devExport.phase === "done" : latestExport?.status === "succeeded") && (
+          <p className="text-meta text-ink-secondary" data-testid="pro-offer">
+            no watermark, clips up to 5 min?{" "}
+            <a href="/#pricing" className="text-ink underline underline-offset-4" onClick={() => track("edit_interaction", { kind: "pro_offer" })}>
+              request pro access
+            </a>
+          </p>
         )}
         {isDevice && devExport.phase === "failed" && mode === "edit" && <StatusDot status="attention" label={`export failed · ${devExport.error ?? ""}`.slice(0, 120)} />}
         {!isDevice && latestExport?.status === "failed" && mode === "edit" && <StatusDot status="attention" label={`export failed · ${latestExport.error ?? ""}`.slice(0, 120)} />}

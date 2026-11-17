@@ -4,7 +4,7 @@ import { action, internalMutation, internalQuery } from "./_generated/server";
 import { CREDIT_PACKS, PLANS, isPlanId } from "@eyelore/core";
 import type { PlanId } from "@eyelore/core";
 import { flagOn } from "./lib/flags";
-import { ensureEntitlement, entitlementFor, setPlan, userByClerkId } from "./lib/users";
+import { ensureEntitlement, entitlementFor, grantMonthlyCredits, setPlan, userByClerkId } from "./lib/users";
 
 type StripeObj = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any -- Stripe payloads are untyped JSON
 
@@ -44,41 +44,53 @@ export const checkout = action({
     const me = await ctx.runQuery(internal.billing.checkoutContext, { clerkId: identity.subject });
     if (!me) return { configured: true, ok: false, error: "sign_in_required" };
     if (!me.enabled) return { configured: false, reason: "disabled" };
-    const base = (process.env.EYELORE_WEB_URL ?? "").replace(/\/$/, "");
-    if (!base || !/^\/[A-Za-z0-9/_-]*$/.test(a.returnPath)) return { configured: false, reason: "web_url_missing" };
-
-    const credits = a.pack ? CREDIT_PACKS[a.pack] : undefined;
-    const planDef = a.plan ? PLANS[a.plan] : undefined;
-    const priceEnv = credits?.priceEnv ?? planDef?.priceEnv;
-    const price = priceEnv ? process.env[priceEnv] : undefined;
-    if (!price) return { configured: false, reason: "price_missing" };
-
-    const meta: Record<string, string> = { userId: me.userId, ...(credits ? { kind: "credits", pack: a.pack! } : { kind: "plan", plan: a.plan! }) };
-    const form = new URLSearchParams({
-      mode: credits ? "payment" : "subscription",
-      success_url: `${base}${a.returnPath}?checkout=success`,
-      cancel_url: `${base}${a.returnPath}?checkout=canceled`,
-      client_reference_id: me.userId,
-      "line_items[0][price]": price,
-      "line_items[0][quantity]": "1",
-    });
-    for (const [k, val] of Object.entries(meta)) {
-      form.set(`metadata[${k}]`, val);
-      if (!credits) form.set(`subscription_data[metadata][${k}]`, val);
-    }
-    if (me.customerId) form.set("customer", me.customerId);
-    else if (me.email) form.set("customer_email", me.email);
-
-    const res = await fetch("https://api.stripe.com/v1/checkout/sessions", {
-      method: "POST",
-      headers: { authorization: `Bearer ${key}`, "content-type": "application/x-www-form-urlencoded" },
-      body: form,
-    });
-    if (!res.ok) return { configured: true, ok: false, error: "stripe_error" };
-    const session = (await res.json()) as { url?: string };
-    return session.url ? { configured: true, ok: true, url: session.url } : { configured: true, ok: false, error: "stripe_error" };
+    return await createStripeCheckout(key, me, a);
   },
 });
+
+/**
+ * The Stripe REST call behind every checkout (here and Pro's `access.proCheckout`). The caller has already checked
+ * the key, the signed-in user and the `billing` flag.
+ */
+export async function createStripeCheckout(
+  key: string,
+  me: { userId: string; email?: string; customerId?: string },
+  a: { plan?: "creator" | "studio"; pack?: "small" | "large"; returnPath: string },
+): Promise<CheckoutResult> {
+  const base = (process.env.EYELORE_WEB_URL ?? "").replace(/\/$/, "");
+  if (!base || !/^\/[A-Za-z0-9/_-]*$/.test(a.returnPath)) return { configured: false, reason: "web_url_missing" };
+
+  const credits = a.pack ? CREDIT_PACKS[a.pack] : undefined;
+  const planDef = a.plan ? PLANS[a.plan] : undefined;
+  const priceEnv = credits?.priceEnv ?? planDef?.priceEnv;
+  const price = priceEnv ? process.env[priceEnv] : undefined;
+  if (!price) return { configured: false, reason: "price_missing" };
+
+  const meta: Record<string, string> = { userId: me.userId, ...(credits ? { kind: "credits", pack: a.pack! } : { kind: "plan", plan: a.plan! }) };
+  const form = new URLSearchParams({
+    mode: credits ? "payment" : "subscription",
+    success_url: `${base}${a.returnPath}?checkout=success`,
+    cancel_url: `${base}${a.returnPath}?checkout=canceled`,
+    client_reference_id: me.userId,
+    "line_items[0][price]": price,
+    "line_items[0][quantity]": "1",
+  });
+  for (const [k, val] of Object.entries(meta)) {
+    form.set(`metadata[${k}]`, val);
+    if (!credits) form.set(`subscription_data[metadata][${k}]`, val);
+  }
+  if (me.customerId) form.set("customer", me.customerId);
+  else if (me.email) form.set("customer_email", me.email);
+
+  const res = await fetch("https://api.stripe.com/v1/checkout/sessions", {
+    method: "POST",
+    headers: { authorization: `Bearer ${key}`, "content-type": "application/x-www-form-urlencoded" },
+    body: form,
+  });
+  if (!res.ok) return { configured: true, ok: false, error: "stripe_error" };
+  const session = (await res.json()) as { url?: string };
+  return session.url ? { configured: true, ok: true, url: session.url } : { configured: true, ok: false, error: "stripe_error" };
+}
 
 function planFromPrice(priceId: string | undefined): PlanId | undefined {
   if (!priceId) return undefined;
@@ -112,6 +124,7 @@ export const applyStripeEvent = internalMutation({
       const plan = o.metadata?.plan;
       if (!isPlanId(plan) || plan === "free" || o.payment_status === "unpaid") return { applied: false as const, why: "no paid plan" };
       await setPlan(ctx, userId, plan, { stripeCustomerId: o.customer ?? undefined, stripeSubscriptionId: o.subscription ?? undefined, subscriptionStatus: "active" });
+      await grantMonthlyCredits(ctx, userId, plan);
       return { applied: true as const };
     }
 
@@ -131,6 +144,8 @@ export const applyStripeEvent = internalMutation({
       if (["active", "trialing", "past_due"].includes(status)) {
         const plan = planFromPrice(o.items?.data?.[0]?.price?.id) ?? (isPlanId(o.metadata?.plan) ? (o.metadata.plan as PlanId) : undefined);
         if (plan) await setPlan(ctx, ent.userId, plan, { subscriptionStatus: status, stripeSubscriptionId: o.id ?? ent.stripeSubscriptionId, stripeCustomerId: o.customer ?? ent.stripeCustomerId });
+        // a renewal arrives as an update to a live subscription: this month's credits, once (past_due gets none)
+        if (plan && status !== "past_due") await grantMonthlyCredits(ctx, ent.userId, plan);
         return { applied: !!plan };
       }
       return { applied: false as const, why: `status ${status}` };
