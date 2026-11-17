@@ -149,7 +149,7 @@ Primary metric: **time from `drop_started` to `first_preview`** (target ≤ 60 s
 | Convex file storage limits for large video | cost and upload failure | `MediaStore` interface from day one; resumable chunked upload; S3-compatible swap in an ADR when needed |
 | Identity/product drift in generated clips (assessment) | trust | Generation is Phase 3 and flagged; QC gate (reference similarity, motion score) before anything reaches the timeline |
 | Meaning-changing edits | trust, brand | ops are restricted to cut/strike/reorder/polish; no word substitution except own-voice with consent; every change listed |
-| No always-on host for the CPU worker yet | the core loop only runs while a worker is up (today: a laptop) | pick a host (Modal CPU, Fly.io, a small VPS); the same worker runs unchanged |
+| Engine cost and availability | two always-warm Modal containers spent the workspace budget in hours and the engine stopped | workers scale to zero and Convex wakes one when a job waits (ADR 0010); the first clip after a quiet spell pays a cold start (to be measured on production); a spend cap can still stop the engine, so set a budget alert |
 | OpenCV 5 dropped the Haar face detector | reframe pinned to OpenCV 4 | move to YuNet (`cv2.FaceDetectorYN`) with a vendored model |
 | Many external accounts not yet connected | can't prove CI exit criterion | stubs + "Needs keys" list; local anonymous Convex for development |
 | EAS cloud builds are slow for a per-PR check (free tier: ~17 min in the queue, then 14–26 min to build) | the mobile e2e outlived its pushes and never finished | the APK is built on the CI runner (x86_64 release, cached on the app's inputs) and Maestro runs against a local Convex + CPU worker; runs only when mobile-relevant paths change. EAS cloud builds work and are for real-device previews and store submission: `eas build --profile preview` |
@@ -167,6 +167,7 @@ Integration is built behind a labelled stub until the key exists. Set them in Ve
 | Stripe | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Convex, Vercel | **not built yet** (Phase 2: paywall at export, webhooks into Convex, server-side entitlements) |
 | SendPulse | `SENDPULSE_CLIENT_ID`, `SENDPULSE_CLIENT_SECRET` | Convex | **not built yet** (Phase 2: "your edit is ready") |
 | Sentry | `SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_DSN`, `EXPO_PUBLIC_SENTRY_DSN`, `SENTRY_AUTH_TOKEN` | all | **not built yet**: `@sentry/nextjs` installed, no init; mobile and worker not instrumented |
+| Engine wake | `EYELORE_WAKE_URL` | Convex | built (`convex/wake.ts`, Modal `wake` endpoint); **not deployed**: needs the Modal spend cap raised, a redeploy, and the printed URL set on each Convex deployment |
 | Worker | `EYELORE_WORKER_TOKEN`, `EYELORE_CONVEX_SITE_URL` | Colab/Modal/RunPod secrets | generated per worker by `convex run workers:register`; CI's dev worker token is in GitHub secrets as `EYELORE_DEV_WORKER_TOKEN` |
 
 ## 8. Notes and conflicts found
@@ -219,7 +220,13 @@ Where work runs (decided 2026-11-16): one worker codebase behind `GpuProvider`. 
 - [x] Playwright: landing → exported 9:16 in **55–62s** locally (real CPU worker), CI runs it with a real worker
 - [x] Delete an edit for good (owner only): project, edit doc and change log, exports, jobs and every stored file through `MediaStore.delete`; a job running at that moment is canceled and anything it uploads late is removed. Web: quiet "delete" in the editor with an in-app confirm, and a "your edits" list on the landing to find it again. Mobile control ships with 2.3 — 6 convex tests, 1 Playwright
 - [ ] Resumable upload (chunked storage behind MediaStore) and an uploaded proxy for other devices
-**2.2b Web, rest** — theater (Night, circle Lens) and board modes; dials that re-edit live; timeline drawer with the five tracks; "?" shortcut sheet + skippable tour; Clerk signup at export with the anonymous work carried over
+**2.2b Web, rest** — branch `phase-2/web-rest` (PR #9)
+- [~] One Lens across theater (Night, circle, plays the edit, progress ring) / edit / board (a card per bead: still, sentence, moment tick, struck, keep/cut); spring morph; keys 1/2/3
+- [~] Dials re-edit live: `packages/core/src/dials.ts` `dialChanges` (pace strikes/restores pauses on a 1.2s → 0.45s → 0.25s line, 0.5 = autocut; energy punch-ins 1.04–1.12× on hook, best line, call to action, then more beads; b-roll density stored, decides nothing until Weave), `autopilot:dials`, one-line reasons, pins respected, exact round trip; `edits.setDials`; ⌘Z follows
+- [~] Energy punch-ins in the export (Remotion, the same `punchAt` as the preview); no job-contract change
+- [~] Timeline drawer (⌥T or the handle), five tracks in `TRACK_ORDER` on real data; b-roll and music honestly empty
+- [~] "?" shortcut sheet and a 4-step skippable first-run tour
+- [ ] Punch-ins in the mobile preview (the export has them)
 **2.3 Mobile** — branch `phase-2/mobile` (native screens, no webview)
 - [x] Home: record or import, no signup; recent edits (`projects.mine`)
 - [x] Capture with a teleprompter: script one line per row, one continuous recording, the current line under the lens, tap for the next; a line said twice keeps the last take (`retakeChanges`, restorable). Not exercised on a device yet: simulators have no camera
@@ -229,7 +236,13 @@ Where work runs (decided 2026-11-16): one worker codebase behind `GpuProvider`. 
 - [x] Export → saved to the camera roll, then the share sheet; funnel events with `platform`
 - [x] Haptics on every action and result; VoiceOver/TalkBack labels, hints, states and live regions; 44pt targets on controls
 - [x] iOS simulator, local Convex backend + real CPU worker: clip → ready → exported 1080×1920 h264 in the camera roll in under 60s (started through the dev-only clip route: no touch automation on this machine)
-- [~] Maestro `core-loop.yaml` (import through the real picker → ready → edit → export saved, waits sum to under 3 min) on the Android emulator in CI
+- [x] Maestro `core-loop.yaml` on the Android emulator in CI (local Convex + real CPU worker, 2-core runner): import through the real photo picker → ready → restore a word → export → saved, in **138s** and **151s** on two runs, with a 1080×1920 export in the gallery; `delete.yaml` then removes the edit. CI fails the job if the core loop takes 180s or more (a slow runner once took 211s with the earlier, slower flow)
 - [ ] Geist fonts in the native app (system font today); Clerk and the paywall on mobile (needs keys and an in-app-purchase decision); Android foreground service for long uploads; Sentry
-**2.4 Around the loop** — idea engine empty state (needs an LLM key), paywall at export (Stripe), "your edit is ready" (SendPulse), Sentry
+**2.4 Around the loop**
+- [~] Accounts with the anonymous work claimed on signup, server-side entitlements, paywall at export, "your edit is ready" email, Sentry on web and worker: built as stubs until keys (PR #7, ADR 0009). Flags `accounts`, `billing`, `ready_email`, default off. Paywall rules apply only with the `billing` flag and a Stripe key
+- [~] Funnel dashboard at `/funnel`, gated by `EYELORE_ADMIN_TOKEN` (PR #10)
+- [x] Delete an edit for good, web and mobile (#6): project, history, exports, jobs and stored files; Maestro and Playwright cover it
+- [ ] Idea engine empty state (needs an LLM provider and key)
+- [ ] Owner decisions: plan names, prices and limits, soft or hard signup gate, deletion policy on account removal
+- [ ] Run sign-up and checkout end to end once keys exist; Clerk and the paywall on mobile
 ### Phase 3 — autopilots and AI editing *(not started)*

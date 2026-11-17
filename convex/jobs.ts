@@ -7,6 +7,7 @@ import { JOB_SPECS, JobTypeSchema, DEFAULT_LEASE_MS, DEFAULT_MAX_ATTEMPTS, MAX_L
 import type { JobType } from "@eyelore/core";
 import { caller, owns } from "./lib/owner";
 import { mediaIdsIn, mediaStore } from "./lib/mediaStore";
+import { requestWake } from "./wake";
 
 /** Insert a job, validating input against the contract. Idempotent on idempotencyKey. */
 export async function enqueueJob(
@@ -29,6 +30,7 @@ export async function enqueueJob(
   if (existing) return existing._id;
   const spec = JOB_SPECS[args.type];
   const input = spec.input.parse(args.input);
+  await requestWake(ctx); // scale-to-zero hosts: start a worker if none is polling (convex/wake.ts)
   return await ctx.db.insert("jobs", {
     type: args.type,
     version: spec.version,
@@ -87,7 +89,11 @@ export const workerPresence = query({
     const recent = await ctx.db.query("workers").order("desc").take(50);
     const now = Date.now();
     const live = recent.filter((w) => !w.disabled && w.lastSeenAt && now - w.lastSeenAt < 60_000);
-    return { live: live.length, providers: [...new Set(live.map((w) => w.provider))] };
+    // how the last wake of a scale-to-zero host went, so the UI can say what is really happening while it waits
+    const state = await ctx.db.query("engineState").first();
+    const r = state?.lastWakeResult ?? "";
+    const wake: "asked" | "none" | "failing" | null = !state ? null : r.startsWith("ok") || r === "asking" ? "asked" : r.startsWith("not configured") || r.startsWith("no wake-able") ? "none" : "failing";
+    return { live: live.length, providers: [...new Set(live.map((w) => w.provider))], wake };
   },
 });
 

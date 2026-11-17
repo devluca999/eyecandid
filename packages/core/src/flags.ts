@@ -2,6 +2,9 @@
 export const FLAGS = {
   hello_job: "Phase 1 round-trip demo",
   core_loop: "Phase 2 drop → cut → export",
+  accounts: "Phase 2.4 Clerk signup at export + anonymous claim",
+  billing: "Phase 2.4 paywall and Stripe checkout",
+  ready_email: "Phase 2.4 your edit is ready email",
   hero_line_ab: "A/B test of the landing hero line",
   genre_switcher: "Phase 3",
   weave: "Phase 3",

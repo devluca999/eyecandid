@@ -5,6 +5,7 @@ import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { addClipChange } from "@eyelore/core";
 import { caller, owns } from "./lib/owner";
+import { addUsage } from "./lib/entitle";
 import { commitChanges, createDoc, headDoc } from "./lib/docs";
 import { enqueueJob } from "./jobs";
 import { mediaIdsIn, mediaStore } from "./lib/mediaStore";
@@ -185,8 +186,23 @@ async function dropMedia(ctx: MutationCtx, projectId: Id<"projects">, mediaId: s
 async function purge(ctx: MutationCtx, projectId: Id<"projects">): Promise<boolean> {
   let more = false;
   const exportRows = await ctx.db.query("exports").withIndex("by_project", (q) => q.eq("projectId", projectId)).take(PURGE_BATCH);
-  for (const e of exportRows) await ctx.db.delete(e._id);
+  for (const e of exportRows) {
+    // a render that succeeded before the delete still used its minutes (ADR 0009); one that did not, did not
+    if (!e.usageCounted) {
+      const j = await ctx.db.get(e.jobId);
+      if (j?.status === "succeeded") await addUsage(ctx, { userId: e.chargedUserId, anonHash: e.chargedAnonHash }, ((j.output as { durationMs?: number } | undefined)?.durationMs ?? 0) / 60_000);
+    }
+    await ctx.db.delete(e._id);
+  }
   more ||= exportRows.length === PURGE_BATCH;
+
+  // presence beats and "your edit is ready" notifications belong to the edit; accountClaims is an audit log and stays
+  const beats = await ctx.db.query("presence").withIndex("by_project", (q) => q.eq("projectId", projectId)).take(PURGE_BATCH);
+  for (const b of beats) await ctx.db.delete(b._id);
+  more ||= beats.length === PURGE_BATCH;
+  const notes = await ctx.db.query("notifications").withIndex("by_project", (q) => q.eq("projectId", projectId)).take(PURGE_BATCH);
+  for (const n of notes) await ctx.db.delete(n._id);
+  more ||= notes.length === PURGE_BATCH;
 
   const jobs = await ctx.db.query("jobs").withIndex("by_project", (q) => q.eq("projectId", projectId)).take(PURGE_BATCH);
   for (const j of jobs) {
