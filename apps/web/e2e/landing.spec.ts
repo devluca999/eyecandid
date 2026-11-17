@@ -8,6 +8,7 @@ test("landing: the hero line, the real drop well and the sections, in order", as
   const h2 = await page.getByRole("heading", { level: 2 }).allInnerTexts();
   expect(h2).toEqual([
     "Same people. Same phones. Better takes.",
+    "Point at a clip. Pick the move.",
     "Same words. Different movie.",
     "Every track drives itself.",
     "Phone or prompt. Same polish.",
@@ -46,13 +47,16 @@ test("landing: with reduced motion the clips stay posters and nothing pins", asy
   // every step of the walkthrough is readable, the finished edit is shown
   await expect(seq.locator(".ec-step__b")).toHaveCount(7);
   await expect(seq.locator(".ec-step").last()).toHaveAttribute("aria-current", "step");
+  // the inline-edits demo shows its finished still, and says it is not in the editor yet
+  await expect(page.locator(".ec-inline__stage")).toHaveAttribute("data-step", "still");
+  await expect(page.locator(".ec-inline")).toContainText("pro · coming soon");
 });
 
 test("landing: with motion, clips on screen get self-hosted sources and play", async ({ page }) => {
   await page.goto("/");
-  const v = page.locator('.ec-hero video[data-clip="236"]');
+  const v = page.locator('.ec-hero video[data-clip="2300"]');
   await expect(v.locator("source")).toHaveCount(2, { timeout: 15_000 });
-  await expect(v.locator("source").first()).toHaveAttribute("src", /^\/media\/236-(480|720)\.webm$/);
+  await expect(v.locator("source").first()).toHaveAttribute("src", /^\/media\/2300-(480|720)\.webm$/);
 });
 
 test("landing: start now takes you to the drop well", async ({ page }) => {

@@ -8,7 +8,7 @@ import { Reveal } from "./motion";
 const PROMPT = "make the background space";
 const TRACKS: { name: string; why: string; status: Status; word: string }[] = [
   { name: "video", why: "best take · steadiest voice · no ums", status: "ready", word: "ready" },
-  { name: "b-roll", why: "cut away · you said ‘nightstand’", status: "attention", word: "1 to check" },
+  { name: "b-roll", why: "cut away · you said ‘the view’", status: "attention", word: "1 to check" },
   { name: "voice", why: "removed 2 fillers · 1 pause · 1.8s", status: "ready", word: "ready" },
   { name: "music", why: "ducks under your voice · back up on the cut", status: "ready", word: "ready" },
   { name: "captions", why: "word-timed · spelled right · your words", status: "working", word: "captioning" },
