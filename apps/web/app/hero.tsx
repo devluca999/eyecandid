@@ -109,7 +109,7 @@ export function Hero() {
         </nav>
 
         <div className="ec-hero__copy">
-          <span className="ec-eyebrow">ai video editor for creators and ugc ads</span>
+          <span className="ec-eyebrow">video editor for creators and ugc ads</span>
           <div className="ec-hero__line">
             <h1 id="hero-title" className="ec-h1">
               <span className="ec-line-a">{HERO_LINES.a}</span>

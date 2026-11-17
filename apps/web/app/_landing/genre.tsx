@@ -53,8 +53,9 @@ export function Genre() {
       </Reveal>
       <Reveal className="ec-copy ec-copy--down">
         <span className="ec-eyebrow">genre switcher</span>
+        <span className="ec-tag">preview · coming to pro</span>
         <h2 id="genre-title" className="ec-h2">Same words. Different movie.</h2>
-        <p className="ec-body">Flip the genre and the same clip re-grades, re-paces and re-scores itself. Not one word changes. The laugh track is a choice. Coming to Pro.</p>
+        <p className="ec-body">Flip the genre and the same clip re-grades, re-paces and re-scores itself. Not one word changes. The laugh track is a choice.</p>
         <div className="ec-genre__btns" role="group" aria-label="genre">
           {GENRES.map((k) => (
             <PillButton

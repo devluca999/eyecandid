@@ -9,8 +9,8 @@ const SEQ: { t: string; b: string; chip: string; dot: Status }[] = [
   { t: "We cut the ums.", b: "Fillers and dead air come out. Every cut says why, so you can put any of it back.", chip: "removed 2 fillers · 1 pause · 1.8s", dot: "working" },
   { t: "We say it back, clearly.", b: "Word-timed captions, spelled right. We polish how you said it, never what you said.", chip: "captions · word-timed", dot: "working" },
   { t: "We weave in the b-roll.", b: "You said ‘nightstand’, so we cut to the nightstand.", chip: "cut away · you said ‘nightstand’", dot: "working" },
-  { t: "We fix the light.", b: "One grade across every clip, so your face and the b-roll share the same afternoon. Coming soon.", chip: "grade · warm afternoon", dot: "working" },
-  { t: "We find the beat.", b: "Music under your voice. It ducks when you talk and comes back up on the cut. Coming soon.", chip: "music ducks under your voice", dot: "working" },
+  { t: "We fix the light.", b: "One grade across every clip, so your face and the b-roll share the same afternoon.", chip: "grade · warm afternoon", dot: "working" },
+  { t: "We find the beat.", b: "Music under your voice. It ducks when you talk and comes back up on the cut.", chip: "music ducks under your voice", dot: "working" },
   { t: "From cringe to cinema.", b: "Cut, captioned and reframed in about a minute today. The b-roll, grade and music are on the way.", chip: "ready · 0:31", dot: "ready" },
 ];
 const LAST = SEQ.length - 1;
@@ -94,6 +94,7 @@ export function Sequence() {
         </div>
         <div className="ec-seq__copy">
           <span id="seq-title" className="ec-eyebrow ec-desk">one take, start to finish</span>
+          <span className="ec-tag" data-testid="seq-preview">preview · some steps still to come</span>
           <ol className="ec-steps">
             {SEQ.map((x, i) => (
               <li key={x.t} className={"ec-step" + (i === s ? " is-on" : i < s ? " is-past" : "")} aria-current={i === s ? "step" : undefined}>
