@@ -113,3 +113,27 @@ function FUNNEL_NAMES() {
     "signup_prompted", "signup_done", "paywall_shown", "export_done", "share",
   ];
 }
+
+describe("funnel.summary · cost per free edit", () => {
+  afterEach(() => vi.unstubAllEnvs());
+  it("prices worker time and counts on-device exports apart", async () => {
+    vi.stubEnv("EYELORE_ADMIN_TOKEN", "t0k");
+    vi.stubEnv("EYELORE_CPU_USD_PER_HOUR", "0.36");
+    const t = convexTest(schema, modules);
+    const now = Date.now();
+    await t.run(async (ctx) => {
+      const projectId = await ctx.db.insert("projects", { title: "p", headVersion: 0, stage: "ready", createdAt: now });
+      const job = { version: 1, idempotencyKey: "k", input: {}, progress: 1, stage: "done", attempts: 1, maxAttempts: 3, createdAt: now, startedAt: now, finishedAt: now + 10_000 };
+      const jobId = await ctx.db.insert("jobs", { ...job, type: "render", status: "succeeded" });
+      await ctx.db.insert("jobs", { ...job, idempotencyKey: "k2", type: "transcribe", status: "failed" });
+      const ex = { projectId, aspect: "9:16", watermark: true, docVersion: 1, createdAt: now };
+      await ctx.db.insert("exports", { ...ex, jobId });
+      await ctx.db.insert("exports", { ...ex, device: true });
+    });
+    const r = await t.query(api.funnel.summary, { token: "t0k", days: 1 });
+    if (!r.configured) throw new Error("not configured");
+    expect(r.cost).toMatchObject({ workerSeconds: 20, serverExports: 1, deviceExports: 1 });
+    expect(r.cost.workerUsd).toBeCloseTo(0.002); // 20 s at $0.36/h
+    expect(r.cost.usdPerServerExport).toBeCloseTo(0.002);
+  });
+});

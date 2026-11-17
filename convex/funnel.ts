@@ -1,6 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import { query } from "./_generated/server";
-import { FUNNEL, aggregateFunnel, type FunnelEventRow } from "@eyelore/core";
+import { FUNNEL, aggregateFunnel, costSummary, parseRate, type FunnelEventRow } from "@eyelore/core";
 import { sha256Hex } from "./lib/workerAuth";
 
 /**
@@ -10,6 +10,9 @@ import { sha256Hex } from "./lib/workerAuth";
 export const FUNNEL_ROW_LIMIT = 1400;
 
 const DAY_MS = 86_400_000;
+/** the free pipeline's job types (all CPU); GPU types are paid with credits and aren't part of the free cost */
+const CPU_TYPES = ["transcribe", "autocut", "reframe", "render"] as const;
+const COST_ROW_LIMIT = 500;
 
 /** Constant-time compare: both sides are hashed to equal length, then XOR-folded without early exit. */
 async function tokensMatch(given: string, expected: string): Promise<boolean> {
@@ -40,6 +43,13 @@ export const summary = query({
       truncated[name] = got.length > FUNNEL_ROW_LIMIT;
       rows[name] = got.slice(0, FUNNEL_ROW_LIMIT).map((e) => ({ anonHash: e.anonHash, userId: e.userId, props: e.props }));
     }
-    return { configured: true as const, days, since, until: now, rowLimit: FUNNEL_ROW_LIMIT, ...aggregateFunnel({ rows, truncated }) };
+    // cost per free edit (Phase 3): worker seconds on the CPU pipeline × the owner's rate, over exports in the window
+    const jobs = [];
+    for (const type of CPU_TYPES)
+      for (const status of ["succeeded", "failed"] as const)
+        jobs.push(...(await ctx.db.query("jobs").withIndex("by_status_type_created", (q) => q.eq("status", status).eq("type", type).gte("createdAt", since)).take(COST_ROW_LIMIT)));
+    const exports = (await ctx.db.query("exports").order("desc").take(COST_ROW_LIMIT)).filter((e) => e.createdAt >= since);
+    const cost = costSummary({ jobs, exports: exports.map((e) => ({ device: !!e.device })), usdPerHour: parseRate(process.env.EYELORE_CPU_USD_PER_HOUR) });
+    return { configured: true as const, days, since, until: now, rowLimit: FUNNEL_ROW_LIMIT, ...aggregateFunnel({ rows, truncated }), cost };
   },
 });
