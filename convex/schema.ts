@@ -16,6 +16,8 @@ export default defineSchema({
     email: v.optional(v.string()),
     plan: v.union(v.literal("free"), v.literal("creator"), v.literal("studio")),
     createdAt: v.number(),
+    /** set by the Clerk user.deleted webhook: email is cleared and the account can no longer sign in */
+    deletedAt: v.optional(v.number()),
   }).index("by_clerkId", ["clerkId"]),
 
   projects: defineTable({
@@ -73,7 +75,15 @@ export default defineSchema({
     watermark: v.boolean(),
     docVersion: v.number(),
     createdAt: v.number(),
-  }).index("by_project", ["projectId"]),
+    /** entitlements (ADR 0009): the plan this export was granted under, and whether its minutes are counted yet */
+    plan: v.optional(v.string()),
+    usageCounted: v.optional(v.boolean()),
+    /** who the minutes are charged to: the signed-in caller, else the SHA-256 of their anon id */
+    chargedUserId: v.optional(v.id("users")),
+    chargedAnonHash: v.optional(v.string()),
+  })
+    .index("by_project", ["projectId"])
+    .index("by_job", ["jobId"]),
 
   jobs: defineTable({
     type: v.string(),
@@ -139,7 +149,53 @@ export default defineSchema({
     minutesLimit: v.number(),
     credits: v.number(),
     watermark: v.boolean(),
+    /** usage period (UTC month, "2026-11") that minutesUsed belongs to; a new month resets it */
+    period: v.optional(v.string()),
+    stripeCustomerId: v.optional(v.string()),
+    stripeSubscriptionId: v.optional(v.string()),
+    /** raw Stripe subscription status, for support */
+    subscriptionStatus: v.optional(v.string()),
+  })
+    .index("by_user", ["userId"])
+    .index("by_stripeCustomer", ["stripeCustomerId"]),
+
+  stripeEvents: defineTable({ eventId: v.string(), at: v.number(), type: v.optional(v.string()) }).index("by_eventId", ["eventId"]),
+
+  /** usage for callers with no account, keyed by the SHA-256 of the anon id (never the raw capability token) */
+  anonUsage: defineTable({ anonHash: v.string(), period: v.string(), minutesUsed: v.number() }).index("by_anon_period", ["anonHash", "period"]),
+
+  /** audit log: every anonymous-to-account claim that moved something (ADR 0009). The anon id is stored hashed. */
+  accountClaims: defineTable({
+    userId: v.id("users"),
+    anonHash: v.string(),
+    projectIds: v.array(v.id("projects")),
+    skipped: v.number(),
+    at: v.number(),
   }).index("by_user", ["userId"]),
 
-  stripeEvents: defineTable({ eventId: v.string(), at: v.number() }).index("by_eventId", ["eventId"]),
+  /** lightweight "is someone watching" signal: the editor beats every ~20s while its tab is visible */
+  presence: defineTable({ projectId: v.id("projects"), lastSeenAt: v.number() }).index("by_project", ["projectId"]),
+
+  /** "your edit is ready" emails and their honest outcome */
+  notifications: defineTable({
+    kind: v.literal("export_ready"),
+    userId: v.id("users"),
+    projectId: v.id("projects"),
+    jobId: v.id("jobs"),
+    status: v.union(v.literal("queued"), v.literal("sent"), v.literal("not_sent"), v.literal("failed")),
+    /** e.g. "not sent · SendPulse not configured" */
+    detail: v.optional(v.string()),
+    createdAt: v.number(),
+    finishedAt: v.optional(v.number()),
+  })
+    .index("by_job", ["jobId"])
+    .index("by_project", ["projectId"]),
+
+  /** one row: when the engine was last woken and how that went (scale-to-zero workers, ADR 0010) */
+  engineState: defineTable({
+    lastWakeAt: v.number(),
+    lastWakeResult: v.optional(v.string()),
+    lastWakeMs: v.optional(v.number()),
+  }),
+
 });

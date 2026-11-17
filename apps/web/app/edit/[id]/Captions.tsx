@@ -6,7 +6,7 @@ import type { CaptionChunk } from "@eyelore/core";
  * Captions on the footage (design/components/captions/CaptionEditor): the speaker's words, exactly.
  * Click a word to fix its spelling or casing; the change is kept as an override and listed in the history.
  */
-export function Captions({ chunk, outMs, look, onRetype }: { chunk: CaptionChunk | undefined; outMs: number; look: string; onRetype: (wordId: string, from: string, to: string) => void }) {
+export function Captions({ chunk, outMs, look, onRetype, readOnly = false }: { chunk: CaptionChunk | undefined; outMs: number; look: string; onRetype: (wordId: string, from: string, to: string) => void; readOnly?: boolean }) {
   const [editing, setEditing] = useState<string | null>(null);
   if (!chunk) return null;
   return (
@@ -20,9 +20,10 @@ export function Captions({ chunk, outMs, look, onRetype }: { chunk: CaptionChunk
             className={`el-capedit__w ${editing === id ? "is-now" : look === "pop" || look === "clean" ? "is-past" : state}`}
             contentEditable={editing === id}
             suppressContentEditableWarning
-            role="textbox"
-            aria-label={`caption word ${w.text}`}
+            role={readOnly ? undefined : "textbox"}
+            aria-label={readOnly ? undefined : `caption word ${w.text}`}
             onClick={(e) => {
+              if (readOnly) return;
               e.stopPropagation();
               setEditing(id);
             }}

@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { Change, invertOps, isSpellingFix } from "@eyelore/core";
+import { Change, dialChanges, invertOps, isSpellingFix, type DialValues } from "@eyelore/core";
 import { headDoc } from "./lib/docs";
 import type { EditOp } from "@eyelore/core";
 import { commitChanges } from "./lib/docs";
@@ -42,7 +42,44 @@ export const undo = mutation({
     const change = { actor: "user", reason: `undo · ${last.reason}`.slice(0, 120), ops: invertOps(last.ops as EditOp[]) };
     const r = await commitChanges(ctx, a.projectId, [change], a.baseVersion);
     if (r.ok) await ctx.db.patch(last._id, { undone: true });
+    // undoing a dial move puts the dial back, so the cut follows it back too
+    if (r.ok && change.ops.length && change.ops.every((o) => o.path.startsWith("/style/dials"))) {
+      const head = (await headDoc(ctx, a.projectId))!.doc;
+      const follow = dialChanges(head, head.style.dials);
+      if (follow.length) return await commitChanges(ctx, a.projectId, follow);
+    }
     return r;
+  },
+});
+
+const DIAL_WORD: Record<keyof DialValues, string> = { pace: "pace", brollDensity: "b-roll", energy: "energy" };
+
+/**
+ * Turn the dials. Writes the dial values (your change, so ⌘Z puts a dial back) and, server-side, the re-edit they
+ * ask for: `dialChanges` from packages/core, each an explained autopilot:dials change that skips anything pinned.
+ * Optimistic like `apply`: a stale `baseVersion` is rejected and the client resends on the new head.
+ */
+export const setDials = mutation({
+  args: {
+    anonId: v.string(),
+    projectId: v.id("projects"),
+    baseVersion: v.number(),
+    dials: v.object({ pace: v.number(), brollDensity: v.number(), energy: v.number() }),
+  },
+  handler: async (ctx, a) => {
+    await ownedProject(ctx, a.projectId, a.anonId);
+    const head = await headDoc(ctx, a.projectId);
+    if (!head) throw new Error("no edit doc");
+    if (head.doc.version !== a.baseVersion) return { ok: false as const, conflict: true, version: head.doc.version };
+    const clamp = (x: number) => (Number.isFinite(x) ? Math.round(Math.max(0, Math.min(1, x)) * 100) / 100 : 0.5);
+    const dials: DialValues = { pace: clamp(a.dials.pace), brollDensity: clamp(a.dials.brollDensity), energy: clamp(a.dials.energy) };
+    const cur = head.doc.style.dials;
+    const moved = (Object.keys(DIAL_WORD) as (keyof DialValues)[]).filter((k) => cur[k] !== dials[k]);
+    if (!moved.length) return { ok: true as const, version: head.doc.version, skipped: [] as string[] };
+    const set: EditOp[] = moved.map((k) => ({ op: "set", path: `/style/dials/${k}`, value: dials[k] }));
+    const reason = moved.map((k) => `${DIAL_WORD[k]} ${Math.round(dials[k] * 100)}%`).join(", ");
+    const changes = [{ actor: "user", reason: `dial · ${reason}`, ops: set }, ...dialChanges(head.doc, dials)];
+    return await commitChanges(ctx, a.projectId, changes, a.baseVersion);
   },
 });
 

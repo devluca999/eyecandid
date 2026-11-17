@@ -149,7 +149,7 @@ Primary metric: **time from `drop_started` to `first_preview`** (target ≤ 60 s
 | Convex file storage limits for large video | cost and upload failure | `MediaStore` interface from day one; resumable chunked upload; S3-compatible swap in an ADR when needed |
 | Identity/product drift in generated clips (assessment) | trust | Generation is Phase 3 and flagged; QC gate (reference similarity, motion score) before anything reaches the timeline |
 | Meaning-changing edits | trust, brand | ops are restricted to cut/strike/reorder/polish; no word substitution except own-voice with consent; every change listed |
-| No always-on host for the CPU worker yet | the core loop only runs while a worker is up (today: a laptop) | pick a host (Modal CPU, Fly.io, a small VPS); the same worker runs unchanged |
+| Engine cost and availability | two always-warm Modal containers spent the workspace budget in hours and the engine stopped | workers scale to zero and Convex wakes one when a job waits (ADR 0010); the first clip after a quiet spell pays a cold start (to be measured on production); a spend cap can still stop the engine, so set a budget alert |
 | OpenCV 5 dropped the Haar face detector | reframe pinned to OpenCV 4 | move to YuNet (`cv2.FaceDetectorYN`) with a vendored model |
 | Many external accounts not yet connected | can't prove CI exit criterion | stubs + "Needs keys" list; local anonymous Convex for development |
 | EAS cloud builds are slow for a per-PR check (free tier: ~17 min in the queue, then 14–26 min to build) | the mobile e2e outlived its pushes and never finished | the APK is built on the CI runner (x86_64 release, cached on the app's inputs) and Maestro runs against a local Convex + CPU worker; runs only when mobile-relevant paths change. EAS cloud builds work and are for real-device previews and store submission: `eas build --profile preview` |
@@ -167,6 +167,7 @@ Integration is built behind a labelled stub until the key exists. Set them in Ve
 | Stripe | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Convex, Vercel | **not built yet** (Phase 2: paywall at export, webhooks into Convex, server-side entitlements) |
 | SendPulse | `SENDPULSE_CLIENT_ID`, `SENDPULSE_CLIENT_SECRET` | Convex | **not built yet** (Phase 2: "your edit is ready") |
 | Sentry | `SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_DSN`, `EXPO_PUBLIC_SENTRY_DSN`, `SENTRY_AUTH_TOKEN` | all | **not built yet**: `@sentry/nextjs` installed, no init; mobile and worker not instrumented |
+| Engine wake | `EYELORE_WAKE_URL` | Convex | built (`convex/wake.ts`, Modal `wake` endpoint); **not deployed**: needs the Modal spend cap raised, a redeploy, and the printed URL set on each Convex deployment |
 | Worker | `EYELORE_WORKER_TOKEN`, `EYELORE_CONVEX_SITE_URL` | Colab/Modal/RunPod secrets | generated per worker by `convex run workers:register`; CI's dev worker token is in GitHub secrets as `EYELORE_DEV_WORKER_TOKEN` |
 
 ## 8. Notes and conflicts found

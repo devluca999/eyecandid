@@ -4,7 +4,17 @@
  *   src/theme.css             → Tailwind v4 @theme mapping utilities onto the CSS variables
  *   src/tokens.generated.ts   → resolved values for React Native (Paper + Night), and for tests
  */
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync as writeAlways } from "node:fs";
+
+/**
+ * Only touch a generated file when its content changes. Turbo runs this build next to this package's own
+ * typecheck, and a rewrite truncates the file for a moment: tsc then read an empty icons.generated.ts
+ * ("is not a module") and CI failed at random.
+ */
+function writeFileSync(target: URL, content: string) {
+  if (existsSync(target) && readFileSync(target, "utf8") === content) return;
+  writeAlways(target, content);
+}
 
 const root = new URL("../../../design/tokens/", import.meta.url);
 const files = ["fonts.css", "colors.css", "typography.css", "layout.css", "effects.css"];
