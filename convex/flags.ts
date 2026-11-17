@@ -22,7 +22,8 @@ export const set = internalMutation({
   args: { key: v.string(), enabled: v.boolean(), rolloutPct: v.optional(v.number()), allow: v.optional(v.array(v.string())) },
   handler: async (ctx, a) => {
     const row = await ctx.db.query("flags").withIndex("by_key", (q) => q.eq("key", a.key)).unique();
-    const next = { key: a.key, enabled: a.enabled, rolloutPct: a.rolloutPct ?? 100, allow: a.allow ?? [] };
+    // leaving allow / rolloutPct out keeps what's stored: `flags:set pro enabled=true` must never wipe the Pro allowlist
+    const next = { key: a.key, enabled: a.enabled, rolloutPct: a.rolloutPct ?? row?.rolloutPct ?? 100, allow: a.allow ?? row?.allow ?? [] };
     if (row) await ctx.db.patch(row._id, next);
     else await ctx.db.insert("flags", next);
   },
