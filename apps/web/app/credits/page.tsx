@@ -40,7 +40,7 @@ export default function Credits() {
       <h1 style={{ margin: 0, font: "var(--type-title)", letterSpacing: "-0.01em" }}>Footage credits</h1>
       <p className="text-ink-secondary" style={{ margin: 0 }}>
         The demo edits on the landing page are made from stock clips from{" "}
-        <a href="https://mixkit.co" rel="noopener">Mixkit</a>, trimmed into short loops and served from this site. Licences:{" "}
+        <a href="https://mixkit.co" rel="noopener">Mixkit</a>, trimmed into short loops and served from this site. The captions on them are lines we wrote; the people in the clips didn&apos;t say them. Licences:{" "}
         <a href="https://mixkit.co/license/" rel="noopener">mixkit.co/license</a>.
       </p>
       <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>

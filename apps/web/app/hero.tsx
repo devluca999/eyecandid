@@ -122,7 +122,7 @@ export function Hero() {
               id="drop"
               testId="choose-clip"
               title="drop your rawest clip"
-              hint="the more ums the better · mp4, mov"
+              hint="up to 60 s · the more ums the better"
               height={172}
             />
           </div>

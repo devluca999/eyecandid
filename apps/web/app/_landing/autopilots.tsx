@@ -8,7 +8,7 @@ import { Reveal } from "./motion";
 const PROMPT = "make the background space";
 const TRACKS: { name: string; why: string; status: Status; word: string }[] = [
   { name: "video", why: "best take · steadiest voice · no ums", status: "ready", word: "ready" },
-  { name: "b-roll", why: "cut away · you said ‘nightstand’", status: "attention", word: "1 to check" },
+  { name: "b-roll", why: "cut away · you said ‘skincare’", status: "attention", word: "1 to check" },
   { name: "voice", why: "removed 2 fillers · 1 pause · 1.8s", status: "ready", word: "ready" },
   { name: "music", why: "ducks under your voice · back up on the cut", status: "ready", word: "ready" },
   { name: "captions", why: "word-timed · spelled right · your words", status: "working", word: "captioning" },
@@ -104,7 +104,7 @@ export function Autopilots() {
       <Reveal className="ec-copy ec-copy--wide">
         <span className="ec-eyebrow">autopilots</span>
         <h2 id="auto-title" className="ec-h2">Every track drives itself.</h2>
-        <p className="ec-body">Five tracks, five autopilots. You only step in when one raises its hand. Or point at the thing and say what you want.</p>
+        <p className="ec-body">Five tracks, five autopilots. You only step in when one raises its hand. Cuts, voice and captions drive themselves today; b-roll, music and select-and-talk are next.</p>
         <ul className="ec-tracks">
           {TRACKS.map((t) => (
             <li key={t.name}>

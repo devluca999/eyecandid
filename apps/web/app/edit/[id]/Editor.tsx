@@ -362,7 +362,7 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
   const cold = !isDevice && presence && presence.live === 0 && stage !== "ready" && stage !== "failed" && !uploading;
   const deviceLine = isDevice && stage !== "ready" && stage !== "failed"
     ? pending
-      ? pending.deviceStage ?? data?.project.stageDetail ?? "on this device"
+      ? pending.deviceStage ?? data?.project.stageDetail ?? "editing on this device · your clip isn't uploaded"
       : "this edit runs in the browser it was dropped in · keep that tab open, or drop the clip again here"
     : null;
   const activeJob = data?.jobs.find((j) => j.status === "running" || j.status === "leased" || j.status === "queued");
