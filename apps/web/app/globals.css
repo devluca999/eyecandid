@@ -98,6 +98,10 @@ body { background: var(--canvas); transition: background-color var(--dur-recede)
 .eyl-tour__txt span { font: var(--font-meta); color: var(--ink-secondary); }
 @media (max-width: 640px) {
   .eyl-top { padding: 12px 16px; gap: 8px; }
+  /* phones: the view switch gets its own row, so it never runs into delete and the theme toggle */
+  .eyl-top { grid-template-columns: 1fr auto; }
+  .eyl-top > :nth-child(2) { grid-column: 1 / -1; grid-row: 2; justify-self: center; }
+  .eyl-top__r { gap: 8px; }
   .eyl-top__l { overflow: hidden; }
   .eyl-top__l .el-lockup > span, .eyl-top__l > span { display: none; }
   .eyl-board { width: calc(100vw - 32px); }

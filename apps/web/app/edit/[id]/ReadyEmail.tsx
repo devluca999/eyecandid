@@ -30,7 +30,7 @@ export function ReadyEmail({ projectId, anonId, working }: { projectId: Id<"proj
   if (state === "saved") return <p className="text-meta text-ink-secondary" role="status">we&apos;ll email you when it&apos;s ready</p>;
   return (
     <form
-      className="flex items-center gap-8"
+      className="flex flex-wrap items-center justify-center gap-8"
       data-testid="ready-email"
       onSubmit={async (e) => {
         e.preventDefault();

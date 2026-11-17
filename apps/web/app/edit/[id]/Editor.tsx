@@ -234,7 +234,7 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
   // on-device engine (ADR 0012): the clip lives in this browser; exports are authorized by the server, rendered here
   const isDevice = data?.project.engine === "device";
   const authorizeDeviceExport = useMutation(api.pipeline.authorizeDeviceExport);
-  const [devExport, setDevExport] = useState<{ phase: "idle" | "rendering" | "done" | "failed"; progress: number; url?: string; error?: string }>({ phase: "idle", progress: 0 });
+  const [devExport, setDevExport] = useState<{ phase: "idle" | "rendering" | "done" | "failed"; progress: number; url?: string; error?: string; watermark?: boolean }>({ phase: "idle", progress: 0 });
   const deviceExporter = async (x: { aspect: Aspect; requestId: string; maxDurationMs?: 15000 | 30000 | 60000; mode: "best" | "free" }) => {
     const local = session.get(projectId)?.url;
     if (!local) throw new Error("this clip stays on the device you dropped it on · drop it again here to export");
@@ -242,7 +242,7 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
     setDevExport({ phase: "rendering", progress: 0 });
     try {
       const { blob, durationMs } = await renderOnDevice(auth.doc as EditDoc, local, x.aspect, auth.watermark, (p) => setDevExport({ phase: "rendering", progress: p }));
-      setDevExport({ phase: "done", progress: 1, url: URL.createObjectURL(blob) });
+      setDevExport({ phase: "done", progress: 1, url: URL.createObjectURL(blob), watermark: auth.watermark });
       track("export_done", { durationMs, watermark: auth.watermark });
     } catch (e) {
       setDevExport({ phase: "failed", progress: 0, error: e instanceof Error ? e.message : String(e) });
@@ -277,6 +277,27 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
       setNotice("couldn't delete that · try again");
     }
   };
+  const downloadUrl = isDevice ? devExport.url : latestExport?.url ?? undefined;
+  const filename = `${(data?.project.title ?? "").replace(/[^\w\- ]+/g, "").trim().slice(0, 60) || "edit"} - eyecandid.mp4`;
+  const exportedFree = isDevice ? devExport.phase === "done" && devExport.watermark !== false : latestExport?.status === "succeeded" && latestExport.watermark;
+  // the worker's file lives on the storage origin, where browsers ignore `download` and open the video in place of
+  // the editor; fetched on click it saves as a named file. If that fails, the video opens in a new tab instead.
+  const saveServerExport = isDevice
+    ? undefined
+    : (e: React.MouseEvent<HTMLAnchorElement>) => {
+        const href = e.currentTarget.href;
+        e.preventDefault();
+        void fetch(href)
+          .then((r) => (r.ok ? r.blob() : Promise.reject(new Error(String(r.status)))))
+          .then((b) => {
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(b);
+            a.download = filename;
+            a.click();
+            setTimeout(() => URL.revokeObjectURL(a.href), 30_000);
+          })
+          .catch(() => window.open(href, "_blank", "noopener"));
+      };
   const doneSent = useRef<string | null>(null);
   useEffect(() => {
     if (!isDevice && latestExport?.status === "succeeded" && doneSent.current !== latestExport._id) {
@@ -606,7 +627,7 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
             {notice ? (
               <span>{notice}</span>
             ) : stageLine ? (
-              <StatusDot status={stage === "failed" || pending?.error ? "attention" : "working"} label={stageLine} />
+              <StatusDot status={stage === "failed" || pending?.error ? "attention" : "working"} label={stageLine} style={{ whiteSpace: "normal", textAlign: "left" }} />
             ) : explain ? (
               <>
                 {explain.action}
@@ -630,11 +651,22 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
             phase={isDevice ? (devExport.phase === "failed" ? "idle" : devExport.phase) : exporting ? "rendering" : latestExport?.status === "succeeded" ? "done" : "idle"}
             progress={isDevice ? (devExport.phase === "rendering" ? devExport.progress : undefined) : exporting ? latestExport!.progress : undefined}
             stage={isDevice ? (devExport.phase === "rendering" ? "rendering on this device" : undefined) : exporting ? latestExport!.stage : undefined}
-            downloadUrl={isDevice ? devExport.url : latestExport?.url}
+            downloadUrl={downloadUrl}
+            filename={filename}
+            onDownload={saveServerExport}
           />
         )}
-        {isDevice && devExport.phase === "failed" && mode === "edit" && <StatusDot status="attention" label={`export failed · ${devExport.error ?? ""}`.slice(0, 120)} />}
-        {!isDevice && latestExport?.status === "failed" && mode === "edit" && <StatusDot status="attention" label={`export failed · ${latestExport.error ?? ""}`.slice(0, 120)} />}
+        {/* mvp-spec "The first minute", step 8: after the first export, offer Pro once; never push it */}
+        {stage === "ready" && mode === "edit" && exportedFree && (
+          <p className="text-meta text-ink-secondary" style={{ textAlign: "center" }} data-testid="after-export">
+            want no watermark, longer clips and generated b-roll?{" "}
+            <Link href="/#pricing" style={{ color: "var(--ink)", textDecoration: "underline", textUnderlineOffset: 3 }}>
+              request access
+            </Link>
+          </p>
+        )}
+        {isDevice && devExport.phase === "failed" && mode === "edit" && <StatusDot status="attention" label={`export failed · ${devExport.error ?? ""}`.slice(0, 160)} style={{ whiteSpace: "normal" }} />}
+        {!isDevice && latestExport?.status === "failed" && mode === "edit" && <StatusDot status="attention" label={`export failed · ${latestExport.error ?? ""}`.slice(0, 160)} style={{ whiteSpace: "normal" }} />}
         {gate.element /* [around-the-loop] modals work in every mode; the meta line only shows in edit */}
       </div>
 
