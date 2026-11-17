@@ -8,3 +8,4 @@ export * from "./timeline";
 export * from "./reframe";
 export * from "./plans";
 export * from "./dials";
+export * from "./funnel";
