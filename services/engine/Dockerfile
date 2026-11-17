@@ -24,7 +24,7 @@ WORKDIR /app
 COPY services/engine/pyproject.toml services/engine/README.md ./
 COPY services/engine/eyelore_engine ./eyelore_engine
 COPY packages/core/schema/jobs.schema.json ./eyelore_engine/jobs.schema.json
-RUN uv venv /venv --python 3.12 && uv pip install --python /venv/bin/python ".[gpu]"
+RUN uv venv /venv --python 3.12 && uv pip install --python /venv/bin/python ".[gpu,sentry]"
 ENV PATH=/venv/bin:$PATH EYELORE_PROVIDER=runpod EYELORE_RENDER_DIR=/repo/services/render
 # ComfyUI + model staging arrive with the GPU handlers (Phase 3); weights live on a persistent volume, not in the image.
 USER ubuntu

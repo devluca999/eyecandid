@@ -76,6 +76,8 @@ export function Footer() {
         <nav aria-label="about" className="ec-footer__col">
           <span className="ec-meta">about</span>
           <Link href="/credits">footage credits</Link>
+          <Link href="/terms">terms</Link>
+          <Link href="/privacy">privacy</Link>
         </nav>
       </div>
       <div className="ec-footer__bottom">
