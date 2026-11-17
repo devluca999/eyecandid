@@ -68,6 +68,7 @@ export const onJobDone = internalMutation({
         if (retakes.length) await commitChanges(ctx, projectId, retakes);
       }
       await ctx.db.patch(projectId, { stage: "ready", stageDetail: undefined, readyAt: Date.now() });
+      await ctx.scheduler.runAfter(0, internal.notify.onEditReady, { projectId, jobId });
       const clip = head.doc.clips.find((c) => c.id === clipId);
       if (clip) {
         await enqueueJob(ctx, { type: "reframe", input: { mediaId: clip.mediaId }, idempotencyKey: `reframe:${clip.mediaId}`, projectId, meta: { clipId }, ...owner });
