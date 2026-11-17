@@ -1,6 +1,6 @@
 import { AbsoluteFill, OffthreadVideo, Sequence, interpolate, useCurrentFrame, useVideoConfig } from "remotion";
 import type { EditDoc } from "@eyelore/core";
-import { toTimeline, coverBox, faceAt, type Segment } from "@eyelore/core";
+import { toTimeline, coverBox, faceAt, punchAt, type Segment } from "@eyelore/core";
 
 export type CutProps = { doc: EditDoc; media: Record<string, string>; watermark: boolean };
 
@@ -36,7 +36,8 @@ function Shot({ seg, doc, src, frames }: { seg: Segment; doc: EditDoc; src?: str
   const { fps, width: W, height: H } = useVideoConfig();
   const clip = doc.clips.find((c) => c.id === seg.clipId);
   if (!src || !clip) return null;
-  const box = coverBox(clip.w, clip.h, W, H, faceAt(doc.reframe[clip.id], seg.fromMs + (frame / fps) * 1000));
+  const box = shotBox(doc, seg, W, H, seg.fromMs + (frame / fps) * 1000);
+  if (!box) return null;
   return (
     <OffthreadVideo
       src={src}
@@ -46,6 +47,18 @@ function Shot({ seg, doc, src, frames }: { seg: Segment; doc: EditDoc; src?: str
       style={{ position: "absolute", left: box.left, top: box.top, width: box.width, height: box.height, maxWidth: "none" }}
     />
   );
+}
+
+/**
+ * Where the source sits in the output frame at a source time: face-centred cover crop, pushed in by the energy
+ * dial's punch-in for that bead (the same `punchAt` the web preview uses). Clamped so the frame never shows past
+ * the source edge.
+ */
+export function shotBox(doc: EditDoc, seg: Segment, W: number, H: number, srcMs: number) {
+  const clip = doc.clips.find((c) => c.id === seg.clipId);
+  if (!clip) return null;
+  const face = faceAt(doc.reframe[clip.id], srcMs);
+  return coverBox(clip.w, clip.h, W, H, { ...face, scale: face.scale * punchAt(doc, clip.id, srcMs) });
 }
 
 function Captions({ chunks }: { chunks: ReturnType<typeof toTimeline>["captions"] }) {
