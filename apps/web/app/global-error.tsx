@@ -15,6 +15,11 @@ export default function GlobalError({ error }: { error: Error & { digest?: strin
           <button onClick={() => window.location.reload()} style={{ fontSize: 15, padding: "8px 16px", borderRadius: 999, border: "1px solid #DAD6CD", background: "#fff", cursor: "pointer" }}>
             reload
           </button>
+          <p style={{ fontSize: 13, marginTop: 16 }}>
+            <a href="/" style={{ color: "#5F5B53" }}>
+              or start over
+            </a>
+          </p>
         </div>
       </body>
     </html>

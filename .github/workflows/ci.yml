@@ -101,8 +101,17 @@ jobs:
       - run: pnpm --filter @eyelore/web build
       - run: pnpm --filter @eyelore/web exec playwright install --with-deps chromium
       - name: playwright (functional + visual regression)
-        run: pnpm --filter @eyelore/web exec playwright test --update-snapshots=missing
+        run: pnpm --filter @eyelore/web exec playwright test --update-snapshots=missing --grep-invert @paused
         env: { E2E_WORKER: "1", E2E_REAL_WORKER: "1", CI: "1", E2E_ADMIN_TOKEN: ci-local-admin }
+      # free_paused is global, so the paused-day refusal runs alone, after everything else, and the flag goes back off
+      - name: playwright · a paused free day (flag on, one test, flag off)
+        run: |
+          npx convex run flags:set '{"key":"free_paused","enabled":true}'
+          status=0
+          pnpm --filter @eyelore/web exec playwright test e2e/ux-crawl.spec.ts --grep @paused --project=desktop --reporter=line || status=$?
+          npx convex run flags:set '{"key":"free_paused","enabled":false}'
+          exit $status
+        env: { CI: "1", E2E_PAUSED: "1" }
       - if: always()
         uses: actions/upload-artifact@v4
         with:

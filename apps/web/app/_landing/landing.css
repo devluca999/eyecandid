@@ -138,6 +138,9 @@ button.ec-reeltile, button.ec-pair__btn { border: 0; background: none; padding: 
 .ec-seq__pin { position: sticky; top: 0; height: 100vh; max-width: 1280px; margin: 0 auto; padding: 0 clamp(20px, 5vw, 64px); display: flex; flex-direction: row-reverse; align-items: center; justify-content: center; gap: clamp(56px, 8vw, 120px); }
 .ec-seq__media { flex: 1.2 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 16px; --w-card: 260px; --w-rect: 360px; --w-circle: 420px; }
 .ec-seq__media .el-lens { transition: width var(--dur-morph) var(--spring), aspect-ratio var(--dur-morph) var(--spring), border-radius var(--dur-morph) var(--spring); }
+/* Chrome stops clipping composited children (the playing video, the soft-light cine layer) to an animated
+   border-radius, so the footage's rectangle showed behind the finished circle. A mask forces the rounded clip. */
+.ec-seq__media .el-lens__frame { -webkit-mask-image: radial-gradient(#fff, #000); mask-image: radial-gradient(#fff, #000); }
 .ec-seq__tilt { position: relative; transition: transform var(--dur-morph) var(--spring); }
 .ec-seq__music { width: min(320px, 80vw); transition: opacity .4s var(--ease-out); }
 /* a stack of takes under the walkthrough clip: two earlier takes peek out behind it, a little askew */
