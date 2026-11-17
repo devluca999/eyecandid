@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { addClipChange, applyChange, autocut, beadChanges, emptyEditDoc, toTimeline, type EditDoc } from "@eyelore/core";
 import { probeVideo } from "@/lib/upload";
-import { CutWeb } from "./CutWeb";
+import { CutWeb } from "@/lib/cut-web";
 
 type Step = { name: string; ms?: number; note?: string };
 const MODELS = ["tiny.en", "base.en", "small.en"] as const;

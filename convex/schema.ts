@@ -30,6 +30,10 @@ export default defineSchema({
     stageDetail: v.optional(v.string()),
     createdAt: v.number(),
     readyAt: v.optional(v.number()),
+    /** where the core loop runs for this project: the visitor's device (free tier, ADR 0012) or the worker queue */
+    engine: v.optional(v.union(v.literal("device"), v.literal("server"))),
+    /** "leave your email and we'll send it when it's ready" (MVP spec, Phase 2): used once, for this edit only */
+    readyEmail: v.optional(v.string()),
   })
     .index("by_owner_user", ["ownerUserId"])
     .index("by_owner_anon", ["ownerAnonId"]),
@@ -56,7 +60,8 @@ export default defineSchema({
   media: defineTable({
     projectId: v.optional(v.id("projects")),
     kind: v.union(v.literal("source"), v.literal("proxy"), v.literal("generated"), v.literal("render"), v.literal("preview")),
-    storage: v.object({ provider: v.union(v.literal("convex"), v.literal("s3")), key: v.string() }),
+    /** "device": the bytes never left the visitor's device (on-device engine, ADR 0012); there is nothing to fetch or delete */
+    storage: v.object({ provider: v.union(v.literal("convex"), v.literal("s3"), v.literal("device")), key: v.string() }),
     contentType: v.string(),
     bytes: v.optional(v.number()),
     w: v.optional(v.number()),
@@ -65,11 +70,15 @@ export default defineSchema({
     /** for proxies: the source media this is a low-res copy of */
     proxyOf: v.optional(v.id("media")),
     createdAt: v.number(),
-  }).index("by_project", ["projectId"]),
+  })
+    .index("by_project", ["projectId"])
+    .index("by_kind_created", ["kind", "createdAt"]),
 
   exports: defineTable({
     projectId: v.id("projects"),
-    jobId: v.id("jobs"),
+    /** the render job; absent for an on-device export, which the visitor's browser rendered (ADR 0012) */
+    jobId: v.optional(v.id("jobs")),
+    device: v.optional(v.boolean()),
     aspect: v.string(),
     maxDurationMs: v.optional(v.number()),
     watermark: v.boolean(),
@@ -180,8 +189,10 @@ export default defineSchema({
 
   /** "your edit is ready" emails and their honest outcome */
   notifications: defineTable({
-    kind: v.literal("export_ready"),
-    userId: v.id("users"),
+    kind: v.union(v.literal("export_ready"), v.literal("edit_ready")),
+    /** a signed-in owner, or — for "leave your email" on an anonymous edit — just the address they gave */
+    userId: v.optional(v.id("users")),
+    email: v.optional(v.string()),
     projectId: v.id("projects"),
     jobId: v.id("jobs"),
     status: v.union(v.literal("queued"), v.literal("sent"), v.literal("not_sent"), v.literal("failed")),
@@ -228,4 +239,10 @@ export default defineSchema({
     at: v.number(),
     refundedAt: v.optional(v.number()),
   }).index("by_job", ["jobId"]),
+
+  // ── cost controls (convex/lib/limits.ts, convex/expiry.ts) ──
+  /** fixed-window rate limit counters; key = "<action>:anon|hint:<hash>", swept by the expiry cron */
+  rateLimits: defineTable({ key: v.string(), windowStart: v.number(), count: v.number() }).index("by_key", ["key"]).index("by_window", ["windowStart"]),
+  /** free server jobs started per UTC day ("2026-11-17") against EYELORE_FREE_DAILY_JOBS */
+  dailyUsage: defineTable({ day: v.string(), freeJobs: v.number() }).index("by_day", ["day"]),
 });

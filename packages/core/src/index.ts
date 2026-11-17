@@ -10,3 +10,4 @@ export * from "./plans";
 export * from "./dials";
 export * from "./funnel";
 export * from "./autocut";
+export * from "./clientHint";

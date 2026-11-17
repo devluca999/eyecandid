@@ -19,7 +19,7 @@ const base = { variant: z.string().max(32).optional(), platform: z.enum(["web", 
 
 export const AnalyticsEvent = z.discriminatedUnion("name", [
   z.object({ name: z.literal("landing_view"), props: z.object({ ...base, heroLine: z.string().max(80) }) }),
-  z.object({ name: z.literal("drop_started"), props: z.object({ ...base, bytes: z.number().nonnegative(), source: z.enum(["drop", "picker", "camera", "drive"]) }) }),
+  z.object({ name: z.literal("drop_started"), props: z.object({ ...base, bytes: z.number().nonnegative(), source: z.enum(["drop", "picker", "camera", "drive", "sample"]) }) }),
   z.object({ name: z.literal("upload_done"), props: z.object({ ...base, ms: z.number().nonnegative() }) }),
   z.object({ name: z.literal("first_preview"), props: z.object({ ...base, msSinceDrop: z.number().nonnegative() }) }),
   z.object({ name: z.literal("edit_interaction"), props: z.object({ ...base, kind: z.string().max(40) }) }),
