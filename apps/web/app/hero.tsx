@@ -1,14 +1,11 @@
 "use client";
 import { useEffect } from "react";
 import { preload } from "react-dom";
-import { useMutation } from "convex/react";
-import { api } from "@convex/_generated/api";
 import { HERO_LINES, heroVariant } from "@eyelore/core/flags";
 import { Lens, Lockup, PillButton } from "@eyelore/ui";
 import { getAnonId } from "@/lib/anon";
 import { HERO_LINE_SCRIPT } from "@/lib/hero-line";
-import { DropWell, TrySample, useUploader } from "./drop";
-import { Recent } from "./recent";
+import { DropWell, TrySample, useUploader } from "./uploader-shell";
 import { Clip } from "./_landing/media";
 import { BRIGHT, CINE, SLOT, SOFT, poster } from "./_landing/clips";
 
@@ -17,7 +14,6 @@ const FIRST = [SLOT.heroFar, SLOT.heroRun, SLOT.heroCine, SLOT.heroBroll];
 
 /** 01 · hero: centred line, the real drop well, and scattered clips (sharp near, blurred far) with parallax. */
 export function Hero() {
-  const track = useMutation(api.events.track);
   const { pick } = useUploader();
   for (const id of FIRST) preload(poster(id), { as: "image", fetchPriority: "high" });
   // Hero line, A/B tested (flag hero_line_ab). "Making real people look great." is the control (variant a).
@@ -26,11 +22,7 @@ export function Hero() {
     const anonId = getAnonId();
     const v = heroVariant(anonId);
     document.documentElement.setAttribute("data-hero", v);
-    void track({
-      anonId,
-      event: { name: "landing_view", props: { platform: "web", variant: v, heroLine: HERO_LINES[v] } },
-    });
-  }, [track]);
+  }, []);
 
   return (
     <>
@@ -117,7 +109,7 @@ export function Hero() {
         </nav>
 
         <div className="ec-hero__copy">
-          <span className="ec-eyebrow">ai video editor for creators and ugc ads</span>
+          <span className="ec-eyebrow">video editor for creators and ugc ads</span>
           <div className="ec-hero__line">
             <h1 id="hero-title" className="ec-h1">
               <span className="ec-line-a">{HERO_LINES.a}</span>
@@ -130,7 +122,7 @@ export function Hero() {
               id="drop"
               testId="choose-clip"
               title="drop your rawest clip"
-              hint="the more ums the better · mp4, mov"
+              hint="up to 60 s · the more ums the better"
               height={172}
             />
           </div>
@@ -140,7 +132,7 @@ export function Hero() {
       </section>
       {/* edits started in this browser: in flow just below the hero (always below the fold, so it shifts nothing seen) */}
       <div className="ec-hero__recent">
-        <Recent />
+        {/* "your edits" (recent.tsx) is portalled in here by landing-backend.tsx once Convex has loaded */}
       </div>
     </>
   );

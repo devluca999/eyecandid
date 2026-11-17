@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { PillButton } from "@eyelore/ui";
-import { useUploader } from "../drop";
+import { useUploader } from "../uploader-shell";
 
 /** The floating glass pill: shows once the hero has scrolled away, hides while the final drop is on screen. */
 export function FloatingPill() {
