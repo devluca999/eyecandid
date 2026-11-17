@@ -8,6 +8,7 @@ test("landing: the hero line, the real drop well and the sections, in order", as
   const h2 = await page.getByRole("heading", { level: 2 }).allInnerTexts();
   expect(h2).toEqual([
     "Same people. Same phones. Better takes.",
+    "Point at a clip. Pick the move.",
     "Same words. Different movie.",
     "Every track drives itself.",
     "Phone or prompt. Same polish.",
@@ -46,6 +47,9 @@ test("landing: with reduced motion the clips stay posters and nothing pins", asy
   // every step of the walkthrough is readable, the finished edit is shown
   await expect(seq.locator(".ec-step__b")).toHaveCount(7);
   await expect(seq.locator(".ec-step").last()).toHaveAttribute("aria-current", "step");
+  // the inline-edits demo shows its finished still, and says it is not in the editor yet
+  await expect(page.locator(".ec-inline__stage")).toHaveAttribute("data-step", "still");
+  await expect(page.locator(".ec-inline")).toContainText("pro · coming soon");
 });
 
 test("landing: with motion, clips on screen get self-hosted sources and play", async ({ page }) => {

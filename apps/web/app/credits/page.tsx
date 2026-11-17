@@ -29,6 +29,9 @@ const CREDITS: { id: number; title: string; slug: string; licence: string }[] = 
   { id: 42310, title: "Girl promoting social media apps", slug: "girl-promoting-social-media-apps-42310", licence: FREE },
   { id: 4851, title: "Girl running during sunset ties her shoelaces", slug: "girl-running-during-sunset-ties-her-shoelaces-4851", licence: FREE },
   { id: 583, title: "Woman doing warm up exercises", slug: "woman-doing-warm-up-exercises-583", licence: FREE },
+  { id: 42290, title: "Portrait of two fashion girls in a nightclub", slug: "portrait-of-two-fashion-girls-in-a-nightclub-42290", licence: FREE },
+  { id: 41174, title: "Happy man texting on his smartphone", slug: "happy-man-texting-on-his-smartphone-41174", licence: FREE },
+  { id: 42284, title: "Girls playing and taking selfies", slug: "girls-playing-and-taking-selfies-42284", licence: FREE },
 ];
 
 export default function Credits() {
