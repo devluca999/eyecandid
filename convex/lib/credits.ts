@@ -1,5 +1,5 @@
 import { ConvexError } from "convex/values";
-import { creditCost, estimateSpeechSeconds, PLANS, release, reserve, settle, topupLot } from "@eyelore/core";
+import { creditCost, estimateSpeechSeconds, periodKey, PLANS, release, reserve, settle, topupLot } from "@eyelore/core";
 import type { CreditLot, PlanId, Taken } from "@eyelore/core";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import type { Doc, Id } from "../_generated/dataModel";
@@ -76,10 +76,10 @@ export function addMonthUtc(ms: number): number {
  * a replayed or duplicate event (checkout and the first invoice both report the first period) never grants twice.
  * A later report of the same period may correct its end, never its credits.
  *
- * Before ADR 0014 the first checkout put its credits into `entitlements.credits` and set `creditsPeriod`; such an
- * account's first period was already paid out, so `:first` is not granted again for it.
+ * `paidBefore`: this exact period was already paid out by the code before ADR 0014 (`legacyFirstPeriodPaid`), so it is
+ * not granted again.
  */
-export async function grantPeriodCredits(ctx: MutationCtx, userId: Id<"users">, plan: PlanId, lotId: string, periodEnd: number, now = Date.now()) {
+export async function grantPeriodCredits(ctx: MutationCtx, userId: Id<"users">, plan: PlanId, lotId: string, periodEnd: number, now = Date.now(), paidBefore = false) {
   const credits = PLANS[plan].monthlyCredits;
   if (credits <= 0 || periodEnd <= now) return false;
   const ent = await ensureEntitlement(ctx, userId, now);
@@ -88,9 +88,22 @@ export async function grantPeriodCredits(ctx: MutationCtx, userId: Id<"users">, 
     if (row.expiresAt !== periodEnd) await ctx.db.patch(row._id, { expiresAt: periodEnd });
     return false;
   }
-  if (lotId.endsWith(":first") && ent.creditsPeriod) return false;
+  if (paidBefore) return false;
   await ctx.db.insert("creditLots", { userId, lotId, kind: "monthly", remaining: credits, expiresAt: periodEnd, createdAt: now });
   return true;
+}
+
+/**
+ * Before ADR 0014 a checkout put the first month's credits into `entitlements.credits` and set `creditsPeriod`. That
+ * first period is already paid out only for the subscription that was live then (`stripeSubscriptionId` at the time,
+ * read before this event changes it) and only if it was granted this month or last: a returning subscriber on a new
+ * subscription, or one whose old grant is long past, is granted as anyone else.
+ */
+export function legacyFirstPeriodPaid(ent: Doc<"entitlements"> | null, sub: string, now: number): boolean {
+  if (!ent?.creditsPeriod || ent.stripeSubscriptionId !== sub) return false;
+  const d = new Date(now);
+  const last = periodKey(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - 1, 1));
+  return ent.creditsPeriod === periodKey(now) || ent.creditsPeriod === last;
 }
 
 /** A bought pack as a lot that lasts 12 months. Idempotent on the lot id (one per checkout session). */

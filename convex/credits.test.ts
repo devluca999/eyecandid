@@ -322,6 +322,70 @@ describe("plan credits per paid Stripe period", () => {
     expect(spent).toBeLessThanOrEqual(MONTHLY);
   });
 
+  it("a returning subscriber from before ADR 0014, on a new subscription, is granted the period they paid for", async () => {
+    at("2027-01-10T00:00:00Z");
+    const t = mk();
+    const userId = await t.withIdentity(ALICE).mutation(api.users.ensure, {});
+    await t.run(async (ctx) => {
+      const ent = await ctx.db.query("entitlements").withIndex("by_user", (q) => q.eq("userId", userId)).unique();
+      await ctx.db.patch(ent!._id, { creditsPeriod: "2026-09", stripeSubscriptionId: "sub_old" }); // subscribed in September, old code
+    });
+    await t.mutation(internal.billing.applyStripeEvent, {
+      eventId: "evt_co2",
+      type: "checkout.session.completed",
+      object: { client_reference_id: userId, metadata: { kind: "plan", plan: PRO_PLAN }, payment_status: "paid", customer: "cus_1", subscription: "sub_new" },
+    });
+    await t.mutation(internal.billing.applyStripeEvent, {
+      eventId: "evt_i",
+      type: "invoice.paid",
+      object: { id: "in_1", customer: "cus_1", subscription: "sub_new", billing_reason: "subscription_create", amount_paid: 1900, lines: { data: [{ period: { start: S("2027-01-10T00:00:00Z"), end: S("2027-02-10T00:00:00Z") } }] } },
+    });
+    expect(await bal(t, userId)).toBe(MONTHLY);
+  });
+
+  it("a mid-period plan change (a proration invoice) grants nothing; the next renewal does", async () => {
+    at("2026-11-20T00:00:00Z");
+    const t = mk();
+    const userId = await pro(t);
+    vi.setSystemTime(new Date("2026-12-05T00:00:00Z"));
+    await t.mutation(internal.billing.applyStripeEvent, {
+      eventId: "evt_up",
+      type: "invoice.paid",
+      object: { id: "in_p", customer: "cus_1", subscription: "sub_1", billing_reason: "subscription_update", amount_paid: 300, lines: { data: [{ proration: true, period: { start: S("2026-12-05T00:00:00Z"), end: S("2026-12-20T00:00:00Z") } }] } },
+    });
+    expect(await bal(t, userId)).toBe(MONTHLY);
+  });
+
+  it("a renewal invoice with a proration line first: the period and plan come from the subscription's own line", async () => {
+    at("2026-12-20T00:00:05Z");
+    const t = mk();
+    const userId = await pro(t);
+    process.env.STRIPE_PRICE_CREATOR = "price_creator";
+    try {
+      await t.mutation(internal.billing.applyStripeEvent, {
+        eventId: "evt_r",
+        type: "invoice.paid",
+        object: {
+          id: "in_r",
+          customer: "cus_1",
+          subscription: "sub_1",
+          billing_reason: "subscription_cycle",
+          amount_paid: 2100,
+          lines: {
+            data: [
+              { type: "invoiceitem", proration: true, price: { id: "price_other" }, period: { start: S("2026-12-10T00:00:00Z"), end: S("2026-12-20T00:00:00Z") } },
+              { type: "subscription", proration: false, price: { id: "price_creator" }, period: { start: S("2026-12-20T00:00:00Z"), end: S("2027-01-20T00:00:00Z") } },
+            ],
+          },
+        },
+      });
+    } finally {
+      delete process.env.STRIPE_PRICE_CREATOR;
+    }
+    const lot = (await lots(t, userId)).find((l) => l.lotId === `p:sub_1:${S("2026-12-20T00:00:00Z")}`);
+    expect(lot).toMatchObject({ remaining: PLANS.creator.monthlyCredits, expiresAt: Date.parse("2027-01-20T00:00:00Z") });
+  });
+
   it("an account whose first period was paid into the old balance (before ADR 0014) is not granted it again", async () => {
     at("2026-11-20T00:00:00Z");
     const t = mk();
