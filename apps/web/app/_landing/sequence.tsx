@@ -85,7 +85,8 @@ export function Sequence() {
               <Clip id={SLOT.walkthroughBroll} filter={WARM} style={{ opacity: s === 3 ? 1 : 0, transition: "opacity .45s var(--ease-out)" }} />
               <span className="ec-cine" style={{ opacity: s === 6 ? 1 : 0, transition: "opacity .7s var(--ease-out)" }} />
               <span className="ec-cap ec-cap--seq" style={{ bottom: shape === "circle" ? "20%" : "10%", opacity: s >= 2 ? 1 : 0 }}>
-                this is my whole night routine
+                {/* her next words land on the cutaway, so the caption always matches the picture */}
+                {s === 3 ? "serum, then cream, then sleep" : "this is my whole night routine"}
               </span>
             </Lens>
           </div>

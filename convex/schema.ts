@@ -209,6 +209,10 @@ export default defineSchema({
     lastWakeAt: v.number(),
     lastWakeResult: v.optional(v.string()),
     lastWakeMs: v.optional(v.number()),
+    /** the GPU pool's own wake bookkeeping (ADR 0013): the CPU fields above stay the CPU pool's */
+    gpuLastWakeAt: v.optional(v.number()),
+    gpuLastWakeResult: v.optional(v.string()),
+    gpuLastWakeMs: v.optional(v.number()),
   }),
 
   /** Pro "request access" from the landing (convex/access.ts). anonHash (SHA-256 of the anon id) backs the rate limit. */

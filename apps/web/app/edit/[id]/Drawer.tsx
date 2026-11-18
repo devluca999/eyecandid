@@ -7,17 +7,23 @@ const NAME: Record<TrackKind, string> = { video: "video", broll: "b-roll", voice
 
 /**
  * design/components/timeline/TimelineDrawer on real data, on the source clip's own time axis: video shows what is
- * kept and what is struck (from toTimeline), voice the spoken words, captions the caption chunks. b-roll and music
- * have nothing yet and say so. Tracks in the product's fixed order (TRACK_ORDER).
+ * kept and what is struck (from toTimeline), voice the spoken words, captions the caption chunks, b-roll the generated
+ * stills over their beads. b-roll and music say so when they have nothing. Tracks in the product's fixed order
+ * (TRACK_ORDER).
  */
 export function Drawer({
-  open, doc, segments, captions, srcMs, outMs, outDurationMs, playing, thumbs, onSeek, onToggle, onClose,
+  open, doc, segments, captions, srcMs, outMs, outDurationMs, playing, thumbs, stills = {}, onSeek, onToggle, onClose,
 }: {
   open: boolean; doc: EditDoc; segments: Segment[]; captions: CaptionChunk[]; srcMs: number; outMs: number | null; outDurationMs: number;
-  playing: boolean; thumbs: Record<number, string>; onSeek: (srcMs: number) => void; onToggle: () => void; onClose: () => void;
+  playing: boolean; thumbs: Record<number, string>; stills?: Record<string, string>; onSeek: (srcMs: number) => void; onToggle: () => void; onClose: () => void;
 }) {
   const lanes = useRef<HTMLDivElement>(null);
   const clip = doc.clips[0];
+  // b-roll items anchored to a bead sit over that bead's source span
+  const broll = doc.tracks.broll.flatMap((t) => {
+    const bead = doc.beads.find((b) => b.id === t.params.beadId);
+    return bead ? [{ id: t.id, ref: t.ref, from: bead.inMs, to: bead.outMs, struck: bead.struck }] : [];
+  });
   const total = Math.max(1, clip?.durationMs ?? 0, ...doc.beads.map((b) => b.outMs));
   const pct = (ms: number) => `${(Math.max(0, Math.min(total, ms)) / total) * 100}%`;
   const span = (a: number, b: number) => ({ left: pct(a), width: `calc(${pct(b - a)} - 1px)` });
@@ -87,7 +93,20 @@ export function Drawer({
                   ))}
                 </>
               )}
-              {k === "broll" && <span className="eyl-ghostlane">{BROLL_NOTE}</span>}
+              {k === "broll" &&
+                (broll.length ? (
+                  broll.map((b) => (
+                    <div
+                      key={b.id}
+                      className={"el-clip" + (b.struck ? " eyl-struck" : "")}
+                      data-testid="broll-item"
+                      title="b-roll · generated still"
+                      style={{ ...span(b.from, b.to), backgroundImage: stills[b.ref] ? `url(${stills[b.ref]})` : undefined, backgroundSize: "cover", backgroundPosition: "center", backgroundColor: "var(--surface-sunken)" }}
+                    />
+                  ))
+                ) : (
+                  <span className="eyl-ghostlane">{BROLL_NOTE}</span>
+                ))}
               {k === "voice" &&
                 words.map((w) => (
                   <i key={w.id} className={"eyl-word" + (w.struck ? " is-struck" : "")} style={span(w.startMs, w.endMs)} title={w.text} />

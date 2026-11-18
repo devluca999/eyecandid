@@ -33,6 +33,13 @@ the mouse moving they alternated 2 and 3. After, every frame stays up for exactl
 behaviour was confirmed in a stock Chrome (own profile, no automation flags): 30 fps idle, 60 with the mouse moving.
 Total media size is unchanged (26.6 MB → 26.5 MB); the page's own code is unchanged, so LCP and CLS are too.
 
+## Shipped
+
+The clip files were rebuilt with these settings on 17 Nov 2026: all 25 clips, 100 video files, every one 30 fps
+(`ffprobe`). Media went from 28.7 MB to 28.3 MB. On that build the idle rows above read 0.1% (desktop) and 0% (phone
+viewport). Lighthouse mobile, three runs each, same build with the old and the new files: performance 90 and 90, LCP
+3.62 s and 3.62 s, CLS 0 and 0. The clips don't load until the page has, so they don't touch LCP.
+
 ## Not fixed, and not measured
 
 - **Loop seam.** Each time a clip loops, Chrome seeks and the first frame is held 50–100 ms instead of 33. The

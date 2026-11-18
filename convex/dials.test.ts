@@ -33,8 +33,8 @@ async function readyProject() {
     ["transcribe", { language: "en", words, durationMs: 5500 }],
     ["autocut", {
       strikes: [
-        { startMs: 1620, endMs: 2080, kind: "silence", reason: "trimmed pause · 0.7s" },
-        { startMs: 3220, endMs: 4480, kind: "silence", reason: "trimmed pause · 1.5s" },
+        { startMs: 1640, endMs: 2120, kind: "silence", reason: "trimmed pause · 0.7s" },
+        { startMs: 3240, endMs: 4520, kind: "silence", reason: "trimmed pause · 1.5s" },
       ],
       beads: [{ inMs: 0, outMs: 1500, moment: "hook" }, { inMs: 2200, outMs: 3100 }, { inMs: 4600, outMs: 5400, moment: "cta" }],
     }],
@@ -59,7 +59,7 @@ describe("edits.setDials", () => {
     expect(r.ok).toBe(true);
     const slow = await doc();
     expect(slow.style.dials.pace).toBe(0);
-    expect(toTimeline(slow).durationMs).toBe(d0 + 460);
+    expect(toTimeline(slow).durationMs).toBe(d0 + 480);
     const history = await t.query(api.edits.history, { anonId: ANON, projectId });
     expect(history[0]).toMatchObject({ actor: "autopilot:dials", reason: "pause kept · 0.7s · pace" });
     expect(history[1]).toMatchObject({ actor: "user", reason: "dial · pace 0%" });
@@ -75,7 +75,7 @@ describe("edits.setDials", () => {
     const before = await doc();
     await t.mutation(api.edits.setDials, { anonId: ANON, projectId, baseVersion: before.version, dials: { pace: 1, brollDensity: 0.3, energy: 0.8 } });
     const after = await doc();
-    expect(toTimeline(after).durationMs).toBe(toTimeline(before).durationMs - (300 - 160));
+    expect(toTimeline(after).durationMs).toBe(toTimeline(before).durationMs - (300 - 135 - 80)); // breath: 135ms tail (45% of 300), 80ms lead
     expect(after.effects.map((e) => e.anchor)).toEqual([{ moment: "hook" }, { moment: "best" }, { moment: "cta" }]);
     const reasons = (await t.query(api.edits.history, { anonId: ANON, projectId })).map((h) => h.reason);
     expect(reasons).toContain("pause cut · 0.3s · pace");
@@ -98,8 +98,8 @@ describe("edits.setDials", () => {
     const before = await doc();
     expect((await t.mutation(api.edits.setDials, { anonId: ANON, projectId, baseVersion: before.version - 1, dials: { ...D, pace: 0 } })).ok).toBe(false);
     // you keep the 1.5s pause by hand; even the fastest pace leaves it
-    const bead = before.beads.find((b) => b.cuts.some((c) => c.startMs === 3220))!;
-    const cut = bead.cuts.find((c) => c.startMs === 3220)!;
+    const bead = before.beads.find((b) => b.cuts.some((c) => c.startMs === 3240))!;
+    const cut = bead.cuts.find((c) => c.startMs === 3240)!;
     await t.mutation(api.edits.apply, { anonId: ANON, projectId, baseVersion: before.version, reason: "kept pause · 1.3s", ops: [{ op: "set", path: `/beads/@${bead.id}/cuts/@${cut.id}/struck`, value: false }] });
     await t.mutation(api.edits.setDials, { anonId: ANON, projectId, baseVersion: before.version + 1, dials: { ...D, pace: 1 } });
     const after = await doc();
