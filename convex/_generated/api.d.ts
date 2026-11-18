@@ -11,6 +11,7 @@
 import type * as access from "../access.js";
 import type * as account from "../account.js";
 import type * as billing from "../billing.js";
+import type * as broll from "../broll.js";
 import type * as crons from "../crons.js";
 import type * as edits from "../edits.js";
 import type * as entitlements from "../entitlements.js";
@@ -51,6 +52,7 @@ declare const fullApi: ApiFromModules<{
   access: typeof access;
   account: typeof account;
   billing: typeof billing;
+  broll: typeof broll;
   crons: typeof crons;
   edits: typeof edits;
   entitlements: typeof entitlements;

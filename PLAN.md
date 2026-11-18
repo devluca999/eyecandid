@@ -171,6 +171,7 @@ Integration is built behind a labelled stub until the key exists. Set them in Ve
 | Cost controls | `EYELORE_FREE_DAILY_JOBS` (Convex, default 300), `EYELORE_HINT_SECRET` (Vercel + Convex) | Convex, Vercel | built (docs/rate-limiting.md); the hint secret is **needed** for per-IP limits, and the web call sites must send `clientHint` (`drop.tsx` owner) |
 | Engine wake | `EYELORE_WAKE_URL` | Convex | built (`convex/wake.ts`, Modal `wake` endpoint); **not deployed**: needs the Modal spend cap raised, a redeploy, and the printed URL set on each Convex deployment |
 | Pro access (Phase 4) | `EYELORE_ADMIN_TOKEN`, `EYELORE_PRO_SEATS` (default 100), `EYELORE_WEB_URL`; reuses `SENDPULSE_*`, `STRIPE_SECRET_KEY`, `STRIPE_PRICE_CREATOR`, `STRIPE_WEBHOOK_SECRET` | Convex | built: `/admin/access` (says "not configured" without the admin token), approve → `pro` allow list + "you're in" email (row reads "not sent · SendPulse not configured" without SendPulse; **resend** once it is) → `/pro/checkout` (says "billing isn't switched on yet" until `STRIPE_SECRET_KEY` + the `billing` flag). Pro is sold as the `creator` price. GPU jobs are refused without an approved, paid, credited owner. **Needs:** the keys above, `billing` flag on, Stripe webhook registered |
+| GPU pool (Phase 4, ADR 0013) | `EYELORE_GPU_WAKE_URL` (Convex); Modal secret `eyelore-gpu[-prod]` with its own `EYELORE_WORKER_TOKEN` (provider `modal-gpu`) and `EYELORE_CONVEX_SITE_URL` | Convex, Modal | built: `still` handler (Z-Image-Turbo), `modal_gpu_app.py`, per-pool wake, Pro "add b-roll"; **not deployed** (Modal spend cap; owner approves the deploy — HANDOFF "Needs you"). Without a `modal-gpu` worker, requests are refused before any charge |
 | Worker | `EYELORE_WORKER_TOKEN`, `EYELORE_CONVEX_SITE_URL` | Colab/Modal/RunPod secrets | generated per worker by `convex run workers:register`; CI's dev worker token is in GitHub secrets as `EYELORE_DEV_WORKER_TOKEN` |
 
 ## 8. Notes and conflicts found
@@ -256,3 +257,12 @@ Where work runs (decided 2026-11-16): one worker codebase behind `GpuProvider`. 
 - [x] Pricing Free / Pro with request access → `accessRequests` (no prices); founder letter and proof are labelled placeholders on previews, hidden in production
 - [ ] Founder letter (Luca to write); proof strip after launch, with consent; admin page for access requests (mvp-spec Phase 4); Lockup wordmark → eyecandid (separate PR)
 ### Phase 3 — autopilots and AI editing *(not started)*
+
+### Phase 4 — request access and Pro (mvp-spec Phase 4)
+- [x] Pricing section with Free and Pro cards; request access → `accessRequests` (PR #24)
+- [x] Admin page `/admin/access` (token-gated): approve, decline, seats used of 100 (PR #24)
+- [x] Approve → `pro` allow list + SendPulse invite → Stripe Checkout; webhook sets the plan and monthly credits (PR #24; dark until keys)
+- [x] GPU gate: `enqueueJob` refuses any GPU job type without an approved, paid, credited owner; charge on enqueue, refund once on final failure (PR #24)
+- [x] GPU worker pool: `services/engine/deploy/modal_gpu_app.py` (`modal-gpu`, L4, scale to zero, one container, 15 min cap), per-pool wake (`EYELORE_GPU_WAKE_URL`), server-side pool split in `jobs.claim` (ADR 0013). **Built, not deployed**
+- [x] First GPU job type: `still` handler (Z-Image-Turbo, Apache-2.0), `broll.requestStill` on a bead → explained `autopilot:broll` change; stills shown in the Lens, Remotion `Cut` and `CutWeb`; Pro-only "add b-roll" in the editor. Plumbing tested with the model injected; **real generation untested until the GPU app runs**
+- [ ] **Accept:** a test user requests, is approved, pays with a Stripe test card, removes the watermark and spends one credit on a generated b-roll; an unapproved user cannot enqueue a GPU job. Unapproved refusal is proven in `convex/broll.test.ts`; the paid end-to-end path needs the keys and the GPU deploy (HANDOFF "Needs you")

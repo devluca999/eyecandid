@@ -34,6 +34,10 @@ def _lufs(path: str) -> float:
 def run(inp: dict, ctx) -> dict:
     doc = inp["doc"]
     media = {c["mediaId"]: ctx.url(c["mediaId"]) for c in doc["clips"]}
+    # generated b-roll stills over beads (ADR 0013): the Cut composition shows them with a slow push
+    for item in doc.get("tracks", {}).get("broll", []):
+        if item.get("ref") and item["ref"] not in media:
+            media[item["ref"]] = ctx.url(item["ref"])
     work = Path(tempfile.mkdtemp(prefix="eyelore-render-"))
     props = work / "props.json"
     props.write_text(json.dumps({"doc": doc, "media": media, "watermark": inp["watermark"]}))

@@ -8,7 +8,7 @@ The pull-based worker. It calls the Convex worker API over HTTPS (outbound only)
 |---|---|
 | `EYELORE_CONVEX_SITE_URL` | `https://<deployment>.convex.site` |
 | `EYELORE_WORKER_TOKEN` | from `npx convex run workers:register '{"name":"…","provider":"…"}'` (shown once) |
-| `EYELORE_PROVIDER` | `cpu-stub` (tests) · `cpu` · `modal` · `colab` · `runpod` |
+| `EYELORE_PROVIDER` | `cpu-stub` (tests) · `cpu` · `modal` · `colab` · `runpod` · `modal-gpu` (GPU pool: GPU job types only) |
 | `EYELORE_TRANSCRIBE_MODEL` | optional cap, e.g. `base` |
 
 **Local:** `uv venv --python 3.12 && uv pip install -e '.[cpu]' && .venv/bin/eyelore-worker` (needs ffmpeg; render also
@@ -18,6 +18,11 @@ needs Node and the repo's `services/render`).
 `EYELORE_ENV=prod` for production) with a Modal secret `eyelore-worker` / `eyelore-worker-prod` holding the two env
 vars above. Then set the printed `wake` URL on the Convex deployment: `npx convex env set EYELORE_WAKE_URL <url>`.
 A worker starts when a job is waiting and leaves after 3 idle minutes (ADR 0010).
+
+**Modal GPU pool (generated media, ADR 0013; not deployed yet):** `services/engine/deploy/modal_gpu_app.py`, its own
+worker (`workers:register '{"name":"modal-gpu","provider":"modal-gpu"}'`), Modal secret `eyelore-gpu[-prod]`, and
+`EYELORE_GPU_WAKE_URL` on Convex. L4, one container at most, leaves after 60 idle seconds, 15-minute cap. Handler:
+`still` (Z-Image-Turbo via diffusers; the `still` extra). Deploying spends money: the owner approves it (HANDOFF.md).
 
 **Colab:** `!pip install <wheel from the GitHub release>` then set the env vars from Colab secrets and run
 `!EYELORE_PROVIDER=colab eyelore-worker`.
