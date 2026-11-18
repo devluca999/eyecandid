@@ -11,14 +11,14 @@ import { env } from "@/lib/env";
  * Nothing here imports convex or clerk: that is the point.
  */
 
-type Uploader = { pick: () => void; trySample: (() => void) | null; busy: boolean; error: string | null };
-const Ctx = createContext<Uploader>({ pick: () => {}, trySample: null, busy: false, error: null });
+type Uploader = { pick: () => void; trySample: (() => void) | null; busy: boolean; error: string | null; unsupported: string | null };
+const Ctx = createContext<Uploader>({ pick: () => {}, trySample: null, busy: false, error: null, unsupported: null });
 export const useUploader = () => useContext(Ctx);
 
 export type BackendProps = {
   /** Called once the real uploader is mounted; it hands over its file entry point and receives its state. */
   register: (forward: (file: File) => void) => void;
-  report: (state: { busy: boolean; error: string | null }) => void;
+  report: (state: { busy: boolean; error: string | null; unsupported: string | null }) => void;
 };
 
 const hasFiles = (e: DragEvent) => !!e.dataTransfer && [...e.dataTransfer.types].includes("Files");
@@ -27,7 +27,7 @@ export function LandingUploader({ children }: { children: ReactNode }) {
   const input = useRef<HTMLInputElement>(null);
   const [Backend, setBackend] = useState<ComponentType<BackendProps> | null>(null);
   const [queued, setQueued] = useState(false);
-  const [real, setReal] = useState<{ busy: boolean; error: string | null }>({ busy: false, error: null });
+  const [real, setReal] = useState<{ busy: boolean; error: string | null; unsupported: string | null }>({ busy: false, error: null, unsupported: null });
   const [loadError, setLoadError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const started = useRef(false);
@@ -67,7 +67,7 @@ export function LandingUploader({ children }: { children: ReactNode }) {
       requestAnimationFrame(() => setQueued(false));
     }
   }, []);
-  const report = useCallback((s: { busy: boolean; error: string | null }) => setReal(s), []);
+  const report = useCallback((s: { busy: boolean; error: string | null; unsupported: string | null }) => setReal(s), []);
 
   useEffect(() => {
     setReady(true);
@@ -110,11 +110,14 @@ export function LandingUploader({ children }: { children: ReactNode }) {
 
   const pick = useCallback(() => {
     load();
+    // this browser can't edit and no worker is reachable (known once the backend has loaded): the line says so, no dialog
+    if (real.unsupported) return;
     input.current?.click(); // synchronous with the gesture, so browsers allow it
-  }, [load]);
+  }, [load, real.unsupported]);
 
   // "try it with our clip": the hosted sample goes through the same queue as a picked file (hidden until configured)
   const trySample = useCallback(async () => {
+    if (real.unsupported) return;
     setLoadError(null);
     setQueued(true);
     load();
@@ -127,10 +130,10 @@ export function LandingUploader({ children }: { children: ReactNode }) {
       setQueued(false);
       setLoadError("couldn't load the sample · try your own clip");
     }
-  }, [enqueue, load]);
+  }, [enqueue, load, real.unsupported]);
 
   return (
-    <Ctx.Provider value={{ pick, trySample: env.sampleClipUrl ? () => void trySample() : null, busy: queued || real.busy, error: loadError ?? real.error }}>
+    <Ctx.Provider value={{ pick, trySample: env.sampleClipUrl ? () => void trySample() : null, busy: queued || real.busy, error: loadError ?? real.error, unsupported: real.unsupported }}>
       {children}
       <input
         ref={input}
@@ -155,7 +158,7 @@ export function LandingUploader({ children }: { children: ReactNode }) {
  * window, including here, goes through the window drop target, so one drop is always one project.
  */
 export function DropWell({ title, hint, height, testId, id }: { title: string; hint: string; height: number; testId?: string; id?: string }) {
-  const { pick, busy, error } = useUploader();
+  const { pick, busy, error, unsupported } = useUploader();
   const [over, setOver] = useState(false);
   useEffect(() => {
     if (!over) return;
@@ -191,7 +194,7 @@ export function DropWell({ title, hint, height, testId, id }: { title: string; h
           </span>
         </span>
       </button>
-      {error && <StatusDot status="attention" label={error} style={{ whiteSpace: "normal", maxWidth: "100%" }} />}
+      {(error ?? unsupported) && <StatusDot status="attention" label={(error ?? unsupported)!} style={{ whiteSpace: "normal", maxWidth: "100%" }} />}
     </div>
   );
 }

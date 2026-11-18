@@ -2,6 +2,8 @@
 
 *Making real people look great.* Drop in raw clips, get back a polished, captioned, well-paced edit in about a minute.
 
+MVP status line by line: [`docs/mvp-status.md`](docs/mvp-status.md). The goal plan and how it is being built: [`docs/pricing-and-quality-plan.md`](docs/pricing-and-quality-plan.md), [`docs/goal-plan-build.md`](docs/goal-plan-build.md).
+
 Source of truth for scope: `docs/BUILD_PROMPT.md`. Product: `docs/product-notes.md`. Engine today: `docs/engine-assessment.md`. Decisions: `docs/adr/`.
 
 Status legend: `[x]` done and verified · `[~]` built, waiting on keys or infra · `[ ]` not started.

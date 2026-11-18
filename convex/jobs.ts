@@ -105,7 +105,9 @@ export const workerPresence = query({
     const wake = wakeWord(state?.lastWakeResult, !!state && state.lastWakeAt > 0);
     const gpuWake = wakeWord(state?.gpuLastWakeResult, !!state?.gpuLastWakeAt);
     const gpuRegistered = recent.some((w) => !w.disabled && isGpuWorkerProvider(w.provider));
-    return { live: live.length, providers: [...new Set(live.map((w) => w.provider))], wake, gpu: { live: gpuLive.length, registered: gpuRegistered, wake: gpuWake } };
+    // can a cold CPU engine be woken at all: a wake URL is set and a wake-able (modal) CPU worker is registered
+    const wakeable = !!process.env.EYELORE_WAKE_URL && recent.some((w) => !w.disabled && w.provider === "modal");
+    return { live: live.length, providers: [...new Set(live.map((w) => w.provider))], wake, wakeable, gpu: { live: gpuLive.length, registered: gpuRegistered, wake: gpuWake } };
   },
 });
 

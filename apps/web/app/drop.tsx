@@ -13,9 +13,10 @@ import { deviceSupport, faceTrackOnDevice, transcribeOnDevice } from "@/lib/devi
 import { env } from "@/lib/env";
 import { getClientHint } from "@/lib/client-hint";
 import { refusalMessage } from "@/lib/refusal";
+import { engineHooks, NO_ENGINE_LINE, serverReachable, type Presence } from "@/lib/engine-reach";
 
-type Uploader = { pick: () => void; trySample: (() => void) | null; busy: boolean; error: string | null };
-const Ctx = createContext<Uploader>({ pick: () => {}, trySample: null, busy: false, error: null });
+type Uploader = { pick: () => void; trySample: (() => void) | null; busy: boolean; error: string | null; unsupported: string | null };
+const Ctx = createContext<Uploader>({ pick: () => {}, trySample: null, busy: false, error: null, unsupported: null });
 export const useUploader = () => useContext(Ctx);
 
 /**
@@ -35,10 +36,15 @@ export function UploaderProvider({ children }: { children: ReactNode }) {
   const deviceFailed = useMutation(api.projects.deviceFailed);
   const flags = useQuery(api.flags.forSubject, typeof window === "undefined" ? "skip" : { subject: getAnonId() });
   const track = useTrack();
-  // check early so the first drop doesn't wait on it
+  // can this clip be edited at all: on this device, or by a worker that is up or can be woken? (engine-reach.ts)
+  const presence = useQuery(api.jobs.workerPresence, {});
+  const latest = useRef<{ presence: Presence | undefined }>({ presence: undefined });
+  latest.current.presence = engineHooks().presence ?? presence;
+  const [deviceOk, setDeviceOk] = useState<boolean | null>(null);
   useEffect(() => {
-    void deviceSupport();
+    void deviceSupport().then((s) => setDeviceOk(engineHooks().forceUnsupported ? false : s.ok));
   }, []);
+  const unsupported = deviceOk === false && latest.current.presence && !serverReachable(latest.current.presence) && engineHooks().engine !== "server" ? NO_ENGINE_LINE : null;
   const input = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusyState] = useState(false);
@@ -56,6 +62,17 @@ export function UploaderProvider({ children }: { children: ReactNode }) {
       };
       setError(null);
       setBusy(true);
+      // the landing's honest check (engine-reach.ts). A drop that lands before the backend knows waits for it; it never skips it.
+      if (engineHooks().engine !== "server") {
+        const device = engineHooks().forceUnsupported ? { ok: false } : await deviceSupport();
+        for (let i = 0; i < 200 && !device.ok && latest.current.presence === undefined; i++) await new Promise((r) => setTimeout(r, 50));
+        const p = latest.current.presence;
+        if (!device.ok && p && !serverReachable(p)) {
+          setBusy(false);
+          setError(NO_ENGINE_LINE);
+          return;
+        }
+      }
       const anonId = getAnonId();
       const droppedAt = Date.now();
       track("drop_started", { bytes: file.size, source });
@@ -135,7 +152,7 @@ export function UploaderProvider({ children }: { children: ReactNode }) {
         }
         return;
       }
-      session.put({ projectId, file, droppedAt, engine: "server" });
+      session.put({ projectId, file, droppedAt, engine: "server", meta });
       starting.current = false;
       router.push(`/edit/${projectId}`);
       try {
@@ -145,12 +162,16 @@ export function UploaderProvider({ children }: { children: ReactNode }) {
         await addSource({ anonId, projectId, storageId: storageId as Id<"_storage">, contentType: file.type || "video/mp4", source: "upload", ...meta });
         session.update(projectId, { uploadProgress: 1 });
       } catch (e) {
-        session.update(projectId, { error: refusalMessage(e, "upload failed · check your connection and drop it again") });
+        session.update(projectId, { error: refusalMessage(e, "upload failed · check your connection and try again") });
       }
     },
     [addDeviceSource, addSource, applyDeviceReframe, applyDeviceTranscript, convex, create, deviceFailed, deviceProgress, flags?.on_device, router, track, uploadUrl],
   );
-  const pick = useCallback(() => input.current?.click(), []);
+  // refused with the same line the well shows: no dialog, no project, no upload
+  const pick = useCallback(() => {
+    if (unsupported) return setError(unsupported);
+    input.current?.click();
+  }, [unsupported]);
   // "try it with our clip": the hosted sample runs through the exact same pipeline as a dropped clip
   const trySample = useCallback(async () => {
     if (!env.sampleClipUrl) return;
@@ -171,7 +192,7 @@ export function UploaderProvider({ children }: { children: ReactNode }) {
   useEffect(() => setReady(true), []);
 
   return (
-    <Ctx.Provider value={{ pick, trySample: env.sampleClipUrl ? () => void trySample() : null, busy, error }}>
+    <Ctx.Provider value={{ pick, trySample: env.sampleClipUrl ? () => void trySample() : null, busy, error, unsupported }}>
       {children}
       <DropZone onDrop={(f) => void start(f, "drop")} />
       <input
@@ -196,7 +217,7 @@ export function UploaderProvider({ children }: { children: ReactNode }) {
  * window, including here, goes through the window drop target, so one drop is always one project.
  */
 export function DropWell({ title, hint, height, testId, id }: { title: string; hint: string; height: number; testId?: string; id?: string }) {
-  const { pick, busy, error } = useUploader();
+  const { pick, busy, error, unsupported } = useUploader();
   const [over, setOver] = useState(false);
   useEffect(() => {
     if (!over) return;
@@ -232,7 +253,7 @@ export function DropWell({ title, hint, height, testId, id }: { title: string; h
           </span>
         </span>
       </button>
-      {error && <StatusDot status="attention" label={error} style={{ whiteSpace: "normal", maxWidth: "100%" }} />}
+      {(error ?? unsupported) && <StatusDot status="attention" label={(error ?? unsupported)!} style={{ whiteSpace: "normal", maxWidth: "100%" }} />}
     </div>
   );
 }

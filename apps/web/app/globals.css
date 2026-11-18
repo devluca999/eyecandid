@@ -101,6 +101,8 @@ body { background: var(--canvas); transition: background-color var(--dur-recede)
   .eyl-helppill, .eyl-drawerhandle .el-kbd { display: none; }
 }
 @media (max-width: 640px) {
+  /* phones: once the edit is ready, "export" stays on screen under the thumb instead of below the thread */
+  .eyl-exportdock { position: sticky; bottom: 12px; z-index: 40; }
   .eyl-top { padding: 12px 16px; gap: 8px; }
   /* phones: the view switch gets its own row, so it never runs into delete and the theme toggle */
   .eyl-top { grid-template-columns: 1fr auto; }
@@ -114,4 +116,20 @@ body { background: var(--canvas); transition: background-color var(--dur-recede)
   .eyl-board__cards { gap: 24px 16px; justify-content: center; }
   .eyl-card, .eyl-card__lens { width: min(120px, calc(50vw - 32px)); }
   .eyl-card__tick { display: none; }
+}
+
+/* versions: three small Lens previews of the same take; a swipe row on phones */
+.eyl-versions { width: min(720px, calc(100vw - 32px)); display: flex; flex-direction: column; gap: 10px; }
+.eyl-versions__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.eyl-versions__row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; list-style: none; margin: 0; padding: 0; }
+.eyl-ver { min-width: 0; }
+.eyl-ver__btn { display: flex; flex-direction: column; gap: 6px; width: 100%; padding: 0; border: 0; background: none; color: var(--ink); text-align: left; cursor: pointer; font: inherit; }
+.eyl-ver__btn:disabled { cursor: progress; opacity: .7; }
+.eyl-ver__btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 14px; }
+.eyl-ver__btn .el-capedit { font-size: 9px; line-height: 1.25; padding: 2px 3px; width: 88%; pointer-events: none; cursor: inherit; }
+.eyl-ver__title { font: var(--font-ui); }
+.eyl-ver__blurb { font: var(--font-meta); color: var(--ink-secondary); }
+@media (max-width: 640px) {
+  .eyl-versions__row { display: flex; overflow-x: auto; padding: 6px 6px 8px; scroll-snap-type: x mandatory; gap: 12px; -webkit-overflow-scrolling: touch; }
+  .eyl-ver { flex: 0 0 62vw; scroll-snap-align: center; }
 }
