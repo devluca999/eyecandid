@@ -24,6 +24,7 @@ import type * as jobs from "../jobs.js";
 import type * as lib_credits from "../lib/credits.js";
 import type * as lib_docs from "../lib/docs.js";
 import type * as lib_entitle from "../lib/entitle.js";
+import type * as lib_exportCount from "../lib/exportCount.js";
 import type * as lib_flags from "../lib/flags.js";
 import type * as lib_limits from "../lib/limits.js";
 import type * as lib_mediaStore from "../lib/mediaStore.js";
@@ -67,6 +68,7 @@ declare const fullApi: ApiFromModules<{
   "lib/credits": typeof lib_credits;
   "lib/docs": typeof lib_docs;
   "lib/entitle": typeof lib_entitle;
+  "lib/exportCount": typeof lib_exportCount;
   "lib/flags": typeof lib_flags;
   "lib/limits": typeof lib_limits;
   "lib/mediaStore": typeof lib_mediaStore;

@@ -1,6 +1,6 @@
 # 0014 · Credits are generated seconds: reserve, settle, refund
 
-**Status.** Accepted as the contract, 2026-11-17. The pure model is built and tested (`packages/core/src/credits.ts`). The server still charges the Phase 4 placeholders (ADR 0009 addendum) until "Rollout" below is done. Two parts wait for the owner: the free tier's shape and the Stripe prices.
+**Status.** Accepted as the contract, 2026-11-17. The pure model is built and tested (`packages/core/src/credits.ts`). Rollout steps 1 and 2 are wired (`convex/lib/credits.ts`, `convex/credits.test.ts`), and the export count from step 3 (1 per anonymous session, then sign-in; 3 a month on Free) is enforced in `planExport`. Still open: swapping `PLANS` for the catalog (monthly amounts and pack sizes still come from `plans.ts`), the editor's cost line, and the two owner decisions below (the free tier's 10 one-time credits are not granted).
 
 **Context.** `docs/pricing-and-quality-plan.md` sets the pricing rule: editing costs cents, so it is not metered; generation costs about $0.02–0.03 a second, so it is. Today a GPU job costs a fixed number of placeholder credits by type (`GPU_CREDIT_COST`), taken at enqueue from one number (`entitlements.credits`) and returned if the job fails for good. That cannot express a 4 s clip costing less than a 10 s one, top-ups that last 12 months next to a monthly allowance that doesn't roll over, or a refund when the result is bad rather than missing.
 
@@ -21,6 +21,12 @@
 2. *Server.* `chargeGpuJob` calls `creditCost(type, { seconds })` with the length from the job input and `reserve`; the job-complete path calls `settle`; the final-failure path and a new `qc_failed` worker result call `release`. The webhook writes a `monthlyLot` on checkout and renewal (once a month, as now) and a `topupLot` for a pack.
 3. *Plans.* Swap `PLANS` for the catalog once the owner confirms it: `PlanId` gains `pro` and `founding`; exports are counted (1 per anonymous session, 3 a month on Free) instead of minutes; paid plans get fair use (10 h of raw footage a month).
 4. *Product.* The editor shows the cost before a generation starts ("5 s · 5 credits") and the balance after.
+
+**As built (rollout 1–2).**
+- Lot ids are deterministic, so a replayed grant never adds twice: `m:<UTC month>` (the webhook's monthly grant, and also this month's allowance for a live subscription from the 1st, before the renewal arrives, since lots end at month end but renewals land on the billing anniversary), `t:<checkout session>` (a pack), `legacy:<entitlement>` (a balance from `entitlements.credits`, no expiry), `r:<charge>` (a refund whose lot expired, 30 days).
+- `entitlements.credits` is folded into its `legacy:` lot by the first mutation that touches the balance (reads count it meanwhile), and `migrations:creditsToLots` folds every row. The field stays in the schema, always 0, until it is dropped.
+- The Pro gate runs before the cost, so a free account hears about Pro; a look costs 0 but is still refused without Pro. A per-second job whose length can't be told (no `durationMs`, no media duration) is refused with "couldn't tell how many seconds this makes · nothing was charged".
+- The worker reports a rejected result with `POST /worker/fail { outcome: "qc_failed" }`: final, never retried, refunded (`refundReason: "qc_failed"`). Older workers are unaffected.
 
 ## Consequences
 

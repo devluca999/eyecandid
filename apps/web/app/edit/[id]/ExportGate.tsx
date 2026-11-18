@@ -1,9 +1,11 @@
 "use client";
 /**
  * Everything that happens between "export" and the render job (ADR 0009), kept out of Editor.tsx:
- *  1. accounts: signed out + Clerk configured + flag `accounts` on -> Clerk sign-up as a modal over the editor,
- *     then users.ensure + account.claim, then the export continues. No Clerk key: the export just runs anonymously
- *     and one quiet meta line says so.
+ *  1. accounts (mvp-spec "Access model"): the first export needs no account. The server counts exports (1 per
+ *     anonymous session, 3 a month on Free) and answers `sign_in_required` at the second; only then, with Clerk
+ *     configured, the sign-up opens as a modal over the editor, then users.ensure + account.claim, then the export
+ *     continues. The server asks only when sign-in is really switched on; otherwise the export goes as before and the
+ *     quiet meta line under the export says sign-in isn't switched on yet. The counts in that line come from the server.
  *  2. paywall: only if the server answers `paid_required` and flag `billing` is on. Dismissible; "export free"
  *     takes the free watermarked export instead.
  *  3. presence: a heartbeat while the tab is visible, so "your edit is ready" email knows when you are away.
@@ -61,6 +63,7 @@ function useGateCore(projectId: Id<"projects">, anonId: string, ready: boolean, 
   const beat = useMutation(api.presence.beat);
   const checkout = useAction(api.billing.checkout);
   const flags = useQuery(api.flags.forSubject, anonId ? { subject: anonId } : "skip");
+  const mine = useQuery(api.entitlements.mine, anonId ? { anonId } : "skip");
 
   const exporterRef = useRef<Exporter | null>(null);
   const latest = useRef({ auth, flags });
@@ -127,45 +130,49 @@ function useGateCore(projectId: Id<"projects">, anonId: string, ready: boolean, 
     })();
   }, [signup, auth.isSignedIn, auth.isAuthenticated, carryOver, track]);
 
+  /** Open the sign-up and wait: true once signed in and carried over, false if it was closed. */
+  const askSignIn = useCallback(async () => {
+    track("signup_prompted", {});
+    setSignup(true);
+    return await new Promise<boolean>((resolve) => {
+      waiter.current = { resolve: () => resolve(true), reject: () => resolve(false) };
+    });
+  }, [track]);
+
   const attempt = useCallback(
-    async (args: ExportArgs, mode: "best" | "free") => {
+    async (args: ExportArgs, mode: "best" | "free", signedInNow = false): Promise<void> => {
       const go: Exporter = exporterRef.current ?? (async (x) => void (await startExport({ anonId, projectId, ...x })));
       try {
         await go({ ...args, mode });
       } catch (e) {
-        const data = e instanceof ConvexError ? (e.data as { code?: string; reason?: string; freeAvailable?: boolean }) : undefined;
+        const data = e instanceof ConvexError ? (e.data as { code?: string; reason?: string; freeAvailable?: boolean; message?: string }) : undefined;
+        if (data?.code === "sign_in_required") {
+          // the second free export: sign in (the edit comes with you), then the same request again
+          if (!auth.enabled || signedInNow) throw new Error(auth.enabled ? (data.message ?? "sign in to export again") : "sign-in isn't switched on yet", { cause: e });
+          if (!(await askSignIn())) return; // closed the sign-up: no export, the footage is still there
+          return await attempt(args, mode, true);
+        }
         if (data?.code !== "paid_required") throw e;
         if (!latest.current.flags?.billing) return await go({ ...args, mode: "free" }); // paywall not switched on: keep the free export
         track("paywall_shown", { reason: String(data.reason ?? "unknown") });
         setPaywall({ args, reason: String(data.reason ?? ""), freeAvailable: !!data.freeAvailable });
       }
     },
-    [startExport, anonId, projectId, track],
+    [startExport, anonId, projectId, track, auth.enabled, askSignIn],
   );
 
   const run = useCallback(
     async (args: ExportArgs, exporter?: Exporter) => {
       exporterRef.current = exporter ?? null;
       setNote(null);
-      if (auth.enabled) {
-        await waitFor(() => latest.current.flags !== undefined, 3000);
-        if (latest.current.flags?.accounts) {
-          if (!latest.current.auth.isSignedIn) {
-            track("signup_prompted", {});
-            setSignup(true);
-            const ok = await new Promise<boolean>((resolve) => {
-              waiter.current = { resolve: () => resolve(true), reject: () => resolve(false) };
-            });
-            if (!ok) return; // closed the sign-up: no export, the footage is still there
-          } else {
-            await waitFor(() => latest.current.auth.isAuthenticated, 5000);
-            await carryOver();
-          }
-        }
+      // already signed in: make sure the account exists and owns this edit, so the export counts against it
+      if (auth.enabled && latest.current.auth.isSignedIn) {
+        await waitFor(() => latest.current.auth.isAuthenticated, 5000);
+        await carryOver();
       }
       await attempt(args, "best");
     },
-    [auth.enabled, attempt, carryOver, track],
+    [auth.enabled, attempt, carryOver],
   );
 
   const upgrade = async (plan: (typeof PAID_PLAN_IDS)[number]) => {
@@ -182,11 +189,7 @@ function useGateCore(projectId: Id<"projects">, anonId: string, ready: boolean, 
 
   const element = (
     <>
-      {ready && showMeta && !auth.enabled && (
-        <p className="text-meta text-ink-tertiary" style={{ textAlign: "center" }} data-testid="export-meta">
-          free export · watermarked · accounts aren&apos;t connected yet
-        </p>
-      )}
+      {ready && showMeta && mine && <ExportMeta exports={mine.exports} watermark={mine.watermark} />}
       {signup && (
         <Modal label="create an account to export" onClose={closeSignup}>
           <p className="text-meta text-ink-secondary" style={{ marginBottom: 12 }}>free account · your edit comes with you</p>
@@ -227,6 +230,28 @@ function useGateCore(projectId: Id<"projects">, anonId: string, ready: boolean, 
     </>
   );
   return { run, element };
+}
+
+type ExportCount = { used: number; limit: number | null; scope: "session" | "month"; signInAvailable: boolean };
+
+/** One quiet line under the export: the free export count, from the server. Nothing on an unlimited plan. */
+function ExportMeta({ exports: c, watermark }: { exports: ExportCount; watermark: boolean }) {
+  if (c.limit === null) return null;
+  const left = Math.max(0, c.limit - c.used);
+  const mark = watermark ? " · watermarked" : "";
+  const line =
+    c.scope === "month"
+      ? `${left} of ${c.limit} free exports left this month${mark}`
+      : left > 0
+        ? `${left} free export${mark} · no account needed`
+        : c.signInAvailable
+          ? "free export used · sign in for 3 a month"
+          : `free export${mark} · sign-in isn't switched on yet`;
+  return (
+    <p className="text-meta text-ink-tertiary" style={{ textAlign: "center" }} data-testid="export-meta">
+      {line}
+    </p>
+  );
 }
 
 /** Clerk is configured: the provider exists, so Clerk's hooks and components are safe to use. */

@@ -306,7 +306,8 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
     try {
       await gate.run(exportArgs, isDevice ? deviceExporter : undefined);
     } catch (e) {
-      setNotice(e instanceof Error ? e.message.replace(/^.*Uncaught Error: /, "").split("\n")[0]! : "couldn't export");
+      // a refusal carries its own line (free exports used up, the pause); anything else shows what we know
+      setNotice(refusalMessage(e, e instanceof Error ? e.message.replace(/^.*Uncaught Error: /, "").split("\n")[0]! : "couldn't export"));
     }
     setExportReq((n) => n + 1);
   };
