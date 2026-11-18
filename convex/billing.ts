@@ -5,7 +5,7 @@ import { CREDIT_PACKS, PLANS, isPlanId } from "@eyelore/core";
 import type { PlanId } from "@eyelore/core";
 import { flagOn } from "./lib/flags";
 import { ensureEntitlement, entitlementFor, setPlan, userByClerkId } from "./lib/users";
-import { grantMonthlyCredits, grantTopup } from "./lib/credits";
+import { addMonthUtc, grantPeriodCredits, grantTopup } from "./lib/credits";
 
 type StripeObj = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any -- Stripe payloads are untyped JSON
 
@@ -127,7 +127,10 @@ export const applyStripeEvent = internalMutation({
       const plan = o.metadata?.plan;
       if (!isPlanId(plan) || plan === "free" || o.payment_status === "unpaid") return { applied: false as const, why: "no paid plan" };
       await setPlan(ctx, userId, plan, { stripeCustomerId: o.customer ?? undefined, stripeSubscriptionId: o.subscription ?? undefined, subscriptionStatus: "active" });
-      await grantMonthlyCredits(ctx, userId, plan);
+      // the first period is paid: its credits, until the period ends. The session doesn't carry the period, so a month
+      // from now stands in until the first invoice.paid (same lot id) corrects the end. A trial ("no_payment_required")
+      // gets none until something is paid.
+      if (o.payment_status === "paid") await grantPeriodCredits(ctx, userId, plan, `p:${String(o.subscription ?? o.id ?? eventId)}:first`, addMonthUtc(Date.now()));
       return { applied: true as const };
     }
 
@@ -147,11 +150,35 @@ export const applyStripeEvent = internalMutation({
       if (["active", "trialing", "past_due"].includes(status)) {
         const plan = planFromPrice(o.items?.data?.[0]?.price?.id) ?? (isPlanId(o.metadata?.plan) ? (o.metadata.plan as PlanId) : undefined);
         if (plan) await setPlan(ctx, ent.userId, plan, { subscriptionStatus: status, stripeSubscriptionId: o.id ?? ent.stripeSubscriptionId, stripeCustomerId: o.customer ?? ent.stripeCustomerId });
-        // a renewal arrives as an update to a live subscription: this month's credits, once (past_due gets none)
-        if (plan && status !== "past_due") await grantMonthlyCredits(ctx, ent.userId, plan);
+        // no credits here: an update is not a payment. Each paid period's credits come with its invoice.paid.
         return { applied: !!plan };
       }
       return { applied: false as const, why: `status ${status}` };
+    }
+
+    // A paid billing period (ADR 0014): its credits as one lot that ends with the period. Keyed by the period, so
+    // a replay, or the first invoice after checkout already granted the first period, adds nothing.
+    if (type === "invoice.paid") {
+      const sub = o.subscription ?? o.parent?.subscription_details?.subscription;
+      if (!sub) return { applied: false as const, why: "not a subscription invoice" };
+      if (!(Number(o.amount_paid) > 0)) return { applied: false as const, why: "nothing paid" };
+      const meta = o.subscription_details?.metadata ?? o.parent?.subscription_details?.metadata ?? {};
+      let ent = o.customer ? await ctx.db.query("entitlements").withIndex("by_stripeCustomer", (q) => q.eq("stripeCustomerId", o.customer)).unique() : null;
+      if (!ent) {
+        const userId = ctx.db.normalizeId("users", String(meta.userId ?? ""));
+        if (userId && (await ctx.db.get(userId))) ent = await ensureEntitlement(ctx, userId);
+      }
+      if (!ent) return { applied: false as const, why: "unknown customer" };
+      const line = o.lines?.data?.[0];
+      const plan =
+        planFromPrice(line?.price?.id ?? line?.pricing?.price_details?.price) ?? (isPlanId(meta.plan) ? (meta.plan as PlanId) : isPlanId(ent.plan) ? ent.plan : undefined);
+      if (!plan || plan === "free") return { applied: false as const, why: "no paid plan" };
+      const start = Number(line?.period?.start ?? o.period_start);
+      const end = Number(line?.period?.end ?? o.period_end) * 1000;
+      if (!Number.isFinite(start) || !Number.isFinite(end)) return { applied: false as const, why: "no period" };
+      const lotId = o.billing_reason === "subscription_create" ? `p:${String(sub)}:first` : `p:${String(sub)}:${start}`;
+      await grantPeriodCredits(ctx, ent.userId, plan, lotId, end);
+      return { applied: true as const };
     }
     return { applied: false as const, why: "ignored type" };
   },

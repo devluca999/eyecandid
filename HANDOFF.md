@@ -39,6 +39,7 @@ Until step 2 is done, Pro users who choose "add b-roll" get "the gpu isn't set u
 
 **Credits as lots and the free export count (ADR 0014).** After the deploy that adds `creditLots`:
 
+0. **Add `invoice.paid`** to the Stripe webhook endpoint's events (Stripe dashboard → Developers → Webhooks → the `/stripe/webhook` endpoint → add event). Each paid billing period's credits arrive with it; without it, only the first period (from checkout) is granted.
 1. Fold old balances into lots (optional: any charge or grant folds a balance first, and reads count it meanwhile): `npx convex run migrations:creditsToLots` on dev, then `npx convex run --prod migrations:creditsToLots`. Safe to run again.
 2. Switching sign-in on, in this order, or anonymous visitors are asked to sign in with no way to do it: set the Clerk publishable key on Vercel and redeploy the web, set `CLERK_JWT_ISSUER_DOMAIN` in Convex, and only then turn the `accounts` flag on (`npx convex run flags:set '{"key":"accounts","enabled":true}'`). From then on the 2nd anonymous export asks for sign-in, and Free accounts get 3 exports a month. The mobile app has no sign-in yet: there, the 2nd anonymous export shows the one-line refusal.
 

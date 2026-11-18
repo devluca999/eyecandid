@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { Aspect, EditDoc, ReframeKeyframe } from "./editModel";
+import { MAX_VOICE_TEXT } from "./credits";
 
 /**
  * Engine job contract — the ONLY interface between the app and the GPU (ADR 0003, 0004).
@@ -57,7 +58,7 @@ export const JOB_SPECS = {
   },
   voice: {
     version: 1,
-    input: z.object({ text: z.string(), voiceId: z.string(), consentId: z.string().min(1) }),
+    input: z.object({ text: z.string().max(MAX_VOICE_TEXT), voiceId: z.string(), consentId: z.string().min(1) }),
     output: MediaRef.extend({ words: z.array(WordTiming) }),
   },
   matte: {

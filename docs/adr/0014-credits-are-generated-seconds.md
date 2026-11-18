@@ -23,9 +23,12 @@
 4. *Product.* The editor shows the cost before a generation starts ("5 s · 5 credits") and the balance after.
 
 **As built (rollout 1–2).**
-- Lot ids are deterministic, so a replayed grant never adds twice: `m:<UTC month>` (the webhook's monthly grant, and also this month's allowance for a live subscription from the 1st, before the renewal arrives, since lots end at month end but renewals land on the billing anniversary), `t:<checkout session>` (a pack), `legacy:<entitlement>` (a balance from `entitlements.credits`, no expiry), `r:<charge>` (a refund whose lot expired, 30 days).
+- **The plan's allowance is per paid billing period, not per calendar month** (this refines decision 3). A lot is granted only for a period Stripe says was paid and ends when that period ends: `p:<subscription>:first` on a paid checkout (a month from now stands in until the first `invoice.paid`, same lot id, corrects the end) and `p:<subscription>:<period start>` on each `invoice.paid` with `amount_paid > 0`. A subscription update is not a payment and grants nothing; a trial or a $0 invoice grants nothing. So one payment can never buy two periods, and cancelling at period end leaves exactly what was paid for.
+- Other lot ids are deterministic too, so a replayed grant never adds twice: `t:<checkout session>` (a pack, 12 months), `legacy:<entitlement>` (a balance from `entitlements.credits`, no expiry), `r:<charge>` (credits back from a lot that expired meanwhile, 30 days, only for our failures: a refund because the person deleted their edit lapses with its lot, like unused credits).
+- Voice is reserved from the text's characters (about 15 a second, never less than 2.5 words a second) and its text is capped at 1,500 characters in the job contract. If it still makes more than was reserved, the difference is taken at settle when the balance allows; otherwise it settles at the reservation and the charge row records `uncharged`.
 - `entitlements.credits` is folded into its `legacy:` lot by the first mutation that touches the balance (reads count it meanwhile), and `migrations:creditsToLots` folds every row. The field stays in the schema, always 0, until it is dropped.
 - The Pro gate runs before the cost, so a free account hears about Pro; a look costs 0 but is still refused without Pro. A per-second job whose length can't be told (no `durationMs`, no media duration) is refused with "couldn't tell how many seconds this makes · nothing was charged".
+- `invoice.paid` must be added to the Stripe webhook endpoint's events (owner).
 - The worker reports a rejected result with `POST /worker/fail { outcome: "qc_failed" }`: final, never retried, refunded (`refundReason: "qc_failed"`). Older workers are unaffected.
 
 ## Consequences

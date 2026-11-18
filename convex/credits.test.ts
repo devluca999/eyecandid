@@ -118,6 +118,44 @@ describe("settle on success, release on failure", () => {
     expect(await bal(t, userId)).toBe(MONTHLY - 3);
   });
 
+  it("voice: text without spaces is estimated by characters, and a longer real length is charged when the balance allows", async () => {
+    const t = mk();
+    const userId = await pro(t);
+    const w = await gpu(t);
+    await t.mutation(internal.billing.applyStripeEvent, {
+      eventId: "evt_pack",
+      type: "checkout.session.completed",
+      object: { id: "cs_pack", client_reference_id: userId, metadata: { kind: "credits", pack: "small" }, payment_status: "paid" },
+    });
+    const text = Array.from({ length: 150 }, (_, i) => `word${i}`).join(","); // 150 spoken words, zero spaces
+    const jobId = await t.run((ctx) => enqueueJob(ctx, { type: "voice", input: { text, voiceId: "v", consentId: "c" }, idempotencyKey: "vo", ownerUserId: userId }));
+    expect((await charges(t))[0]!.credits).toBeGreaterThanOrEqual(60); // reserved by characters, not 1
+    await t.mutation(internal.jobs.claim, { workerId: w, types: ["voice"] });
+    await t.mutation(internal.jobs.complete, { workerId: w, jobId, output: { mediaId: "o", words: [{ text: "x", startMs: 0, endMs: 60_000, conf: 1 }] } });
+    const charge = (await charges(t))[0]!;
+    expect(charge.actual).toBe(60);
+    expect(await bal(t, userId)).toBe(MONTHLY + 100 - 60);
+  });
+
+  it("voice: when the real length outruns the reservation, the difference is taken if it can be, else noted", async () => {
+    const t = mk();
+    const userId = await pro(t);
+    const w = await gpu(t);
+    const run = async (key: string, endMs: number) => {
+      const jobId = await t.run((ctx) => enqueueJob(ctx, { type: "voice", input: { text: "hello there", voiceId: "v", consentId: "c" }, idempotencyKey: key, ownerUserId: userId }));
+      await t.mutation(internal.jobs.claim, { workerId: w, types: ["voice"] });
+      await t.mutation(internal.jobs.complete, { workerId: w, jobId, output: { mediaId: "o", words: [{ text: "x", startMs: 0, endMs, conf: 1 }] } });
+      return (await t.run((ctx) => ctx.db.query("creditCharges").withIndex("by_job", (q) => q.eq("jobId", jobId)).unique()))!;
+    };
+    const a = await run("v1", 5_000); // reserved 1, made 5: 4 more taken
+    expect(a).toMatchObject({ credits: 5, actual: 5 });
+    expect(a.taken!.reduce((n, x) => n + x.credits, 0)).toBe(5);
+    expect(await bal(t, userId)).toBe(MONTHLY - 5);
+    const b = await run("v2", (MONTHLY + 10) * 1000); // more than is left: settles at the reservation
+    expect(b).toMatchObject({ credits: 1, actual: 1, uncharged: MONTHLY + 10 - 1 });
+    expect(await bal(t, userId)).toBe(MONTHLY - 6);
+  });
+
   it("a final failure releases each credit to its lot, once", async () => {
     const t = mk();
     const userId = await pro(t);
@@ -130,7 +168,7 @@ describe("settle on success, release on failure", () => {
     expect(await bal(t, userId)).toBe(MONTHLY);
     await t.mutation(internal.jobs.fail, { workerId: w, jobId, error: "again", retryable: false });
     expect(await bal(t, userId)).toBe(MONTHLY);
-    expect((await lots(t, userId)).map((l) => l.lotId)).toEqual([expect.stringMatching(/^m:/)]); // back in its own lot, no new one
+    expect((await lots(t, userId)).map((l) => l.lotId)).toEqual(["p:sub_1:first"]); // back in its own lot, no new one
   });
 
   it("qc_failed is final even when retryable, never a success, and refunds", async () => {
@@ -146,18 +184,31 @@ describe("settle on success, release on failure", () => {
     expect(await bal(t, userId)).toBe(MONTHLY);
   });
 
-  it("a refund whose lot expired meanwhile comes back as a grant good for 30 days", async () => {
+  it("our failure after the lot expired: the credits come back as a grant good for 30 days", async () => {
     at("2026-11-30T23:00:00Z");
     const t = mk();
     const userId = await pro(t);
     const w = await gpu(t);
     const jobId = await i2v(t, userId, 2000);
     await t.mutation(internal.jobs.claim, { workerId: w, types: ["i2v"] });
-    vi.setSystemTime(new Date("2026-12-01T01:00:00Z")); // november's lot is gone
+    vi.setSystemTime(new Date("2026-12-31T01:00:00Z")); // the first period's lot (to Dec 30 23:00) is gone
     await t.mutation(internal.jobs.fail, { workerId: w, jobId, error: "oom", retryable: false });
     const back = (await lots(t, userId)).find((l) => l.lotId.startsWith("r:"));
     expect(back).toMatchObject({ kind: "grant", remaining: 2 });
     expect(back!.expiresAt! - back!.createdAt).toBe(REFUND_GRACE_DAYS * DAY);
+  });
+
+  it("the person deleting their edit after the lot expired: the credits lapse with it, no 30-day grant", async () => {
+    at("2026-11-30T23:00:00Z");
+    const t = mk();
+    const userId = await pro(t);
+    const projectId = await t.withIdentity(ALICE).mutation(api.projects.create, { anonId: ANON });
+    await t.run((ctx) => enqueueJob(ctx, { type: "i2v", input: { mediaId: "m", prompt: "p", durationMs: 2000 }, idempotencyKey: "del", projectId, ownerUserId: userId, ownerAnonId: ANON }));
+    vi.setSystemTime(new Date("2026-12-31T01:00:00Z"));
+    await t.withIdentity(ALICE).mutation(api.projects.remove, { projectId });
+    await t.finishAllScheduledFunctions(() => {});
+    expect((await charges(t))[0]).toMatchObject({ refundReason: "cancelled" });
+    expect((await lots(t, userId)).some((l) => l.lotId.startsWith("r:"))).toBe(false);
   });
 });
 
@@ -177,9 +228,9 @@ describe("lots: what expires soonest is spent first", () => {
 
     await i2v(t, userId, (MONTHLY + 3) * 1000);
     const by = Object.fromEntries((await lots(t, userId)).map((l) => [l.lotId, l.remaining]));
-    expect(by).toEqual({ "m:2026-11": 0, "t:cs_pack": 97, [`legacy:${ent!._id}`]: 7 });
+    expect(by).toEqual({ "p:sub_1:first": 0, "t:cs_pack": 97, [`legacy:${ent!._id}`]: 7 });
     expect((await charges(t))[0]!.taken).toEqual([
-      { lotId: "m:2026-11", credits: MONTHLY },
+      { lotId: "p:sub_1:first", credits: MONTHLY },
       { lotId: "t:cs_pack", credits: 3 },
     ]);
     const after = await t.run((ctx) => ctx.db.get(ent!._id));
@@ -204,49 +255,84 @@ describe("lots: what expires soonest is spent first", () => {
   });
 });
 
-describe("monthly allowance from the webhook", () => {
-  const renew = (t: T, eventId: string) =>
+describe("plan credits per paid Stripe period", () => {
+  const S = (iso: string) => Date.parse(iso) / 1000;
+  const invoice = (t: T, eventId: string, o: { id: string; reason: string; start: number; end: number; paid?: number }) =>
+    t.mutation(internal.billing.applyStripeEvent, {
+      eventId,
+      type: "invoice.paid",
+      object: { id: o.id, customer: "cus_1", subscription: "sub_1", billing_reason: o.reason, amount_paid: o.paid ?? 1900, lines: { data: [{ period: { start: o.start, end: o.end } }] } },
+    });
+  const update = (t: T, eventId: string) =>
     t.mutation(internal.billing.applyStripeEvent, { eventId, type: "customer.subscription.updated", object: { id: "sub_1", customer: "cus_1", status: "active", metadata: { plan: PRO_PLAN } } });
 
-  it("once per UTC month as a lot that ends with the month: no rollover", async () => {
+  it("checkout grants the first period; its invoice corrects the end and adds nothing; replays add nothing", async () => {
     at("2026-11-20T00:00:00Z");
     const t = mk();
     const userId = await pro(t);
-    await renew(t, "evt_r1"); // same month: nothing more
-    expect((await lots(t, userId)).map((l) => [l.lotId, l.remaining])).toEqual([["m:2026-11", MONTHLY]]);
-    expect((await lots(t, userId))[0]!.expiresAt).toBe(Date.UTC(2026, 11, 1));
-
-    vi.setSystemTime(new Date("2026-12-20T00:00:00Z"));
-    await renew(t, "evt_r2");
-    await renew(t, "evt_r3");
-    expect((await lots(t, userId)).map((l) => l.lotId).sort()).toEqual(["m:2026-11", "m:2026-12"]);
-    expect(await bal(t, userId)).toBe(MONTHLY); // november's unused credits are gone
+    expect((await lots(t, userId)).map((l) => [l.lotId, l.remaining])).toEqual([["p:sub_1:first", MONTHLY]]);
+    await invoice(t, "evt_i1", { id: "in_1", reason: "subscription_create", start: S("2026-11-20T00:00:00Z"), end: S("2026-12-20T00:00:00Z") });
+    await invoice(t, "evt_i1b", { id: "in_1", reason: "subscription_create", start: S("2026-11-20T00:00:00Z"), end: S("2026-12-20T00:00:00Z") });
+    const l = await lots(t, userId);
+    expect(l).toHaveLength(1);
+    expect(l[0]).toMatchObject({ remaining: MONTHLY, expiresAt: Date.parse("2026-12-20T00:00:00Z") });
   });
 
-  it("a live subscription has this month's allowance from the 1st, before the renewal arrives; then the renewal adds nothing", async () => {
+  it("each paid renewal is one lot that ends with its period: no rollover, and an update alone grants nothing", async () => {
     at("2026-11-20T00:00:00Z");
     const t = mk();
     const userId = await pro(t);
-    vi.setSystemTime(new Date("2026-12-02T00:00:00Z"));
+    vi.setSystemTime(new Date("2026-12-20T00:00:05Z"));
+    expect(await bal(t, userId)).toBe(0); // the first period ended; nothing until the next one is paid
+    await update(t, "evt_u");
+    expect(await bal(t, userId)).toBe(0);
+    const r = { id: "in_2", reason: "subscription_cycle", start: S("2026-12-20T00:00:00Z"), end: S("2027-01-20T00:00:00Z") };
+    await invoice(t, "evt_r2", r);
+    await invoice(t, "evt_r2_again", r);
     expect(await bal(t, userId)).toBe(MONTHLY);
-    await i2v(t, userId, 2000);
-    expect((await lots(t, userId)).find((l) => l.lotId === "m:2026-12")).toMatchObject({ remaining: MONTHLY - 2 });
-    vi.setSystemTime(new Date("2026-12-20T00:00:00Z"));
-    await renew(t, "evt_r");
-    expect(await bal(t, userId)).toBe(MONTHLY - 2);
+    expect((await lots(t, userId)).map((x) => x.lotId).sort()).toEqual([`p:sub_1:${r.start}`, "p:sub_1:first"]);
   });
 
-  it("a balance granted this month before the migration is not granted again as a lot", async () => {
+  it("a $0 invoice (a trial) and a checkout without payment grant nothing", async () => {
+    at("2026-11-20T00:00:00Z");
+    const t = mk();
+    const userId = await t.withIdentity(ALICE).mutation(api.users.ensure, {});
+    await t.mutation(internal.billing.applyStripeEvent, {
+      eventId: "evt_trial",
+      type: "checkout.session.completed",
+      object: { client_reference_id: userId, metadata: { kind: "plan", plan: PRO_PLAN }, payment_status: "no_payment_required", customer: "cus_1", subscription: "sub_1" },
+    });
+    await invoice(t, "evt_i0", { id: "in_0", reason: "subscription_create", start: S("2026-11-20T00:00:00Z"), end: S("2026-12-20T00:00:00Z"), paid: 0 });
+    expect(await lots(t, userId)).toHaveLength(0);
+  });
+
+  it("one subscription payment never buys two months of credits", async () => {
+    at("2026-11-30T12:00:00Z");
+    const t = mk();
+    const userId = await pro(t);
+    let spent = 0;
+    const spend = async (key: string) => {
+      const b = await bal(t, userId);
+      if (b > 0) await i2v(t, userId, b * 1000, key);
+      spent += b;
+    };
+    await spend("nov");
+    vi.setSystemTime(new Date("2026-12-01T00:00:01Z"));
+    await spend("dec");
+    expect(spent).toBeLessThanOrEqual(MONTHLY);
+  });
+
+  it("an account whose first period was paid into the old balance (before ADR 0014) is not granted it again", async () => {
     at("2026-11-20T00:00:00Z");
     const t = mk();
     const userId = await pro(t);
-    // the state a pre-ADR 0014 checkout left: the month's credits inside entitlements.credits, creditsPeriod set, no lots
+    // the state a pre-ADR 0014 checkout left: the credits inside entitlements.credits, creditsPeriod set, no lots
     await t.run(async (ctx) => {
       for (const l of await ctx.db.query("creditLots").collect()) await ctx.db.delete(l._id);
       const ent = await ctx.db.query("entitlements").withIndex("by_user", (q) => q.eq("userId", userId)).unique();
-      await ctx.db.patch(ent!._id, { credits: MONTHLY });
+      await ctx.db.patch(ent!._id, { credits: MONTHLY, creditsPeriod: "2026-11" });
     });
-    await renew(t, "evt_r");
+    await invoice(t, "evt_i1", { id: "in_1", reason: "subscription_create", start: S("2026-11-20T00:00:00Z"), end: S("2026-12-20T00:00:00Z") });
     expect(await bal(t, userId)).toBe(MONTHLY);
   });
 });

@@ -23,9 +23,7 @@ export const creditsToLots = internalMutation({
     for (const ent of page.page) {
       if (ent.credits <= 0) continue;
       const l = await ledgerFor(ctx, ent.userId, now);
-      // only the legacy balance is written here: a pending monthly allowance is left to the next charge or grant
-      const legacyOnly = { ...l, monthly: undefined };
-      await saveLedger(ctx, legacyOnly, l.lots.filter((x) => !l.monthly || x.id !== `m:${l.monthly}`), now);
+      await saveLedger(ctx, l, l.lots, now);
       folded++;
     }
     if (!page.isDone) await ctx.scheduler.runAfter(0, internal.migrations.creditsToLots, { cursor: page.continueCursor });

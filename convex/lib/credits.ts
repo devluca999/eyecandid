@@ -1,5 +1,5 @@
 import { ConvexError } from "convex/values";
-import { creditCost, estimateSpeechSeconds, isPlanId, monthlyLot, periodKey, PLANS, release, settle, topupLot } from "@eyelore/core";
+import { creditCost, estimateSpeechSeconds, PLANS, release, reserve, settle, topupLot } from "@eyelore/core";
 import type { CreditLot, PlanId, Taken } from "@eyelore/core";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import type { Doc, Id } from "../_generated/dataModel";
@@ -8,20 +8,19 @@ import { ensureEntitlement, entitlementFor } from "./users";
 /**
  * Credits on the server (ADR 0014): the pure model in packages/core/src/credits.ts over the `creditLots` table.
  *
- * A user's balance is their lots. Two kinds of lot can exist before they are written, and are counted in reads and
- * written by the first mutation that touches the balance:
- *  - `legacy:<entitlement>`: a balance from before ADR 0014 (`entitlements.credits`), migrated with no expiry. The
- *    write zeroes `entitlements.credits` in the same transaction. `migrations.creditsToLots` folds every row at once.
- *  - `m:<UTC month>`: this month's allowance for a live subscription. Lots die at month end, but Stripe's renewal
- *    arrives on the billing anniversary, so without this someone who paid on the 20th would have nothing from the 1st
- *    to the 20th. Same lot id as the webhook's grant, and `entitlements.creditsPeriod` marks it, so it is granted once.
+ * A user's balance is their lots. One kind of lot can exist before it is written: `legacy:<entitlement>`, a balance
+ * from before ADR 0014 (`entitlements.credits`), migrated with no expiry. Reads count it; the first mutation that
+ * touches the balance writes it and zeroes `entitlements.credits` in the same transaction.
+ * `migrations.creditsToLots` folds every row at once.
+ *
+ * A plan's allowance is granted only for a period Stripe says was paid (`grantPeriodCredits`), and lasts until that
+ * period ends. Nothing is granted for a month nobody paid for.
  */
 
 /** Subscription states that count as a live paid entitlement. */
 export const LIVE_SUBSCRIPTION = ["active", "trialing"];
 
 export const legacyLotId = (entId: Id<"entitlements">) => `legacy:${entId}`;
-export const monthlyLotId = (period: string) => `m:${period}`;
 
 export type Ledger = {
   userId: Id<"users">;
@@ -30,25 +29,15 @@ export type Ledger = {
   lots: CreditLot[];
   /** set when the ledger includes a balance not yet folded out of `entitlements.credits` */
   legacy: boolean;
-  /** set when the ledger includes this month's allowance not yet written */
-  monthly?: string;
 };
 
-function monthlyDue(ent: Doc<"entitlements">, now: number): number {
-  if (!isPlanId(ent.plan) || !LIVE_SUBSCRIPTION.includes(ent.subscriptionStatus ?? "")) return 0;
-  // granted this month already: as a lot, or (before ADR 0014) inside entitlements.credits
-  if (ent.creditsPeriod === periodKey(now)) return 0;
-  return PLANS[ent.plan].monthlyCredits;
-}
-
-/** The user's lots as the pure model sees them, including the two kinds that may not be written yet (above). */
-export async function ledgerFor(ctx: QueryCtx | MutationCtx, userId: Id<"users">, now: number): Promise<Ledger> {
+/** The user's lots as the pure model sees them, including a balance not yet folded out of `entitlements.credits`. */
+export async function ledgerFor(ctx: QueryCtx | MutationCtx, userId: Id<"users">, _now?: number): Promise<Ledger> {
   const ent = await entitlementFor(ctx, userId);
   const stored = await ctx.db.query("creditLots").withIndex("by_user_lot", (q) => q.eq("userId", userId)).collect();
   const rows = new Map(stored.map((r) => [r.lotId, r]));
   const lots: CreditLot[] = stored.map((r) => ({ id: r.lotId, kind: r.kind, remaining: r.remaining, expiresAt: r.expiresAt }));
   let legacy = false;
-  let monthly: string | undefined;
   if (ent && ent.credits > 0) {
     legacy = true;
     const id = legacyLotId(ent._id);
@@ -56,15 +45,10 @@ export async function ledgerFor(ctx: QueryCtx | MutationCtx, userId: Id<"users">
     if (lot) lot.remaining += ent.credits;
     else lots.push({ id, kind: "grant", remaining: ent.credits });
   }
-  const due = ent ? monthlyDue(ent, now) : 0;
-  if (due > 0 && !rows.has(monthlyLotId(periodKey(now)))) {
-    monthly = periodKey(now);
-    lots.push(monthlyLot(monthly, due));
-  }
-  return { userId, ent, rows, lots, legacy, monthly };
+  return { userId, ent, rows, lots, legacy };
 }
 
-/** Write a ledger's lots back: patch what changed, insert what is new, and mark what was folded in. */
+/** Write a ledger's lots back: patch what changed, insert what is new, and zero a folded legacy balance. */
 export async function saveLedger(ctx: MutationCtx, l: Ledger, next: readonly CreditLot[], now: number) {
   for (const lot of next) {
     const row = l.rows.get(lot.id);
@@ -74,26 +58,38 @@ export async function saveLedger(ctx: MutationCtx, l: Ledger, next: readonly Cre
       await ctx.db.insert("creditLots", { userId: l.userId, lotId: lot.id, kind: lot.kind, remaining: lot.remaining, expiresAt: lot.expiresAt, createdAt: now });
     }
   }
-  if (l.ent && (l.legacy || l.monthly)) {
-    await ctx.db.patch(l.ent._id, { ...(l.legacy ? { credits: 0 } : {}), ...(l.monthly ? { creditsPeriod: l.monthly } : {}) });
-  }
+  if (l.ent && l.legacy) await ctx.db.patch(l.ent._id, { credits: 0 });
+}
+
+/** One calendar month after `ms` (UTC), clamped to the month's last day: Jan 31 → Feb 28. */
+export function addMonthUtc(ms: number): number {
+  const d = new Date(ms);
+  const y = d.getUTCFullYear();
+  const m = d.getUTCMonth() + 1;
+  const last = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+  return Date.UTC(y, m, Math.min(d.getUTCDate(), last), d.getUTCHours(), d.getUTCMinutes(), d.getUTCSeconds());
 }
 
 /**
- * The plan's monthly credits as this month's lot, once per UTC month (`creditsPeriod`, and the lot id), so a Stripe
- * retry, a renewal and the first checkout can never grant twice. The lot ends with the month: no rollover.
+ * The plan's allowance for one PAID billing period, as a lot that ends when the period ends (no rollover). `lotId`
+ * names the period (`p:<subscription>:first` for the first, `p:<subscription>:<period start>` for each renewal), so
+ * a replayed or duplicate event (checkout and the first invoice both report the first period) never grants twice.
+ * A later report of the same period may correct its end, never its credits.
+ *
+ * Before ADR 0014 the first checkout put its credits into `entitlements.credits` and set `creditsPeriod`; such an
+ * account's first period was already paid out, so `:first` is not granted again for it.
  */
-export async function grantMonthlyCredits(ctx: MutationCtx, userId: Id<"users">, plan: PlanId, now = Date.now()) {
-  const monthly = PLANS[plan].monthlyCredits;
-  if (monthly <= 0) return false;
+export async function grantPeriodCredits(ctx: MutationCtx, userId: Id<"users">, plan: PlanId, lotId: string, periodEnd: number, now = Date.now()) {
+  const credits = PLANS[plan].monthlyCredits;
+  if (credits <= 0 || periodEnd <= now) return false;
   const ent = await ensureEntitlement(ctx, userId, now);
-  const period = periodKey(now);
-  if (ent.creditsPeriod === period) return false;
-  await ctx.db.patch(ent._id, { creditsPeriod: period });
-  const id = monthlyLotId(period);
-  if (await lotRow(ctx, userId, id)) return false;
-  const lot = monthlyLot(period, monthly);
-  await ctx.db.insert("creditLots", { userId, lotId: lot.id, kind: lot.kind, remaining: lot.remaining, expiresAt: lot.expiresAt, createdAt: now });
+  const row = await lotRow(ctx, userId, lotId);
+  if (row) {
+    if (row.expiresAt !== periodEnd) await ctx.db.patch(row._id, { expiresAt: periodEnd });
+    return false;
+  }
+  if (lotId.endsWith(":first") && ent.creditsPeriod) return false;
+  await ctx.db.insert("creditLots", { userId, lotId, kind: "monthly", remaining: credits, expiresAt: periodEnd, createdAt: now });
   return true;
 }
 
@@ -142,13 +138,27 @@ function actualCredits(type: string, output: unknown, reserved: number): number 
 const chargeOf = (ctx: QueryCtx | MutationCtx, jobId: Id<"jobs">) => ctx.db.query("creditCharges").withIndex("by_job", (q) => q.eq("jobId", jobId)).unique();
 
 /**
- * The job succeeded: charge what it made, never more than was reserved, and give back the rest. Once per charge;
- * a charge already settled or refunded is left alone.
+ * The job succeeded: charge what it made and give back the rest. Once per charge; a charge already settled or
+ * refunded is left alone. If it made more than was reserved (voice, whose length was estimated), the difference is
+ * taken too when the balance allows; otherwise it settles at the reservation and `uncharged` records the gap.
  */
 export async function settleJobCredits(ctx: MutationCtx, job: Doc<"jobs">, output: unknown, now = Date.now()) {
   const charge = await chargeOf(ctx, job._id);
   if (!charge || charge.settledAt || charge.refundedAt) return false;
-  const actual = Math.min(charge.credits, actualCredits(job.type, output, charge.credits));
+  const made = actualCredits(job.type, output, charge.credits);
+  if (made > charge.credits && charge.taken) {
+    const extra = made - charge.credits;
+    const l = await ledgerFor(ctx, charge.userId, now);
+    const r = reserve(l.lots, extra, now);
+    if (r.ok) {
+      await saveLedger(ctx, l, r.lots, now);
+      await ctx.db.patch(charge._id, { settledAt: now, actual: made, credits: made, taken: [...charge.taken, ...r.taken] });
+    } else {
+      await ctx.db.patch(charge._id, { settledAt: now, actual: charge.credits, uncharged: extra });
+    }
+    return true;
+  }
+  const actual = Math.min(charge.credits, made);
   if (charge.taken) {
     const { back } = settle(charge.taken, actual);
     if (back.length) {
@@ -163,8 +173,9 @@ export async function settleJobCredits(ctx: MutationCtx, job: Doc<"jobs">, outpu
 export type RefundReason = "failed" | "qc_failed" | "cancelled";
 
 /**
- * Give a job's credits back, each to the lot it came from (a lot that has expired since comes back as a grant good
- * for 30 days). Once per charge, and never after a settle. Safe to call for any job.
+ * Give a job's credits back, each to the lot it came from. Once per charge, and never after a settle. Safe to call
+ * for any job. If the lot has expired since: for our failure (`failed`, `qc_failed`) the credits come back as a grant
+ * good for 30 days; for the person deleting their edit (`cancelled`) they lapse with their lot, as unused ones would.
  */
 export async function refundJobCredits(ctx: MutationCtx, jobId: Id<"jobs">, reason: RefundReason = "failed", now = Date.now()) {
   const charge = await chargeOf(ctx, jobId);
@@ -178,6 +189,10 @@ export async function refundJobCredits(ctx: MutationCtx, jobId: Id<"jobs">, reas
     const id = legacyLotId(ent._id);
     if (!lots.some((x) => x.id === id)) lots = [...lots, { id, kind: "grant", remaining: 0 }];
     taken = [{ lotId: id, credits: charge.credits }];
+  }
+  if (reason === "cancelled") {
+    const liveIds = new Set(lots.filter((x) => x.expiresAt === undefined || x.expiresAt > now).map((x) => x.id));
+    taken = taken.filter((t) => liveIds.has(t.lotId));
   }
   await saveLedger(ctx, l, release(lots, taken, now, `r:${charge._id}`), now);
   await ctx.db.patch(charge._id, { refundedAt: now, refundReason: reason });

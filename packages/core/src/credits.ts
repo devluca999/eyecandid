@@ -40,10 +40,17 @@ export function creditCost(type: string, opts: { seconds?: number } = {}): numbe
   return Math.max(1, Math.ceil(s - 1e-9)) * rate;
 }
 
-/** Spoken length of a text at a natural pace (2.5 words a second), for reserving a `voice` job. */
+/** Longest text a `voice` job may speak (about 100 s at a natural pace); the job contract enforces it. */
+export const MAX_VOICE_TEXT = 1500;
+
+/**
+ * Spoken length of a text, for reserving a `voice` job: about 15 characters a second, and never less than 2.5 words a
+ * second. Characters, not just spaces, so text without spaces ("a,b,c…") can't reserve far less than it will say.
+ */
 export function estimateSpeechSeconds(text: string): number {
-  const words = text.trim().split(/\s+/).filter(Boolean).length;
-  return Math.max(1, Math.ceil(words / 2.5));
+  const t = text.trim();
+  const words = t.split(/\s+/).filter(Boolean).length;
+  return Math.max(1, Math.ceil(t.length / 15), Math.ceil(words / 2.5));
 }
 
 // ───────────── the balance: lots that expire ─────────────
