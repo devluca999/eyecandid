@@ -229,7 +229,8 @@ Where work runs (decided 2026-11-16): one worker codebase behind `GpuProvider`. 
 **2.2b Web, rest** — branch `phase-2/web-rest` (PR #9)
 - [~] One Lens across theater (Night, circle, plays the edit, progress ring) / edit / board (a card per bead: still, sentence, moment tick, struck, keep/cut); spring morph; keys 1/2/3
 - [~] Dials re-edit live: `packages/core/src/dials.ts` `dialChanges` (pace strikes/restores pauses on a 1.2s → 0.45s → 0.25s line, 0.5 = autocut; energy punch-ins 1.04–1.12× on hook, best line, call to action, then more beads; b-roll density stored, decides nothing until Weave), `autopilot:dials`, one-line reasons, pins respected, exact round trip; `edits.setDials`; ⌘Z follows
-- [~] Energy punch-ins in the export (Remotion, the same `punchAt` as the preview); no job-contract change
+- [~] Energy punch-ins in the export (Remotion and the device render, the same `punchAt` as the preview), plus emphasis punch-ins on words said harder (optional per-word `rms` in the transcribe contract)
+- [~] J/L cuts and a click-free 30 ms window at every cut (picture and sound as separate tracks); exports at −14 LUFS / −1 dBTP (device: BS.1770 in `core/loudness.ts`; worker: two-pass loudnorm)
 - [~] Timeline drawer (⌥T or the handle), five tracks in `TRACK_ORDER` on real data; b-roll and music honestly empty
 - [~] "?" shortcut sheet and a 4-step skippable first-run tour
 - [ ] Punch-ins in the mobile preview (the export has them)

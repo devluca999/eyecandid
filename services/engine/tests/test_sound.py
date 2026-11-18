@@ -108,3 +108,18 @@ def test_mix_is_click_free_and_lands_at_minus_14(tmp_path):
     m = render.normalize(str(video), str(wav), str(out), -14)
     assert float(m["input_i"]) < -20
     assert abs(render._lufs(str(out)) + 14) < 1.0
+
+
+@pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="needs ffmpeg")
+def test_cleanup_chain_keeps_the_sound_on_the_lips(tmp_path):
+    # a click at 1.000 s over a quiet tone: after clean-up + loudnorm + AAC it must still be at 1.000 s (afftdn delays ~25 ms)
+    src = tmp_path / "imp.wav"
+    expr = "if(between(n,48000,48010),0.9,0)+0.05*sin(2*PI*220*t)"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", f"aevalsrc='{expr}':s=48000:d=2.5", "-ac", "2", str(src)], check=True)
+    video = tmp_path / "v.mp4"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "color=c=gray:s=320x240:r=30:d=2.5", "-c:v", "libx264", "-pix_fmt", "yuv420p", str(video)], check=True)
+    out = tmp_path / "o.mp4"
+    render.normalize(str(video), str(src), str(out), -14)
+    x = _pcm(str(out))
+    peak = max(range(len(x)), key=lambda i: abs(x[i]))
+    assert abs(peak - 48000) < 48, f"click moved {(peak - 48000) / 48:.1f} ms"

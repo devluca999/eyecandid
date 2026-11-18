@@ -62,6 +62,11 @@ describe("emphasis punch-ins (energy dial)", () => {
     for (let i = 1; i < out.length; i++) expect(out[i]! - out[i - 1]!).toBeGreaterThanOrEqual(4000);
   });
 
+  it("a loud function word ('this', 'your') is the mic, not meaning: never picked", () => {
+    const t = { ...transcript, words: transcript.words.map((w) => (w.text === "this" ? { ...w, rms: 4 } : w)) };
+    expect(emphasisWords(fresh(t), 1).map((e) => e.word.text)).not.toContain("this");
+  });
+
   it("lower energy spaces them further (8 s just above 0.5)", () => {
     expect(emphasisWords(fresh(), 0.55).map((e) => e.word.text)).toEqual(["never", "long"]); // "totally" is 6 s from "never"
   });

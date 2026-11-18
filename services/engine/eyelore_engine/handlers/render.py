@@ -77,6 +77,28 @@ def loudnorm_pass2(measured: dict, target: float) -> str:
     )
 
 
+_latency: int | None = None
+
+
+def cleanup_latency() -> int:
+    """Samples (at 48 kHz) the clean-up chain delays the sound by: afftdn works in FFT frames and shifts its output
+    (~25 ms on ffmpeg 7/8), which would put the voice behind the lips. Measured once with an impulse, so it holds for
+    whatever ffmpeg the host has."""
+    global _latency
+    if _latency is None:
+        raw = subprocess.run(
+            ["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "aevalsrc='if(between(n,24000,24003),0.8,0)':s=48000:d=1.5", "-af", CLEANUP, "-f", "f32le", "-"],
+            capture_output=True, check=True,
+        ).stdout
+        import array
+
+        x = array.array("f")
+        x.frombytes(raw)
+        peak = max(range(len(x)), key=lambda i: abs(x[i])) if len(x) else 24000
+        _latency = max(0, peak - 24001)
+    return _latency
+
+
 def _has_audio(path: str) -> bool:
     out = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "a", "-show_entries", "stream=index", "-of", "csv=p=0", path], capture_output=True, text=True).stdout
     return bool(out.strip())
@@ -97,11 +119,15 @@ def normalize(video: str, audio: str, out: str, target: float) -> dict:
     if not _has_audio(audio):
         subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", video, "-c", "copy", "-movflags", "+faststart", out], check=True)
         return {}
-    err = subprocess.run(["ffmpeg", "-hide_banner", "-nostats", "-i", audio, "-af", f"{CLEANUP},loudnorm=I={target}:TP={TRUE_PEAK_DB}:LRA={LRA}:print_format=json", "-f", "null", "-"], capture_output=True, text=True).stderr
+    err = subprocess.run(["ffmpeg", "-hide_banner", "-nostats", "-i", audio, "-af", f"aresample=48000,{CLEANUP},loudnorm=I={target}:TP={TRUE_PEAK_DB}:LRA={LRA}:print_format=json", "-f", "null", "-"], capture_output=True, text=True).stderr
     measured = parse_loudnorm(err)
     finite = all(re.fullmatch(r"-?\d+(\.\d+)?", str(measured.get(k, ""))) for k in ("input_i", "input_tp", "input_lra", "input_thresh", "target_offset"))
     # silence measures -inf: nothing to normalise, keep the clean-up only
-    af = f"{CLEANUP},{loudnorm_pass2(measured, target)}" if finite else CLEANUP
+    lat = cleanup_latency()
+    # undo the clean-up's delay so the sound stays on the lips (trim its head, pad its tail back to length)
+    sync = f"atrim=start_sample={lat},asetpts=PTS-STARTPTS,apad=pad_len={lat}" if lat else "anull"
+    chain = f"aresample=48000,{CLEANUP},{sync}"
+    af = f"{chain},{loudnorm_pass2(measured, target)}" if finite else chain
     subprocess.run(
         ["ffmpeg", "-v", "error", "-y", "-i", video, "-i", audio, "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy",
          "-af", af, "-ar", "48000", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", out],

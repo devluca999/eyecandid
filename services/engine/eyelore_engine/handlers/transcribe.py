@@ -62,6 +62,6 @@ def run(inp: dict, ctx) -> dict:
 
         for w, r in zip(words, word_rms(decode_audio(path, sampling_rate=16000), 16000, words)):
             w["rms"] = r
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception as e:  # noqa: BLE001
+        print(f"[transcribe] no per-word rms (emphasis off for this clip): {e}", flush=True)
     return {"language": info.language, "words": words, "durationMs": int(info.duration * 1000)}

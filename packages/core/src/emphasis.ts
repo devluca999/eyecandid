@@ -19,6 +19,12 @@ export const EMPHASIS_HOLD_MS = 1200;
 export const EMPHASIS_PRE_MS = 100;
 
 const FILLERS = new Set(["um", "uh", "erm", "er", "ah", "hmm", "like", "so", "basically"]);
+/** function words: loud on them is usually the mic or a breath, not meaning (seen on a real take: "your" at 1.84) */
+const FUNCTION = new Set(
+  ("the and but for nor yet you your yours you're our ours their theirs they them they're his her hers its it's this that these those " +
+    "with from into onto over under about then than was were are been being have has had does did will would can could should " +
+    "just very really what when where which who whom whose how why there here i'm i've we're we've").split(" "),
+);
 const bare = (t: string) => t.toLowerCase().replace(/[^\p{L}\p{N}']/gu, "");
 
 /**
@@ -52,7 +58,7 @@ export type Emphasis = { bead: Bead; word: Word; outMs: number; rms: number };
 
 /**
  * The words to punch in on at this energy, in time order: loud against the take and against their neighbours, a real
- * word (not a filler, three letters or more), kept in the cut, and spaced at least `emphasisGapMs(energy)` apart on
+ * word (not a filler or a function word like "your", three letters or more), kept in the cut, and spaced at least `emphasisGapMs(energy)` apart on
  * the output timeline, the loudest first.
  */
 export function emphasisWords(doc: EditDoc, energy: number): Emphasis[] {
@@ -67,7 +73,7 @@ export function emphasisWords(doc: EditDoc, energy: number): Emphasis[] {
       const rms = w.rms;
       if (rms === undefined || rms < EMPHASIS_MIN_RMS) return;
       const t = bare(w.text);
-      if (t.replace(/'/g, "").length < 3 || FILLERS.has(t)) return;
+      if (t.replace(/'/g, "").length < 3 || FILLERS.has(t) || FUNCTION.has(t)) return;
       const around = [...kept.slice(Math.max(0, i - 2), i), ...kept.slice(i + 1, i + 3)].map((x) => x.rms ?? 0);
       const ref = around.length ? around.reduce((a, b) => a + b, 0) / around.length : 0;
       if (ref > 0 && rms < EMPHASIS_LOCAL * ref) return;
