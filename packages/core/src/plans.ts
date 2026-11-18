@@ -55,6 +55,20 @@ export function isGpuJobType(type: string): boolean {
   return !(FREE_CPU_JOB_TYPES as readonly string[]).includes(type);
 }
 
+/**
+ * Two worker pools (mvp-spec "Low-cost architecture" 3, ADR 0013). A worker registered with a provider ending in
+ * `-gpu` (e.g. `modal-gpu`) is the GPU pool: it claims only GPU job types. Every other worker is the CPU pool and
+ * claims only the free CPU types. Enforced on the server in `jobs.claim`, whatever the worker asks for.
+ */
+export function isGpuWorkerProvider(provider: string | undefined): boolean {
+  return !!provider && provider.endsWith("-gpu");
+}
+
+/** Can a worker of this provider claim this job type? */
+export function poolClaims(provider: string | undefined, type: string): boolean {
+  return isGpuWorkerProvider(provider) === isGpuJobType(type);
+}
+
 /** Credits a GPU job costs; unknown GPU types cost 1 so nothing GPU-bound is ever free. */
 export function gpuCreditCost(type: string): number {
   return isGpuJobType(type) ? (GPU_CREDIT_COST[type] ?? 1) : 0;

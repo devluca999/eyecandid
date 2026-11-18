@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { fileURLToPath } from "node:url";
+import { unnamedControls } from "./a11y";
 
 const CLIP = fileURLToPath(new URL("../../../services/engine/tests/fixtures/talk.mp4", import.meta.url));
 
@@ -15,6 +16,7 @@ test("an edit can be found again from the landing and deleted for good", async (
   const editUrl = page.url();
   // the control arrives once the clip is safely registered, never under a live upload
   await expect(page.getByTestId("delete")).toBeVisible({ timeout: 45_000 });
+  expect(await unnamedControls(page)).toEqual([]); // the working editor: every control has a name
 
   // back on the landing (a fresh load: nothing held in the tab), the edit is listed
   await page.goto("/");

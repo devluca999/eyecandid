@@ -14,10 +14,14 @@ class JobContext(Protocol):
     def upload(self, path: str, content_type: str, kind: str = "generated") -> str: ...  # returns mediaId
 
 
+class NonRetryable(Exception):
+    """The job can never succeed as asked (bad size, unsupported input): fail it without a retry."""
+
+
 Handler = Callable[[dict[str, Any], JobContext], dict[str, Any]]
 
 
 def registry() -> dict[str, Handler]:
-    from . import autocut, hello, reframe, render, transcribe
+    from . import autocut, hello, reframe, render, still, transcribe
 
-    return {"hello": hello.run, "autocut": autocut.run, "transcribe": transcribe.run, "reframe": reframe.run, "render": render.run}
+    return {"hello": hello.run, "autocut": autocut.run, "transcribe": transcribe.run, "reframe": reframe.run, "render": render.run, "still": still.run}

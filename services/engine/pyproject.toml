@@ -9,6 +9,8 @@ dependencies = ["httpx>=0.28", "jsonschema>=4.23"]
 # real CPU work: transcription, face tracking (render additionally needs Node + services/render, and ffmpeg)
 cpu = ["faster-whisper>=1.1", "av>=14,<17", "opencv-python-headless>=4.10,<5", "numpy>=1.26"]
 gpu = ["faster-whisper>=1.1", "av>=14,<17", "opencv-python-headless>=4.10,<5", "numpy>=1.26", "huggingface_hub>=0.30"]
+# generated b-roll stills (ADR 0013): installed only in the GPU app's image (deploy/modal_gpu_app.py), never the CPU one
+still = ["torch==2.9.1", "diffusers==0.36.0", "transformers==4.57.3", "accelerate==1.12.0", "pillow==12.0.0"]
 sentry = ["sentry-sdk>=2.0"]
 dev = ["pytest>=8.3", "respx>=0.22"]
 
