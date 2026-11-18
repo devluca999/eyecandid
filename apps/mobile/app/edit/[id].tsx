@@ -154,7 +154,8 @@ export default function Edit() {
     track("export_clicked", { aspect: doc.aspect });
     // signup and the paywall at export arrive with keys (PLAN: Needs keys); until then exports are anonymous and watermarked
     try {
-      await startExport({ anonId, projectId, aspect: doc.aspect, requestId: `${Date.now()}-${exportSeq.current++}` });
+      // no sign-in on mobile yet: say so, and the server won't ask for one
+      await startExport({ anonId, projectId, aspect: doc.aspect, requestId: `${Date.now()}-${exportSeq.current++}`, canSignIn: false });
     } catch (e) {
       requested.current = false;
       // a refusal carries its own line (e.g. the free export count, convex/lib/exportCount.ts); no sign-in on mobile yet

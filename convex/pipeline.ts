@@ -106,6 +106,12 @@ const exportArgs = {
   maxDurationMs: v.optional(v.union(v.literal(15_000), v.literal(30_000), v.literal(60_000))),
   requestId: v.string(),
   mode: v.optional(v.union(v.literal("best"), v.literal("free"))),
+  /**
+   * Can this client actually show a sign-in? The web sends true only with Clerk configured and the `accounts` flag on;
+   * mobile (no sign-in yet) and older clients send nothing. Without it the 2nd anonymous export goes ahead as before:
+   * the server never asks for something the client can't do.
+   */
+  canSignIn: v.optional(v.boolean()),
 };
 type ExportArgs = {
   anonId: string;
@@ -114,6 +120,7 @@ type ExportArgs = {
   maxDurationMs?: 15_000 | 30_000 | 60_000;
   requestId: string;
   mode?: "best" | "free";
+  canSignIn?: boolean;
 };
 
 /**
@@ -135,7 +142,7 @@ async function planExport(ctx: MutationCtx, a: ExportArgs, replay: boolean) {
   let countKey: string | undefined;
   if (!replay) {
     const count = await exportCountFor(ctx, who, usage.plan);
-    const verdict = decideExportCount({ signedIn: usage.signedIn, plan: usage.plan, used: count.used, period: count.period, signInAvailable: await signInAvailable(ctx, a.anonId) });
+    const verdict = decideExportCount({ signedIn: usage.signedIn, plan: usage.plan, used: count.used, period: count.period, signInAvailable: !!a.canSignIn && (await signInAvailable(ctx, a.anonId)) });
     if (!verdict.ok) throw new ConvexError({ code: verdict.code, message: verdict.message });
     if (verdict.count && count.key) countKey = count.key;
   }
@@ -190,13 +197,17 @@ export const startExport = mutation({
  * The browser's render of an authorized on-device export failed: the free export it was counted as comes back, once.
  * Client-reported, like the render itself (ADR 0012): a free export costs us nothing, so this trust is acceptable.
  */
+/** How long after authorization an on-device render may report failing and get its free export back. */
+export const DEVICE_RENDER_WINDOW_MS = 10 * 60_000;
+
 export const deviceExportFailed = mutation({
   args: { anonId: v.string(), exportId: v.id("exports") },
   handler: async (ctx, a) => {
     const exp = await ctx.db.get(a.exportId);
     if (!exp?.device) return false;
     await ownedProject(ctx, exp.projectId, a.anonId);
-    if (!exp.countKey) return false;
+    // only for a render that could still be in progress: a minute-old authorization, not one reported days later
+    if (!exp.countKey || Date.now() - exp.createdAt > DEVICE_RENDER_WINDOW_MS) return false;
     await bumpExportCount(ctx, exp.countKey, -1);
     await ctx.db.patch(exp._id, { countKey: undefined });
     return true;
@@ -214,9 +225,14 @@ export const authorizeDeviceExport = mutation({
     const owned = await ownedProject(ctx, a.projectId, a.anonId);
     if (owned.engine !== "device") throw new Error("this edit renders on the server");
     // a replayed request (a retry after a dropped response) gets the same plan again, not a second count
+    // exactly the plan it was given, never a fresh one built from the edit as it is now (that would be a new export)
     const prior = await priorExport(ctx, a);
-    const { who, head, doc, plan, maxMs, decision, chargedAnonHash, countKey } = await planExport(ctx, a, !!prior);
-    if (prior) return { exportId: prior._id, doc, watermark: prior.watermark, maxMs, stills: await stillUrls(ctx, a.projectId, doc) };
+    if (prior) {
+      if (!prior.device || !prior.planDoc || prior.planMaxMs === undefined || prior.aspect !== a.aspect) throw new ConvexError("that export was already made · export again");
+      const snap = prior.planDoc as EditDoc;
+      return { exportId: prior._id, doc: snap, watermark: prior.watermark, maxMs: prior.planMaxMs, stills: await stillUrls(ctx, a.projectId, snap) };
+    }
+    const { who, head, doc, plan, maxMs, decision, chargedAnonHash, countKey } = await planExport(ctx, a, false);
     const exportId = await ctx.db.insert("exports", {
       projectId: a.projectId,
       device: true,
@@ -231,6 +247,8 @@ export const authorizeDeviceExport = mutation({
       usageCounted: true,
       requestId: a.requestId,
       countKey,
+      planDoc: doc,
+      planMaxMs: maxMs,
     });
     await addUsage(ctx, { userId: who.userId, anonHash: chargedAnonHash }, toTimeline(doc).durationMs / 60_000);
     // generated b-roll stills in the doc, as signed URLs for the browser renderer (none on the free path)

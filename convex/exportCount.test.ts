@@ -35,10 +35,11 @@ async function seed(t: T, opts: { as?: typeof ALICE; engine?: "device" } = {}) {
   });
   return projectId;
 }
-const server = (t: T, projectId: Id<"projects">, requestId: string, as?: typeof ALICE) =>
-  (as ? t.withIdentity(as) : t).mutation(api.pipeline.startExport, { anonId: ANON, projectId, aspect: "9:16", requestId });
-const device = (t: T, projectId: Id<"projects">, requestId: string, as?: typeof ALICE) =>
-  (as ? t.withIdentity(as) : t).mutation(api.pipeline.authorizeDeviceExport, { anonId: ANON, projectId, aspect: "9:16", requestId });
+/** the web with Clerk and `accounts` on sends canSignIn: true */
+const server = (t: T, projectId: Id<"projects">, requestId: string, as?: typeof ALICE, canSignIn = true) =>
+  (as ? t.withIdentity(as) : t).mutation(api.pipeline.startExport, { anonId: ANON, projectId, aspect: "9:16", requestId, canSignIn });
+const device = (t: T, projectId: Id<"projects">, requestId: string, as?: typeof ALICE, canSignIn = true) =>
+  (as ? t.withIdentity(as) : t).mutation(api.pipeline.authorizeDeviceExport, { anonId: ANON, projectId, aspect: "9:16", requestId, canSignIn });
 const mine = (t: T, as?: typeof ALICE) => (as ? t.withIdentity(as) : t).query(api.entitlements.mine, { anonId: ANON });
 const renders = (t: T) => t.run(async (ctx) => (await ctx.db.query("jobs").collect()).filter((j) => j.type === "render"));
 
@@ -74,6 +75,36 @@ describe("anonymous: one free export", () => {
     process.env.CLERK_JWT_ISSUER_DOMAIN = "https://clerk.example.test";
     await server(t, p, "r3");
     expect(await renders(t)).toHaveLength(3);
+  });
+
+  it("a client that can't show a sign-in (mobile, older web) is never asked for one: the export goes", async () => {
+    const t = mk();
+    await signInOn(t);
+    const p = await seed(t);
+    await server(t, p, "r1", undefined, false);
+    await server(t, p, "r2", undefined, false);
+    await t.mutation(api.pipeline.startExport, { anonId: ANON, projectId: p, aspect: "9:16", requestId: "r3" }); // no arg at all
+    expect(await renders(t)).toHaveLength(3);
+  });
+
+  it("device: replaying a request id after the edit changed returns the plan it was given, not a fresh one", async () => {
+    const t = mk();
+    await signInOn(t);
+    const p = await seed(t, { engine: "device" });
+    const first = await device(t, p, "same");
+    await t.run(async (ctx) => {
+      const row = await ctx.db.query("editDocs").withIndex("by_project", (q) => q.eq("projectId", p)).unique();
+      const doc = { ...row!.doc, beads: [{ ...row!.doc.beads[0]!, outMs: 7_000 }] };
+      await ctx.db.patch(row!._id, { doc });
+    });
+    const second = await device(t, p, "same");
+    expect(second.doc).toEqual(first.doc);
+    expect(second.exportId).toBe(first.exportId);
+    expect((await mine(t)).exports.used).toBe(1);
+    // the same request id with another aspect is not a replay of that plan
+    await expect(t.mutation(api.pipeline.authorizeDeviceExport, { anonId: ANON, projectId: p, aspect: "1:1", requestId: "same", canSignIn: true })).rejects.toThrow(
+      "that export was already made · export again",
+    );
   });
 
   it("a replayed request (same request id) returns the same export and counts once, on both engines", async () => {
@@ -123,6 +154,18 @@ describe("an on-device render that fails in the browser", () => {
     expect((await mine(t)).exports.used).toBe(0);
     await device(t, p, "d2"); // the free export is there again
     await expect(device(t, p, "d3")).rejects.toThrow(/sign_in_required/);
+  });
+
+  it("only soon after it was authorized: a failure reported 10 minutes later gives nothing back", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-17T12:00:00Z"));
+    const t = mk();
+    await signInOn(t);
+    const p = await seed(t, { engine: "device" });
+    const { exportId } = await device(t, p, "d1");
+    vi.setSystemTime(new Date("2026-11-17T12:10:01Z"));
+    expect(await t.mutation(api.pipeline.deviceExportFailed, { anonId: ANON, exportId })).toBe(false);
+    expect((await mine(t)).exports.used).toBe(1);
   });
 });
 

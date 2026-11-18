@@ -280,7 +280,7 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
   const authorizeDeviceExport = useMutation(api.pipeline.authorizeDeviceExport);
   const deviceExportFailed = useMutation(api.pipeline.deviceExportFailed);
   const [devExport, setDevExport] = useState<{ phase: "idle" | "rendering" | "done" | "failed"; progress: number; url?: string; error?: string; watermark?: boolean }>({ phase: "idle", progress: 0 });
-  const deviceExporter = async (x: { aspect: Aspect; requestId: string; maxDurationMs?: 15000 | 30000 | 60000; mode: "best" | "free" }) => {
+  const deviceExporter = async (x: { aspect: Aspect; requestId: string; maxDurationMs?: 15000 | 30000 | 60000; mode: "best" | "free"; canSignIn: boolean }) => {
     const local = session.get(projectId)?.url;
     if (!local) throw new Error("this clip stays on the device you dropped it on · choose it again below to export");
     const auth = await authorizeDeviceExport({ anonId, projectId, ...x });
