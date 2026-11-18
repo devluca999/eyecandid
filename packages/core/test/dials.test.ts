@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  Actor, addClipChange, applyChange, beadChanges, BROLL_NOTE, Change, dialChanges, EditDoc, emptyEditDoc, pauseLimitMs,
+  Actor, addClipChange, applyChange, autocut as runAutocut, beadChanges, BROLL_NOTE, Change, dialChanges, EditDoc, emptyEditDoc, pauseLimitMs,
   punchAt, punchScale, toTimeline, withDials, type DialValues,
 } from "../src";
 
@@ -15,15 +15,8 @@ const transcript = {
     word("Link", 5200, 5500), word("below.", 5550, 6000),
   ],
 };
-// the real autocut's shape: gaps >= 450ms struck minus 120ms breath each side
-const autocut = {
-  strikes: [
-    { startMs: 0, endMs: 300, kind: "filler" as const, reason: "trimmed filler · 'um'" },
-    { startMs: 1920, endMs: 2380, kind: "silence" as const, reason: "trimmed pause · 0.7s" },
-    { startMs: 3820, endMs: 5080, kind: "silence" as const, reason: "trimmed pause · 1.5s" },
-  ],
-  beads: [{ inMs: 0, outMs: 1800, moment: "hook" as const }, { inMs: 2500, outMs: 3700 }, { inMs: 5200, outMs: 6000, moment: "cta" as const }],
-};
+// the real autocut: gaps >= 450ms struck, keeping a 140ms tail and an 80ms lead
+const autocut = runAutocut({ words: transcript.words, minSilenceMs: 450, fillers: ["um"] });
 
 function fresh(): EditDoc {
   let doc = applyChange(emptyEditDoc("p"), addClipChange({ id: "c1", mediaId: "m1", source: "upload", w: 640, h: 360, durationMs: 9000, fps: 15 }))!.doc;
@@ -47,6 +40,28 @@ describe("dials", () => {
     expect(dialChanges(fresh(), fresh().style.dials)).toEqual([]);
   });
 
+  it("autocut's shape is what the dials expect: 140ms tail, 80ms lead", () => {
+    expect(autocut.strikes.map((x) => [x.startMs, x.endMs, x.kind])).toEqual([[0, 300, "filler"], [1940, 2420, "silence"], [3840, 5120, "silence"]]);
+  });
+
+  it("a filler merged with the pauses around it is one pause to the dial: no-op at 0.5, restorable, reversible", () => {
+    // "this [300] um [300] works [200] uh [200] fine": the um run is a 600ms pause (autocut cuts it), the uh run 400ms (it doesn't)
+    const words = [word("this", 0, 300), word("um", 600, 800), word("works", 1100, 1400), word("uh", 1600, 1700), word("fine.", 1900, 2200)];
+    const t = { language: "en", durationMs: 3000, words };
+    let d = applyChange(emptyEditDoc("p"), addClipChange({ id: "c1", mediaId: "m1", source: "upload", w: 640, h: 360, durationMs: 3000, fps: 15 }))!.doc;
+    for (const c of beadChanges(d, "c1", t, runAutocut({ words, minSilenceMs: 450, fillers: ["um", "uh"] }))) d = applyChange(d, c)!.doc;
+    // one change for the um and the air around it: the word struck, the swallowed pause as restorable cuts
+    expect(d.beads[0]!.cuts.map((c) => [c.startMs, c.endMs])).toEqual([[440, 600], [800, 1020]]);
+    expect(dur(d)).toBe(2200 - (1020 - 440) - 100);
+    expect(dialChanges(d, D())).toEqual([]);
+    const slow = run(d, D({ pace: 0 }));
+    expect(slow.beads[0]!.cuts.every((c) => !c.struck)).toBe(true);
+    const fast = run(d, D({ pace: 1 }));
+    expect(dur(fast)).toBeLessThan(dur(d));
+    expect(dialChanges(fast, D({ pace: 1 }))).toEqual([]);
+    for (const there of [slow, fast]) expect(strip(run(there, D()))).toEqual(strip(d));
+  });
+
   it("maps pace to a pause line: slow 1.2s, 0.5 = autocut's 450ms, fast 0.25s", () => {
     expect(pauseLimitMs(0)).toBe(1200);
     expect(pauseLimitMs(0.5)).toBe(450);
@@ -63,11 +78,11 @@ describe("dials", () => {
     const fast = dialChanges(doc, D({ pace: 1 }));
     expect(fast.map((c) => c.reason)).toEqual(["pause cut · 0.3s · pace"]);
     const fastDoc = run(doc, D({ pace: 1 }));
-    expect(dur(fastDoc)).toBe(dur(doc) - (300 - 160));
+    expect(dur(fastDoc)).toBe(dur(doc) - (300 - 135 - 80)); // 45% of 300 caps the tail at 135
     // the 100ms pause stays; the 1.5s one is cut at every pace
     expect(fastDoc.beads[2]!.cuts).toHaveLength(0);
-    expect(fastDoc.beads.flatMap((b) => b.cuts).find((c) => c.startMs === 3820)!.struck).toBe(true);
-    expect(run(doc, D({ pace: 0 })).beads.flatMap((b) => b.cuts).find((c) => c.startMs === 3820)!.struck).toBe(true);
+    expect(fastDoc.beads.flatMap((b) => b.cuts).find((c) => c.startMs === 3840)!.struck).toBe(true);
+    expect(run(doc, D({ pace: 0 })).beads.flatMap((b) => b.cuts).find((c) => c.startMs === 3840)!.struck).toBe(true);
   });
 
   it("every change is a valid, reversible autopilot:dials change with a one-line reason", () => {
@@ -106,8 +121,8 @@ describe("dials", () => {
 
   it("never touches what you pinned: a pause you restored stays restored at any pace", () => {
     let doc = fresh();
-    const b = doc.beads.find((x) => x.cuts.some((c) => c.startMs === 1920))!;
-    const c = b.cuts.find((x) => x.startMs === 1920)!;
+    const b = doc.beads.find((x) => x.cuts.some((c) => c.startMs === 1940))!;
+    const c = b.cuts.find((x) => x.startMs === 1940)!;
     doc = applyChange(doc, { actor: "user", reason: "kept pause · 0.5s", ops: [{ op: "set", path: `/beads/@${b.id}/cuts/@${c.id}/struck`, value: false }] })!.doc;
     // fast would cut it; the user said keep it
     expect(dialChanges(doc, D({ pace: 1 })).flatMap((x) => x.ops).some((o) => o.path.includes(c.id))).toBe(false);

@@ -1,0 +1,21 @@
+{
+  "id": "example-long-pause",
+  "source": "example",
+  "notes": "FORMAT EXAMPLE, hand-written. Not a real clip and not evidence of cut quality. One 1.65 s pause between two sentences; the reference trims it a little tighter than autocut.",
+  "words": [
+    { "text": "Most", "startMs": 0, "endMs": 250, "conf": 1 },
+    { "text": "people", "startMs": 300, "endMs": 650, "conf": 1 },
+    { "text": "forget", "startMs": 700, "endMs": 1100, "conf": 1 },
+    { "text": "to", "startMs": 1150, "endMs": 1250, "conf": 1 },
+    { "text": "charge", "startMs": 1300, "endMs": 1700, "conf": 1 },
+    { "text": "it.", "startMs": 1750, "endMs": 2100, "conf": 1 },
+    { "text": "Mine", "startMs": 3900, "endMs": 4200, "conf": 1 },
+    { "text": "lasts", "startMs": 4250, "endMs": 4650, "conf": 1 },
+    { "text": "a", "startMs": 4700, "endMs": 4750, "conf": 1 },
+    { "text": "week", "startMs": 4800, "endMs": 5150, "conf": 1 },
+    { "text": "on", "startMs": 5200, "endMs": 5300, "conf": 1 },
+    { "text": "one", "startMs": 5350, "endMs": 5600, "conf": 1 },
+    { "text": "charge.", "startMs": 5650, "endMs": 6200, "conf": 1 }
+  ],
+  "reference": { "keep": [{ "startMs": 0, "endMs": 2200 }, { "startMs": 3850, "endMs": 6200 }] }
+}

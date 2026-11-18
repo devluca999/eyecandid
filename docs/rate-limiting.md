@@ -42,3 +42,23 @@ Honest limits of this design: a caller who skips the hint, or rotates anonymous 
 ## Expiry (`convex/expiry.ts`)
 
 A daily cron (03:17 UTC) deletes, through `MediaStore.delete`, raw uploads and proxies older than 7 days (Free) or 30 days (Pro) and render exports older than 30 days, and their media rows; edit docs stay. Each run handles one page of 100 and schedules the next page, then the next kind; the last step clears stale rate-limit counters. Media with no project (worker-registered proxies) is treated as Pro (30 days).
+
+## Failure-rate alert
+
+mvp-spec Phase 5: alert on job failure rate over 5% in an hour.
+
+### What is sent
+
+`internal.sentry.failureRate` runs hourly (`convex/crons.ts`, minute 7). It reads the most recent 500 jobs (no index on `jobs` is bounded by `finishedAt`), keeps those that finished in the last 60 minutes, and counts `succeeded` and `failed`. Canceled and unfinished jobs count as neither.
+
+It sends one Sentry error event when the total is at least 20 and failed / total is over 5% (exactly 5% does not alert), for example:
+
+`job failure rate 12% in the last hour (6 of 50)`
+
+Tags `failed` and `succeeded`, fingerprint `job failure rate` (so every hour's event groups into one issue). Nothing goes out without `SENTRY_DSN` on the deployment. Under 20 jobs never alerts, so three failures of three overnight page nobody. Thresholds are the defaults of `failureRateVerdict` in `convex/sentry.ts`.
+
+If more than 500 jobs are created in an hour the count covers only the newest 500.
+
+### Owner step
+
+The code cannot create the alert rule. In Sentry, create an issue alert on the message prefix `job failure rate` (condition: the event message contains `job failure rate`; action: your usual notification). Until that rule exists, the events are recorded in Sentry but nobody is notified.

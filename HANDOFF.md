@@ -14,6 +14,28 @@
 | On-device engine (spike) | https://eyecandid.vercel.app/lab/local (PR #18): Whisper on WebGPU + TS autocut + `@remotion/web-renderer`, nothing uploaded. Mac/Chrome, model cached: 21 s portrait clip in ~12 s (transcribe 2.8 s, render 7.4 s); first visit downloads `base.en`, 206 MB. Phone numbers pending |
 | Mobile | Expo project `@devluca999/eyelore`; EAS Update publishes the JS on `main`. No store or TestFlight build exists yet |
 | Funnel | `/funnel` on the web app, once `EYELORE_ADMIN_TOKEN` is set on the Convex deployment (section 5) |
+| GPU pool (Phase 4, ADR 0013) | Modal app `eyelore-gpu` / `eyelore-gpu-prod` (`modal-gpu`: generated b-roll stills). **Built, never deployed** — see "Needs you" |
+
+## Needs you
+
+**Turn on generated b-roll (the GPU pool).** Nothing here has been deployed, and nothing has spent money. Every step below is yours to approve; the Modal workspace is at its spend cap.
+
+1. **Raise the Modal spend cap** (Modal dashboard → Settings → Usage and billing; needs a card), and set a budget alert below it. The GPU app is capped at one L4 container, at most 15 minutes per wake. ADR 0013 estimates about $0.003 for a warm still, about $0.04–0.07 for a lone still after a quiet spell, and $0 while idle.
+2. **Register a GPU worker** on each backend and keep its token (it is shown once):
+   `npx convex run workers:register '{"name":"modal-gpu","provider":"modal-gpu"}'` (add `--prod` for production). The provider name `modal-gpu` is what puts it in the GPU pool, and that rule is enforced on the server.
+3. **Create the Modal secret** `eyelore-gpu` (dev) or `eyelore-gpu-prod` (prod) with `EYELORE_CONVEX_SITE_URL` (`https://<deployment>.convex.site`) and `EYELORE_WORKER_TOKEN` (the token from step 2). The model is ungated, so no Hugging Face token is needed.
+4. **Deploy** (this starts no container by itself; the first still does):
+   `uvx --from modal modal deploy services/engine/deploy/modal_gpu_app.py` (dev),
+   `EYELORE_ENV=prod uvx --from modal modal deploy services/engine/deploy/modal_gpu_app.py` (prod).
+5. **Point Convex at it:** `npx convex env set EYELORE_GPU_WAKE_URL <the printed wake URL>` (add `--prod` for production).
+6. **First real still:** as an approved, paid Pro test user, select a bead and choose "add b-roll". The first one downloads the 32.9 GB model into the `eyelore-gpu-weights` volume, so it takes minutes. Check:
+   - the image quality;
+   - the time from cold and from warm;
+   - VRAM on the L4: if it runs out of memory, add `EYELORE_STILL_OFFLOAD=1` to the `eyelore-gpu` Modal secret, or redeploy with `EYELORE_GPU=L40S` (48 GB; an A10 is also 24 GB and won't help).
+   
+   Record the numbers in ADR 0013. Until this has run once, real generation is **untested**.
+
+Until step 2 is done, Pro users who choose "add b-roll" get "the gpu isn't set up yet · nothing was charged". After step 2, if the app isn't deployed or isn't answering, a still is charged and then waits. After 10 minutes with no GPU worker heard from, it fails with "the gpu didn't start" and the credit is refunded.
 
 ## 1b. Landing (Eyecandid v2, PR #17) — measured on production, 2026-11-17
 
@@ -73,7 +95,7 @@ One codebase, pull-based and outbound-only. It claims jobs from Convex over HTTP
   - PR #13 (ADR 0010) replaces it with scale to zero: Convex calls the app's `wake` URL when a job waits and no worker is polling; the worker drains the queue and leaves after 3 idle minutes; an hourly run is the safety net. After deploying it, set the printed URL on each Convex deployment: `npx convex env set EYELORE_WAKE_URL <url>` (`--prod` for production). The cold start has not been measured yet.
 - **Colab:** `pip install` the wheel attached to the latest GitHub release (built on tags by `deploy.yml`), put the two variables in Colab secrets, then `EYELORE_PROVIDER=colab eyelore-worker`.
 - **RunPod or any GPU host:** run `ghcr.io/devluca999/eyelore-engine:main` with the two variables and `EYELORE_PROVIDER=runpod`.
-- **Serverless GPU for generation (Phase 3):** not deployed. The plan is a second Modal function on the same image with a GPU; the generation job types exist in the contract but have no handlers yet.
+- **GPU pool for generation (Phase 4, ADR 0013):** a separate Modal app, `services/engine/deploy/modal_gpu_app.py` (`EYELORE_PROVIDER=modal-gpu`, L4, scale to zero, one container at most, 15-minute cap), woken through `EYELORE_GPU_WAKE_URL`. Its only handler so far is `still` (Z-Image-Turbo). A `-gpu` worker claims only GPU job types and every other worker only CPU types; `jobs.claim` enforces this on the server. **Not deployed:** see "Needs you".
 
 ## 4. Real and stubbed
 
@@ -92,6 +114,7 @@ One codebase, pull-based and outbound-only. It claims jobs from Convex over HTTP
 | Stripe paywall and entitlements | free rules only: watermark, 60s cap, no paywall | products and prices; `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_*`, `EYELORE_WEB_URL` on Convex; webhook to `<convex site>/stripe/webhook`; flag `billing` |
 | SendPulse "your edit is ready" | a `notifications` row reads "not sent · SendPulse not configured" | `SENDPULSE_CLIENT_ID`, `SENDPULSE_CLIENT_SECRET`, `SENDPULSE_FROM_EMAIL` on Convex; flag `ready_email` |
 | Pro by request (Phase 4, ADR 0009 addendum) | `/admin/access` says "not configured"; once the token is set, approvals work and the invite row reads "not sent · SendPulse not configured"; `/pro/checkout` says "billing isn't switched on yet". GPU job types are refused without an approved, paid, credited owner | `EYELORE_ADMIN_TOKEN` (and optionally `EYELORE_PRO_SEATS`, default 100) on Convex, plus the Stripe, SendPulse and Clerk rows above. `flags:set` keeps the stored allow list unless you pass `allow` explicitly; never pass `allow` for `pro` by hand (approvals manage it) |
+| Generated b-roll stills (Pro, ADR 0013) | approved Pro users see "add b-roll" on a bead; the request is refused with "the gpu isn't set up yet · nothing was charged" until a `modal-gpu` worker is registered. Plumbing is tested in CI with the model injected; real generation has never run | the "Needs you" steps: raise the Modal cap, register a `modal-gpu` worker, create the Modal secret, deploy `modal_gpu_app.py`, set `EYELORE_GPU_WAKE_URL` |
 | Sentry (web and worker) | nothing initialises | `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_DSN`; `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT` for source maps |
 
 Plan names, limits and prices in `packages/core/src/plans.ts` are placeholders until the owner decides them.

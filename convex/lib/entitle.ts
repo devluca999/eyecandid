@@ -62,6 +62,26 @@ const LIVE_SUBSCRIPTION = ["active", "trialing"];
 
 export type GpuRefusal = "pro_required" | "subscription_inactive" | "credits_required";
 
+export type GpuStanding =
+  | { ok: true; userId: Id<"users">; entId: Id<"entitlements">; credits: number }
+  | { ok: false; code: GpuRefusal; message: string; extra?: { needed: number; have: number } };
+
+/**
+ * Would a GPU job of this cost be allowed for this user right now? The one place the Pro rules live: `chargeGpuJob`
+ * uses it and then takes the credits; the editor's entitlement query uses it only to decide whether to show the action.
+ */
+export async function gpuStanding(ctx: QueryCtx | MutationCtx, ownerUserId: Id<"users"> | undefined, cost: number): Promise<GpuStanding> {
+  const user = ownerUserId ? await ctx.db.get(ownerUserId) : null;
+  if (!user || user.deletedAt || !user.email) return { ok: false, code: "pro_required", message: "generated media is part of Pro · request access on the landing page" };
+  if (!(await flagOn(ctx, "pro", user.email.toLowerCase()))) return { ok: false, code: "pro_required", message: "generated media is part of Pro · this account isn't approved yet" };
+  const ent = await entitlementFor(ctx, user._id);
+  if (!ent || !isPlanId(ent.plan) || ent.plan === "free" || !LIVE_SUBSCRIPTION.includes(ent.subscriptionStatus ?? "")) {
+    return { ok: false, code: "subscription_inactive", message: "generated media needs an active Pro subscription" };
+  }
+  if (ent.credits < cost) return { ok: false, code: "credits_required", message: `this needs ${cost} credit${cost === 1 ? "" : "s"} · you have ${ent.credits}`, extra: { needed: cost, have: ent.credits } };
+  return { ok: true, userId: user._id, entId: ent._id, credits: ent.credits };
+}
+
 /**
  * Charge a GPU job against the owner's credits, or throw. Called only from `enqueueJob` (the single enqueue path),
  * after the idempotency check and before the insert, so a refused job never wakes a worker and a replayed key never
@@ -71,19 +91,10 @@ export type GpuRefusal = "pro_required" | "subscription_inactive" | "credits_req
 export async function chargeGpuJob(ctx: MutationCtx, type: string, ownerUserId: Id<"users"> | undefined): Promise<{ userId: Id<"users">; credits: number } | null> {
   const cost = gpuCreditCost(type);
   if (cost <= 0) return null;
-  const refuse = (code: GpuRefusal, message: string, extra: object = {}): never => {
-    throw new ConvexError({ code, message, ...extra });
-  };
-  const user = ownerUserId ? await ctx.db.get(ownerUserId) : null;
-  if (!user || user.deletedAt || !user.email) return refuse("pro_required", "generated media is part of Pro · request access on the landing page");
-  if (!(await flagOn(ctx, "pro", user.email.toLowerCase()))) return refuse("pro_required", "generated media is part of Pro · this account isn't approved yet");
-  const ent = await entitlementFor(ctx, user._id);
-  if (!ent || !isPlanId(ent.plan) || ent.plan === "free" || !LIVE_SUBSCRIPTION.includes(ent.subscriptionStatus ?? "")) {
-    return refuse("subscription_inactive", "generated media needs an active Pro subscription");
-  }
-  if (ent.credits < cost) return refuse("credits_required", `this needs ${cost} credit${cost === 1 ? "" : "s"} · you have ${ent.credits}`, { needed: cost, have: ent.credits });
-  await ctx.db.patch(ent._id, { credits: ent.credits - cost });
-  return { userId: user._id, credits: cost };
+  const s = await gpuStanding(ctx, ownerUserId, cost);
+  if (!s.ok) throw new ConvexError({ code: s.code, message: s.message, ...(s.extra ?? {}) });
+  await ctx.db.patch(s.entId, { credits: s.credits - cost });
+  return { userId: s.userId, credits: cost };
 }
 
 /** Record what a job was charged, so a final failure can give it back. */

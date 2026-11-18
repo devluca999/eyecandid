@@ -8,14 +8,18 @@
   "exports": {
     ".": "./src/index.ts",
     "./jobs": "./src/jobs.ts",
+    "./qc": "./src/qc.ts",
     "./editModel": "./src/editModel.ts",
+    "./versions": "./src/versions.ts",
     "./analytics": "./src/analytics.ts",
     "./flags": "./src/flags.ts",
+    "./credits": "./src/credits.ts",
     "./schema/jobs.schema.json": "./schema/jobs.schema.json"
   },
   "scripts": {
     "build": "tsx scripts/emit-schema.ts",
     "schema:emit": "tsx scripts/emit-schema.ts",
+    "fixtures:autocut": "tsx scripts/emit-autocut-fixtures.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src test scripts",
     "test": "vitest run"
