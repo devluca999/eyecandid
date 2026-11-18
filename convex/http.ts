@@ -88,7 +88,7 @@ http.route({
   path: "/worker/fail",
   method: "POST",
   handler: workerRoute(FailRequest, async (ctx, workerId, b) => {
-    const ok = await ctx.runMutation(internal.jobs.fail, { workerId, jobId: b.jobId, error: b.error, retryable: b.retryable });
+    const ok = await ctx.runMutation(internal.jobs.fail, { workerId, jobId: b.jobId, error: b.error, retryable: b.retryable, outcome: b.outcome });
     return ok ? json({ ok }) : json({ error: "stale lease" }, 409);
   }),
 });

@@ -245,18 +245,23 @@ export const complete = internalMutation({
   },
 });
 
+/**
+ * A worker reporting failure. `outcome: "qc_failed"` means the job ran but its result failed the quality check
+ * (ADR 0014): final, never retried, never shown as a success, and its credits come back.
+ */
 export const fail = internalMutation({
-  args: { workerId: v.id("workers"), jobId: v.string(), error: v.string(), retryable: v.boolean() },
-  handler: async (ctx, { workerId, jobId, error, retryable }) => {
+  args: { workerId: v.id("workers"), jobId: v.string(), error: v.string(), retryable: v.boolean(), outcome: v.optional(v.literal("qc_failed")) },
+  handler: async (ctx, { workerId, jobId, error, retryable, outcome }) => {
     const job = await ownedActive(ctx, jobId, workerId);
     if (!job) {
       await reapCanceled(ctx, jobId, workerId);
       return false;
     }
-    const retry = retryable && job.attempts < job.maxAttempts;
+    const qcFailed = outcome === "qc_failed";
+    const retry = !qcFailed && retryable && job.attempts < job.maxAttempts;
     await ctx.db.patch(job._id, {
       status: retry ? "queued" : "failed",
-      stage: retry ? "retrying" : "failed",
+      stage: retry ? "retrying" : qcFailed ? "failed · quality check" : "failed",
       error: error.slice(0, 2000),
       leaseOwner: undefined,
       leaseExpiresAt: undefined,

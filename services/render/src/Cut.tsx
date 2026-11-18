@@ -1,6 +1,6 @@
 import { AbsoluteFill, Img, OffthreadVideo, Sequence, interpolate, useCurrentFrame, useVideoConfig } from "remotion";
 import type { BrollOverlay, EditDoc } from "@eyelore/core";
-import { brollOverlays, kenBurnsAt, toTimeline, coverBox, faceAt, punchAt, type Segment } from "@eyelore/core";
+import { brollOverlays, captionCss, kenBurnsAt, toTimeline, coverBox, faceAt, punchAt, type Segment } from "@eyelore/core";
 
 export type CutProps = { doc: EditDoc; media: Record<string, string>; watermark: boolean };
 
@@ -26,7 +26,7 @@ export function Cut({ doc, media, watermark }: CutProps) {
         );
       })}
       <BrollLayer overlays={broll} urls={media} />
-      <Captions chunks={tl.captions} />
+      <Captions chunks={tl.captions} pos={captionCss(doc, doc.aspect)} />
       {watermark && (
         <div style={{ position: "absolute", right: "4%", bottom: "3%", color: "rgba(255,255,255,.8)", font: "500 34px Geist, sans-serif", textShadow: "0 1px 2px rgba(0,0,0,.4)" }}>
           eyecandid
@@ -100,7 +100,8 @@ function BrollStill({ o, src }: { o: BrollOverlay; src: string }) {
   );
 }
 
-function Captions({ chunks }: { chunks: ReturnType<typeof toTimeline>["captions"] }) {
+/** `pos`: captionCss from core, the spot the export quality check measured (default 64%, or the doc's safe-band place). */
+function Captions({ chunks, pos }: { chunks: ReturnType<typeof toTimeline>["captions"]; pos: { top: string; transform?: string } }) {
   const frame = useCurrentFrame();
   const { fps, width } = useVideoConfig();
   const ms = (frame / fps) * 1000;
@@ -108,7 +109,7 @@ function Captions({ chunks }: { chunks: ReturnType<typeof toTimeline>["captions"
   if (!c) return null;
   const scale = width / 390; // design caption 22/26 at phone width
   return (
-    <div style={{ position: "absolute", left: "6%", right: "6%", top: "64%", textAlign: "center" }}>
+    <div style={{ position: "absolute", left: "6%", right: "6%", ...pos, textAlign: "center" }}>
       <span style={{ font: `700 ${22 * scale}px/${26 * scale}px Geist, sans-serif`, color: "#fff", textShadow: "0 1px 2px rgba(0,0,0,.45), 0 2px 12px rgba(0,0,0,.35)" }}>{c.text}</span>
     </div>
   );

@@ -3,8 +3,8 @@ import { internal } from "./_generated/api";
 import { internalMutation, mutation } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
-import { applyChange, beadChanges, cutdownChange, decideExport, JOB_SPECS, reframeChange, retakeChanges, toTimeline } from "@eyelore/core";
-import type { Aspect, EditDoc, JobOutput } from "@eyelore/core";
+import { applyChange, beadChanges, cutdownChange, decideExport, EditDoc, JOB_SPECS, reframeChange, retakeChanges, toTimeline } from "@eyelore/core";
+import type { Aspect, JobOutput } from "@eyelore/core";
 import { commitChanges, headDoc } from "./lib/docs";
 import { enqueueJob } from "./jobs";
 import { ownedProject } from "./projects";
@@ -13,6 +13,7 @@ import { flagOn } from "./lib/flags";
 import { freeState, MSG, refuse } from "./lib/limits";
 import { addUsage, anonHashOf, usageFor } from "./lib/entitle";
 import { onStillDone, stillUrls } from "./broll";
+import { fixBeforeExport, gateRender, refuseBlockedDoc } from "./qc";
 
 /**
  * The core-loop pipeline, advanced each time a project job finishes:
@@ -38,6 +39,8 @@ export const onJobDone = internalMutation({
       return;
     }
     if (job.status === "succeeded" && job.type === "render") {
+      // the quality check decides from the file's measurements (convex/qc.ts): blocked or held exports aren't counted
+      if (!(await gateRender(ctx, job))) return;
       // count the minutes once, then tell the owner if they are away (ADR 0009)
       await ctx.scheduler.runAfter(0, internal.entitlements.recordExportDone, { jobId });
       await ctx.scheduler.runAfter(0, internal.notify.onExportDone, { jobId });
@@ -120,6 +123,8 @@ type ExportArgs = {
 async function planExport(ctx: MutationCtx, a: ExportArgs) {
   const project = await ownedProject(ctx, a.projectId, a.anonId);
   const who = await caller(ctx, a.anonId);
+  // the quality check's safe fixes land in the edit first (explained, undoable); then the head is read fresh
+  const fixed = await fixBeforeExport(ctx, a.projectId, a.aspect as Aspect);
   const head = await headDoc(ctx, a.projectId);
   if (!head) throw new Error("nothing to export");
   let doc: EditDoc = { ...head.doc, aspect: a.aspect as Aspect };
@@ -139,14 +144,15 @@ async function planExport(ctx: MutationCtx, a: ExportArgs) {
   const cut = cutdownChange(doc, maxMs);
   if (cut) doc = applyChange(doc, cut)!.doc; // a variant: the main edit is untouched
   JOB_SPECS.render.input.parse({ doc, aspect: a.aspect, watermark: plan.watermark, maxDurationMs: maxMs });
+  refuseBlockedDoc(EditDoc.parse(doc)); // nothing broken is rendered or counted
   const chargedAnonHash = who.userId || !a.anonId ? undefined : await anonHashOf(a.anonId);
-  return { project, who, head, doc, plan, maxMs, decision, chargedAnonHash };
+  return { project, who, head, doc, plan, maxMs, decision, chargedAnonHash, fixed };
 }
 
 export const startExport = mutation({
   args: exportArgs,
   handler: async (ctx, a) => {
-    const { project, who, head, doc, plan, maxMs, decision, chargedAnonHash } = await planExport(ctx, a);
+    const { project, who, head, doc, plan, maxMs, decision, chargedAnonHash, fixed } = await planExport(ctx, a);
     const jobId = await enqueueJob(ctx, {
       type: "render",
       input: { doc, aspect: a.aspect, watermark: plan.watermark, maxDurationMs: maxMs },
@@ -155,7 +161,7 @@ export const startExport = mutation({
       ownerUserId: project.ownerUserId,
       ownerAnonId: project.ownerAnonId,
     });
-    await ctx.db.insert("exports", { projectId: a.projectId, jobId, aspect: a.aspect, maxDurationMs: a.maxDurationMs, watermark: plan.watermark, docVersion: head.doc.version, createdAt: Date.now(), plan: decision.plan, chargedUserId: who.userId, chargedAnonHash });
+    await ctx.db.insert("exports", { projectId: a.projectId, jobId, aspect: a.aspect, maxDurationMs: a.maxDurationMs, watermark: plan.watermark, docVersion: head.doc.version, createdAt: Date.now(), plan: decision.plan, chargedUserId: who.userId, chargedAnonHash, qc: { status: "pending", fixed } });
     return jobId;
   },
 });
@@ -168,8 +174,9 @@ export const startExport = mutation({
 export const authorizeDeviceExport = mutation({
   args: exportArgs,
   handler: async (ctx, a) => {
-    const { project, who, head, doc, plan, maxMs, decision, chargedAnonHash } = await planExport(ctx, a);
+    const { project, who, head, doc, plan, maxMs, decision, chargedAnonHash, fixed } = await planExport(ctx, a);
     if (project.engine !== "device") throw new Error("this edit renders on the server");
+    const minutes = toTimeline(doc).durationMs / 60_000;
     const exportId = await ctx.db.insert("exports", {
       projectId: a.projectId,
       device: true,
@@ -182,9 +189,11 @@ export const authorizeDeviceExport = mutation({
       chargedUserId: who.userId,
       chargedAnonHash,
       usageCounted: true,
+      // the browser reports its quality check (qc.recordDevice); a blocked export gives these minutes back
+      qc: { status: "pending", minutes, fixed },
     });
-    await addUsage(ctx, { userId: who.userId, anonHash: chargedAnonHash }, toTimeline(doc).durationMs / 60_000);
+    await addUsage(ctx, { userId: who.userId, anonHash: chargedAnonHash }, minutes);
     // generated b-roll stills in the doc, as signed URLs for the browser renderer (none on the free path)
-    return { exportId, doc, watermark: plan.watermark, maxMs, stills: await stillUrls(ctx, a.projectId, doc) };
+    return { exportId, doc, watermark: plan.watermark, maxMs, stills: await stillUrls(ctx, a.projectId, doc), fixed };
   },
 });

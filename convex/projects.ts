@@ -10,6 +10,7 @@ import { admitFreeJob, freeState, MSG, rateLimit, refuse, sourceRefusal } from "
 import { commitChanges, createDoc, headDoc } from "./lib/docs";
 import { enqueueJob } from "./jobs";
 import { mediaIdsIn, mediaStore } from "./lib/mediaStore";
+import { delivered } from "./lib/qc";
 
 export async function ownedProject(ctx: QueryCtx | MutationCtx, projectId: Id<"projects">, anonId?: string) {
   const p = await ctx.db.get(projectId);
@@ -188,7 +189,7 @@ export const get = query({
     for (const e of exports) {
       if (!e.jobId) {
         // rendered in the visitor's browser: the file only ever existed there
-        exportViews.push({ _id: e._id, aspect: e.aspect, maxDurationMs: e.maxDurationMs, watermark: e.watermark, createdAt: e.createdAt, status: "succeeded" as const, progress: 1, stage: "on this device", error: undefined, url: null, durationMs: undefined, device: true });
+        exportViews.push({ _id: e._id, aspect: e.aspect, maxDurationMs: e.maxDurationMs, watermark: e.watermark, createdAt: e.createdAt, status: "succeeded" as const, progress: 1, stage: "on this device", error: undefined, url: null, durationMs: undefined, device: true, qc: e.qc });
         continue;
       }
       const j = await ctx.db.get(e.jobId);
@@ -197,8 +198,12 @@ export const get = query({
       const m = mid ? await ctx.db.get(mid) : null;
       exportViews.push({
         _id: e._id, aspect: e.aspect, maxDurationMs: e.maxDurationMs, watermark: e.watermark, createdAt: e.createdAt,
-        status: j?.status ?? "failed", progress: j?.progress ?? 0, stage: j?.stage ?? "", error: j?.error,
-        url: m ? await mediaStore.downloadUrl(ctx, m) : null, durationMs: out?.durationMs, device: false,
+        // a finished render whose check hasn't run yet is still "running · checking" to everyone reading this view
+        ...(j?.status === "succeeded" && e.qc?.status === "pending"
+          ? { status: "running" as const, progress: 0.98, stage: "checking", error: undefined }
+          : { status: j?.status ?? "failed", progress: j?.progress ?? 0, stage: j?.stage ?? "", error: j?.error }),
+        // the quality check holds the file back until it is delivered (convex/qc.ts): never a link to a broken export
+        url: m && delivered(e.qc) ? await mediaStore.downloadUrl(ctx, m) : null, durationMs: out?.durationMs, device: false, qc: e.qc,
       });
     }
     return {
@@ -245,7 +250,8 @@ async function purge(ctx: MutationCtx, projectId: Id<"projects">): Promise<boole
     // a render that succeeded before the delete still used its minutes (ADR 0009); one that did not, did not
     if (!e.usageCounted && e.jobId) {
       const j = await ctx.db.get(e.jobId);
-      if (j?.status === "succeeded") await addUsage(ctx, { userId: e.chargedUserId, anonHash: e.chargedAnonHash }, ((j.output as { durationMs?: number } | undefined)?.durationMs ?? 0) / 60_000);
+      // (one the quality check blocked was never delivered, so it used none)
+      if (j?.status === "succeeded" && e.qc?.status !== "blocked") await addUsage(ctx, { userId: e.chargedUserId, anonHash: e.chargedAnonHash }, ((j.output as { durationMs?: number } | undefined)?.durationMs ?? 0) / 60_000);
     }
     await ctx.db.delete(e._id);
   }
