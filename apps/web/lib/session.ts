@@ -14,6 +14,8 @@ type Pending = {
   engine?: "device" | "server";
   /** honest line from the on-device engine while it works */
   deviceStage?: string;
+  /** the clip's probed size, kept so a failed upload can be sent again from the file held here */
+  meta?: { w: number; h: number; durationMs: number };
 };
 const pending = new Map<string, Pending>();
 const listeners = new Set<() => void>();
