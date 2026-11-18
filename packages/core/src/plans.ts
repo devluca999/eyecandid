@@ -1,3 +1,5 @@
+import { ANON_EXPORTS, PLAN_CATALOG } from "./credits";
+
 /**
  * Plans and export entitlements, as data (ADR 0009).
  *
@@ -82,6 +84,40 @@ export function isPlanId(s: unknown): s is PlanId {
 /** UTC calendar month key, the usage period. */
 export function periodKey(ms: number): string {
   return new Date(ms).toISOString().slice(0, 7);
+}
+
+// ───────────── free export count (mvp-spec "Access model", ADR 0014 rollout 3) ─────────────
+
+/** a free export without an account: one per anonymous session */
+export const ANON_FREE_EXPORTS = ANON_EXPORTS;
+/** free exports a calendar month (UTC) with a free account */
+export const FREE_EXPORTS_PER_MONTH = PLAN_CATALOG.free.exportsPerMonth ?? 3;
+
+export type ExportCountRefusal = "sign_in_required" | "exports_used";
+export type ExportCountDecision = { ok: true; count: boolean } | { ok: false; code: ExportCountRefusal; message: string };
+
+/** "2026-11" → "dec 1": when a month's free exports come back */
+export function nextMonthLabel(period: string): string {
+  const [y, m] = period.split("-").map(Number);
+  const d = new Date(Date.UTC(y!, m!, 1));
+  return `${d.toLocaleString("en-US", { month: "short", timeZone: "UTC" }).toLowerCase()} 1`;
+}
+
+/**
+ * Whether this export may go, and whether it counts. Pure; the server feeds it the count it keeps.
+ *  - A paid plan (only ever a signed-in caller): unlimited, not counted.
+ *  - Signed in on Free: 3 a calendar month (UTC).
+ *  - Anonymous: 1. The next one asks for sign-in, but only when sign-in is actually switched on (Clerk configured and
+ *    the `accounts` flag on). Without it the export goes ahead as before: we never ask for something that can't be done.
+ */
+export function decideExportCount(i: { signedIn: boolean; plan: PlanId; used: number; signInAvailable: boolean; period: string }): ExportCountDecision {
+  if (i.signedIn && i.plan !== "free") return { ok: true, count: false };
+  if (i.signedIn) {
+    if (i.used < FREE_EXPORTS_PER_MONTH) return { ok: true, count: true };
+    return { ok: false, code: "exports_used", message: `this month's ${FREE_EXPORTS_PER_MONTH} free exports are used · more on ${nextMonthLabel(i.period)}` };
+  }
+  if (i.used < ANON_FREE_EXPORTS || !i.signInAvailable) return { ok: true, count: true };
+  return { ok: false, code: "sign_in_required", message: `sign in for ${FREE_EXPORTS_PER_MONTH} free exports a month · your edit comes with you` };
 }
 
 export type PaidReason = "length_cap" | "minutes";

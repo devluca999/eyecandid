@@ -8,7 +8,7 @@ import type { JobType } from "@eyelore/core";
 import { caller, owns } from "./lib/owner";
 import { mediaIdsIn, mediaStore } from "./lib/mediaStore";
 import { requestWake, wakeWord } from "./wake";
-import { chargeGpuJob, recordCharge, refundJobCredits } from "./lib/entitle";
+import { chargeGpuJob, recordCharge, refundJobCredits, settleJobCredits } from "./lib/entitle";
 
 /** Insert a job, validating input against the contract. Idempotent on idempotencyKey. */
 export async function enqueueJob(
@@ -31,8 +31,9 @@ export async function enqueueJob(
   if (existing) return existing._id;
   const spec = JOB_SPECS[args.type];
   const input = spec.input.parse(args.input);
-  // GPU work is Pro only and paid with credits; throws before anything is woken or written (convex/lib/entitle.ts)
-  const charge = await chargeGpuJob(ctx, args.type, args.ownerUserId);
+  // GPU work is Pro only and paid with credits, reserved from the job's generated seconds (ADR 0014); throws before
+  // anything is woken or written (convex/lib/entitle.ts)
+  const charge = await chargeGpuJob(ctx, args.type, input, args.ownerUserId);
   await requestWake(ctx); // scale-to-zero hosts: start a worker if none is polling (convex/wake.ts)
   const jobId = await ctx.db.insert("jobs", {
     type: args.type,
@@ -240,29 +241,36 @@ export const complete = internalMutation({
       leaseOwner: undefined,
       leaseExpiresAt: undefined,
     });
+    // a paid job delivered: charge what it made and give back the rest of the reservation (ADR 0014)
+    await settleJobCredits(ctx, job, parsed.data);
     if (job.projectId) await ctx.scheduler.runAfter(0, internal.pipeline.onJobDone, { jobId: job._id });
     return { ok: true as const };
   },
 });
 
+/**
+ * A worker reporting failure. `outcome: "qc_failed"` means the job ran but its result failed the quality check
+ * (ADR 0014): final, never retried, never shown as a success, and its credits come back.
+ */
 export const fail = internalMutation({
-  args: { workerId: v.id("workers"), jobId: v.string(), error: v.string(), retryable: v.boolean() },
-  handler: async (ctx, { workerId, jobId, error, retryable }) => {
+  args: { workerId: v.id("workers"), jobId: v.string(), error: v.string(), retryable: v.boolean(), outcome: v.optional(v.literal("qc_failed")) },
+  handler: async (ctx, { workerId, jobId, error, retryable, outcome }) => {
     const job = await ownedActive(ctx, jobId, workerId);
     if (!job) {
       await reapCanceled(ctx, jobId, workerId);
       return false;
     }
-    const retry = retryable && job.attempts < job.maxAttempts;
+    const qcFailed = outcome === "qc_failed";
+    const retry = !qcFailed && retryable && job.attempts < job.maxAttempts;
     await ctx.db.patch(job._id, {
       status: retry ? "queued" : "failed",
-      stage: retry ? "retrying" : "failed",
+      stage: retry ? "retrying" : qcFailed ? "failed · quality check" : "failed",
       error: error.slice(0, 2000),
       leaseOwner: undefined,
       leaseExpiresAt: undefined,
       finishedAt: retry ? undefined : Date.now(),
     });
-    if (!retry) await refundJobCredits(ctx, job._id);
+    if (!retry) await refundJobCredits(ctx, job._id, qcFailed ? "qc_failed" : "failed");
     if (!retry && job.projectId) await ctx.scheduler.runAfter(0, internal.pipeline.onJobDone, { jobId: job._id });
     // a job that failed for good goes to Sentry (alert on failure rate lives in Sentry); a no-op without SENTRY_DSN
     if (!retry && process.env.SENTRY_DSN) await ctx.scheduler.runAfter(0, internal.sentry.jobFailed, { type: job.type, error: error.slice(0, 300), attempts: job.attempts });

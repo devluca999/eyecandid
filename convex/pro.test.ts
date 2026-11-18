@@ -1,6 +1,7 @@
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { PLANS, PRO_PLAN } from "@eyelore/core";
+import { balance, PLANS, PRO_PLAN } from "@eyelore/core";
+import { ledgerFor } from "./lib/credits";
 import schema from "./schema";
 import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
@@ -229,15 +230,16 @@ async function proUser(t: T, opts: { approved?: boolean; paid?: boolean; credits
     });
   }
   if (opts.credits !== undefined) {
+    // exactly this many: drop the checkout's monthly lot, hold the balance as a migrated (pre-ADR 0014) one
     await t.run(async (ctx) => {
+      for (const l of await ctx.db.query("creditLots").withIndex("by_user_lot", (q) => q.eq("userId", userId)).collect()) await ctx.db.delete(l._id);
       const ent = await ctx.db.query("entitlements").withIndex("by_user", (q) => q.eq("userId", userId)).unique();
       await ctx.db.patch(ent!._id, { credits: opts.credits });
     });
   }
   return userId;
 }
-const credits = (t: T, userId: Id<"users">) =>
-  t.run(async (ctx) => (await ctx.db.query("entitlements").withIndex("by_user", (q) => q.eq("userId", userId)).unique())!.credits);
+const credits = (t: T, userId: Id<"users">) => t.run(async (ctx) => balance((await ledgerFor(ctx, userId, Date.now())).lots, Date.now()));
 const still = (t: T, ownerUserId?: Id<"users">, key = "still:1") =>
   t.run((ctx) => enqueueJob(ctx, { type: "still", input: { prompt: "a bead", w: 512, h: 512 }, idempotencyKey: key, ownerUserId, ownerAnonId: anon("a") }));
 const jobCount = (t: T) => t.run(async (ctx) => (await ctx.db.query("jobs").collect()).length);

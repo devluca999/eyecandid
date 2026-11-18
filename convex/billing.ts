@@ -4,7 +4,8 @@ import { action, internalMutation, internalQuery } from "./_generated/server";
 import { CREDIT_PACKS, PLANS, isPlanId } from "@eyelore/core";
 import type { PlanId } from "@eyelore/core";
 import { flagOn } from "./lib/flags";
-import { ensureEntitlement, entitlementFor, grantMonthlyCredits, setPlan, userByClerkId } from "./lib/users";
+import { ensureEntitlement, entitlementFor, setPlan, userByClerkId } from "./lib/users";
+import { grantMonthlyCredits, grantTopup } from "./lib/credits";
 
 type StripeObj = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any -- Stripe payloads are untyped JSON
 
@@ -118,7 +119,9 @@ export const applyStripeEvent = internalMutation({
         const pack = CREDIT_PACKS[o.metadata?.pack as keyof typeof CREDIT_PACKS];
         if (!pack || o.payment_status !== "paid") return { applied: false as const, why: "not a paid credit pack" };
         const ent = await ensureEntitlement(ctx, userId);
-        await ctx.db.patch(ent._id, { credits: ent.credits + pack.credits, stripeCustomerId: o.customer ?? ent.stripeCustomerId });
+        if (o.customer && o.customer !== ent.stripeCustomerId) await ctx.db.patch(ent._id, { stripeCustomerId: o.customer });
+        // a top-up is its own lot, good for 12 months (ADR 0014); one per checkout session, whatever replays
+        await grantTopup(ctx, userId, `t:${String(o.id ?? eventId)}`, pack.credits);
         return { applied: true as const };
       }
       const plan = o.metadata?.plan;

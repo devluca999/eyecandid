@@ -133,7 +133,11 @@ export const ProgressRequest = z.object({
   previewMediaId: z.string().optional(),
 });
 export const CompleteRequest = z.object({ jobId: z.string(), output: z.unknown() });
-export const FailRequest = z.object({ jobId: z.string(), error: z.string().max(2000), retryable: z.boolean().default(true) });
+/**
+ * `outcome: "qc_failed"`: the job ran but its result failed the quality check (ADR 0014). Final, never retried, and its
+ * credits are refunded; the result is never shown as a success. Optional, so older workers are unaffected.
+ */
+export const FailRequest = z.object({ jobId: z.string(), error: z.string().max(2000), retryable: z.boolean().default(true), outcome: z.enum(["qc_failed"]).optional() });
 export const UploadUrlRequest = z.object({ contentType: z.string() });
 export const DownloadUrlRequest = z.object({ mediaId: z.string() });
 
