@@ -97,6 +97,8 @@ export default defineSchema({
     /** on-device: the exact render plan handed to the browser (doc snapshot, cap), so a replayed request gets it again */
     planDoc: v.optional(v.any()),
     planMaxMs: v.optional(v.number()),
+    /** on-device: the browser reported the render failed and the count was given back; a replay counts again */
+    givenBack: v.optional(v.boolean()),
   })
     .index("by_project", ["projectId"])
     .index("by_job", ["jobId"]),

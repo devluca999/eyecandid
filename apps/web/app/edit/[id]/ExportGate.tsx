@@ -23,7 +23,7 @@ import { useTrack } from "@/lib/track";
 
 export type ExportArgs = { aspect: Aspect; requestId: string; maxDurationMs?: 15000 | 30000 | 60000 };
 /** Who renders: default is the worker (pipeline.startExport); the on-device engine passes its own (ADR 0012). */
-/** `canSignIn`: this page can show a sign-in (Clerk configured, flag `accounts` on); the server asks for one only then. */
+/** `canSignIn`: this page can show a sign-in (Clerk configured, flag `accounts` on); then the 2nd export asks for one. */
 export type Exporter = (args: ExportArgs & { mode: "best" | "free"; canSignIn: boolean }) => Promise<void>;
 export type Gate = { run: (args: ExportArgs, exporter?: Exporter) => Promise<void>; element: ReactNode };
 

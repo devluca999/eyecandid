@@ -154,7 +154,7 @@ export default function Edit() {
     track("export_clicked", { aspect: doc.aspect });
     // signup and the paywall at export arrive with keys (PLAN: Needs keys); until then exports are anonymous and watermarked
     try {
-      // no sign-in on mobile yet: say so, and the server won't ask for one
+      // no sign-in on mobile yet: past the free export, the server answers with a plain line instead of a sign-in prompt
       await startExport({ anonId, projectId, aspect: doc.aspect, requestId: `${Date.now()}-${exportSeq.current++}`, canSignIn: false });
     } catch (e) {
       requested.current = false;

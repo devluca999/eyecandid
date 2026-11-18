@@ -77,14 +77,19 @@ describe("anonymous: one free export", () => {
     expect(await renders(t)).toHaveLength(3);
   });
 
-  it("a client that can't show a sign-in (mobile, older web) is never asked for one: the export goes", async () => {
+  it("the anonymous limit holds whatever the client says; one that can't show a sign-in gets a plain line instead", async () => {
     const t = mk();
     await signInOn(t);
     const p = await seed(t);
-    await server(t, p, "r1", undefined, false);
-    await server(t, p, "r2", undefined, false);
-    await t.mutation(api.pipeline.startExport, { anonId: ANON, projectId: p, aspect: "9:16", requestId: "r3" }); // no arg at all
-    expect(await renders(t)).toHaveLength(3);
+    // no canSignIn at all (an older client), five times: one render
+    for (let i = 0; i < 5; i++) {
+      const r = t.mutation(api.pipeline.startExport, { anonId: ANON, projectId: p, aspect: "9:16", requestId: `r${i}` });
+      if (i === 0) await r;
+      else await expect(r).rejects.toThrow("this free export is used · sign in on the web for 3 a month");
+    }
+    await expect(server(t, p, "m1", undefined, false)).rejects.toThrow(/exports_used/); // mobile
+    await expect(device(t, await seed(t, { engine: "device" }), "d1", undefined, false)).rejects.toThrow("this free export is used · sign in on the web for 3 a month");
+    expect(await renders(t)).toHaveLength(1);
   });
 
   it("device: replaying a request id after the edit changed returns the plan it was given, not a fresh one", async () => {
@@ -154,6 +159,28 @@ describe("an on-device render that fails in the browser", () => {
     expect((await mine(t)).exports.used).toBe(0);
     await device(t, p, "d2"); // the free export is there again
     await expect(device(t, p, "d3")).rejects.toThrow(/sign_in_required/);
+  });
+
+  it("a replay after the count was given back counts again: the plan is never handed out uncounted", async () => {
+    const t = mk();
+    await signInOn(t);
+    const p = await seed(t, { engine: "device" });
+    const a = await device(t, p, "x");
+    await t.mutation(api.pipeline.deviceExportFailed, { anonId: ANON, exportId: a.exportId });
+    expect((await mine(t)).exports.used).toBe(0);
+    const again = await device(t, p, "x");
+    expect(again.doc).toEqual(a.doc);
+    expect((await mine(t)).exports.used).toBe(1);
+    await expect(device(t, p, "y")).rejects.toThrow(/sign_in_required/); // the free export is spent again
+    // and with the free export spent elsewhere first, the replay is refused rather than handed out
+    const b = await seed(t, { engine: "device" });
+    await t.run(async (ctx) => {
+      for (const c of await ctx.db.query("exportCounts").collect()) await ctx.db.delete(c._id);
+    });
+    const x2 = await device(t, b, "x2");
+    await t.mutation(api.pipeline.deviceExportFailed, { anonId: ANON, exportId: x2.exportId });
+    await device(t, b, "other");
+    await expect(device(t, b, "x2")).rejects.toThrow(/sign_in_required/);
   });
 
   it("only soon after it was authorized: a failure reported 10 minutes later gives nothing back", async () => {

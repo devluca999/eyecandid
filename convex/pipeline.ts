@@ -4,7 +4,7 @@ import { internalMutation, mutation } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import { applyChange, beadChanges, cutdownChange, decideExport, decideExportCount, JOB_SPECS, reframeChange, retakeChanges, toTimeline } from "@eyelore/core";
-import type { Aspect, EditDoc, JobOutput } from "@eyelore/core";
+import type { Aspect, EditDoc, JobOutput, PlanId } from "@eyelore/core";
 import { commitChanges, headDoc } from "./lib/docs";
 import { enqueueJob } from "./jobs";
 import { ownedProject } from "./projects";
@@ -108,8 +108,8 @@ const exportArgs = {
   mode: v.optional(v.union(v.literal("best"), v.literal("free"))),
   /**
    * Can this client actually show a sign-in? The web sends true only with Clerk configured and the `accounts` flag on;
-   * mobile (no sign-in yet) and older clients send nothing. Without it the 2nd anonymous export goes ahead as before:
-   * the server never asks for something the client can't do.
+   * mobile (no sign-in yet) and older clients send nothing. It never lifts the anonymous limit; it only picks the
+   * refusal: `sign_in_required` (the web opens the sign-up) or a plain one-line "sign in on the web".
    */
   canSignIn: v.optional(v.boolean()),
 };
@@ -122,6 +122,25 @@ type ExportArgs = {
   mode?: "best" | "free";
   canSignIn?: boolean;
 };
+
+/** The refusal for a client that can't show a sign-in (mobile, an older web page): one plain line, no dead-end prompt. */
+export const SIGN_IN_ON_THE_WEB = "this free export is used · sign in on the web for 3 a month";
+
+/**
+ * May this export go, by the free export count? Returns the counter to bump, or throws the one-line refusal. The
+ * anonymous limit holds whatever the client says; `canSignIn` only picks the refusal: `sign_in_required` (the web
+ * opens the sign-up) or a plain line. The one exception: sign-in isn't switched on at all on this deployment (no
+ * Clerk issuer, or the `accounts` flag off), and then the export goes ahead as before.
+ */
+async function checkExportCount(ctx: MutationCtx, who: { userId?: Id<"users">; anonId?: string }, usage: { signedIn: boolean; plan: PlanId }, a: ExportArgs) {
+  const count = await exportCountFor(ctx, who, usage.plan);
+  const verdict = decideExportCount({ signedIn: usage.signedIn, plan: usage.plan, used: count.used, period: count.period, signInAvailable: await signInAvailable(ctx, a.anonId) });
+  if (!verdict.ok) {
+    if (verdict.code === "sign_in_required" && !a.canSignIn) throw new ConvexError({ code: "exports_used", message: SIGN_IN_ON_THE_WEB });
+    throw new ConvexError({ code: verdict.code, message: verdict.message });
+  }
+  return verdict.count ? count.key : undefined;
+}
 
 /**
  * What an export is allowed to be (entitlements, ADR 0009): the plan, watermark, length cap, and the doc snapshot to
@@ -139,13 +158,7 @@ async function planExport(ctx: MutationCtx, a: ExportArgs, replay: boolean) {
   if (usage.plan === "free" && (await freeState(ctx)).reason === "flag") refuse(MSG.paused);
   // the free export count (mvp-spec "Access model"), on both engines: 1 without an account (then sign-in, when it is
   // switched on), 3 a month with a free one, unlimited on a paid plan. A replayed request was counted already.
-  let countKey: string | undefined;
-  if (!replay) {
-    const count = await exportCountFor(ctx, who, usage.plan);
-    const verdict = decideExportCount({ signedIn: usage.signedIn, plan: usage.plan, used: count.used, period: count.period, signInAvailable: !!a.canSignIn && (await signInAvailable(ctx, a.anonId)) });
-    if (!verdict.ok) throw new ConvexError({ code: verdict.code, message: verdict.message });
-    if (verdict.count && count.key) countKey = count.key;
-  }
+  const countKey = replay ? undefined : await checkExportCount(ctx, who, usage, a);
   const input = { requestedMs: a.maxDurationMs, fullMs: toTimeline(head.doc).durationMs };
   // Paywall rules bite only when payments can actually be taken: the `billing` flag is on for this caller AND
   // Stripe is configured. Otherwise behave as before: watermark, silent clamp to the free cap, no minutes block,
@@ -209,7 +222,7 @@ export const deviceExportFailed = mutation({
     // only for a render that could still be in progress: a minute-old authorization, not one reported days later
     if (!exp.countKey || Date.now() - exp.createdAt > DEVICE_RENDER_WINDOW_MS) return false;
     await bumpExportCount(ctx, exp.countKey, -1);
-    await ctx.db.patch(exp._id, { countKey: undefined });
+    await ctx.db.patch(exp._id, { countKey: undefined, givenBack: true });
     return true;
   },
 });
@@ -230,6 +243,13 @@ export const authorizeDeviceExport = mutation({
     if (prior) {
       if (!prior.device || !prior.planDoc || prior.planMaxMs === undefined || prior.aspect !== a.aspect) throw new ConvexError("that export was already made · export again");
       const snap = prior.planDoc as EditDoc;
+      // its count was given back (the render "failed"): handing the plan out again is a new export, counted again
+      if (prior.givenBack) {
+        const who = await caller(ctx, a.anonId);
+        const key = await checkExportCount(ctx, who, await usageFor(ctx, who), a);
+        if (key) await bumpExportCount(ctx, key, 1);
+        await ctx.db.patch(prior._id, { countKey: key, givenBack: false });
+      }
       return { exportId: prior._id, doc: snap, watermark: prior.watermark, maxMs: prior.planMaxMs, stills: await stillUrls(ctx, a.projectId, snap) };
     }
     const { who, head, doc, plan, maxMs, decision, chargedAnonHash, countKey } = await planExport(ctx, a, false);
