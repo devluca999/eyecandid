@@ -24,8 +24,8 @@ from jsonschema import ValidationError
 
 from . import contract, telemetry
 from .client import ClaimedJob, ConvexWorkerClient, StaleLease
-from .handlers import registry
-from .providers import GpuProvider, from_env
+from .handlers import NonRetryable, registry
+from .providers import GpuProvider, claimable, from_env
 
 
 class _Ctx:
@@ -75,7 +75,10 @@ class _Heartbeat(threading.Thread):
 def run_one(client: ConvexWorkerClient, provider: GpuProvider, worker_name: str, handlers=None) -> bool:
     """Claim and run one job. Returns False if the queue was empty."""
     handlers = handlers or registry()
-    types = [t for t in provider.capabilities() if t in handlers and t in contract.job_types()]
+    # only this provider's pool (CPU workers never ask for GPU types and vice versa; the server enforces it too)
+    types = [t for t in claimable(provider) if t in handlers and t in contract.job_types()]
+    if not types:
+        return False
     job = client.claim(types)
     if job is None:
         return False
@@ -93,6 +96,8 @@ def run_one(client: ConvexWorkerClient, provider: GpuProvider, worker_name: str,
         print(f"[eyelore] lost lease on {job.id}; dropping it", file=sys.stderr)
     except ValidationError as e:
         client.fail(job.id, f"contract violation: {e.message}", retryable=False)
+    except NonRetryable as e:
+        client.fail(job.id, str(e), retryable=False)
     except Exception as e:  # noqa: BLE001
         traceback.print_exc()
         telemetry.capture(e, job_type=job.type, provider=provider.name)

@@ -5,9 +5,11 @@ import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
-import { coverBox, faceAt, outputAt, punchAt, toTimeline, type Aspect, type Bead, type EditDoc, type EditOp } from "@eyelore/core";
+import { brollAt, brollOverlays, brollPath, coverBox, faceAt, firstWords, kenBurnsAt, outputAt, punchAt, toTimeline, type Aspect, type Bead, type EditDoc, type EditOp } from "@eyelore/core";
 import { ContextMenu, ExportPill, Icon, Lens, Lockup, StatusDot, RATIOS, type MenuItem } from "@eyelore/ui";
 import { getAnonId } from "@/lib/anon";
+import { refusalMessage } from "@/lib/refusal";
+import { probeVideo } from "@/lib/upload";
 import { session } from "@/lib/session";
 import { useTrack } from "@/lib/track";
 import { renderOnDevice } from "@/lib/device-engine";
@@ -38,6 +40,28 @@ function coldLine(wake: "asked" | "none" | "failing" | null | undefined) {
   if (wake === "none") return "no engine is running right now · your clip starts when one comes online";
   return "the engine is waking up · usually under a minute";
 }
+
+type StillJob = { beadId: string; status: string; stage: string; progress: number; error?: string; placed?: boolean };
+type GpuPresence = { live: number; registered: boolean; wake: "asked" | "none" | "failing" | null } | undefined;
+
+/** A generated still's honest state (Pro b-roll, ADR 0013): waiting on a cold GPU, generating, failed or kept aside. */
+function stillLine(j: StillJob | undefined, gpu: GpuPresence): { text: string; attention: boolean } | null {
+  if (!j) return null;
+  if (j.status === "queued") {
+    if (gpu && gpu.live > 0) return { text: "waiting for the gpu · a still is ahead of yours", attention: false };
+    // a paid still nobody runs is failed and refunded after 10 minutes (jobs.ts expireStrandedGpuJobs)
+    if (gpu?.wake === "failing") return { text: "the gpu isn't answering · we keep trying, your credit comes back if it doesn't start", attention: true };
+    if (gpu?.wake === "none") return { text: "no gpu is running right now · your credit comes back if none starts", attention: false };
+    if (gpu?.wake === "asked") return { text: "the gpu is asleep · waking it", attention: false };
+    return { text: "waiting for the gpu", attention: false };
+  }
+  if (j.status === "leased" || j.status === "running") {
+    return { text: `generating a still · on the gpu${j.progress > 0 ? ` · ${Math.round(j.progress * 100)}%` : ""}`, attention: false };
+  }
+  if (j.status === "failed") return { text: `still failed · ${(j.error ?? "unknown").slice(0, 80)} · your credit is back`, attention: true };
+  if (j.status === "succeeded" && j.placed === false) return { text: "still saved · your own b-roll here stays, so it wasn't replaced", attention: false };
+  return null;
+}
 const ASPECT_RATIO: Record<Aspect, number> = { "9:16": 9 / 16, "4:5": 4 / 5, "1:1": 1, "16:9": 16 / 9 };
 const MODES = ["theater", "edit", "board"] as const;
 type Mode = (typeof MODES)[number];
@@ -64,6 +88,7 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
   const data = useQuery(api.projects.get, anonId ? { projectId, anonId } : "skip");
   const history = useQuery(api.edits.history, anonId && data?.doc?.beads.length ? { projectId, anonId, limit: 300 } : "skip");
   const presence = useQuery(api.jobs.workerPresence, {});
+  const limits = useQuery(api.limits.status, anonId ? { anonId } : "skip");
   const apply = useMutation(api.edits.apply);
   const undo = useMutation(api.edits.undo);
   const remove = useMutation(api.projects.remove);
@@ -84,6 +109,11 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
   const [raw, setRaw] = useState(false);
   const player = usePlayer(raw ? null : tl?.segments ?? null, clip?.id ?? null);
   const thumbs = useThumbs(src, useMemo(() => serverDoc?.beads.map((b) => b.inMs) ?? [], [serverDoc?.beads]));
+  // generated b-roll (Pro, ADR 0013): who may ask is decided on the server; stills are this edit's generated media
+  const brollState = useQuery(api.broll.state, anonId && data?.project.stage === "ready" ? { anonId, projectId } : "skip");
+  const requestStill = useMutation(api.broll.requestStill);
+  const stills = useMemo(() => Object.fromEntries((data?.media ?? []).flatMap((m) => (m.kind === "generated" && m.url ? [[m.id as string, m.url]] : []))), [data?.media]);
+  const overlays = useMemo(() => (doc && tl ? brollOverlays(doc, tl.segments) : []), [doc, tl]);
 
   const [mode, setModeState] = useState<Mode>("edit");
   const [themeOverride, setThemeOverride] = useState<"paper" | "night" | null>(null);
@@ -213,6 +243,20 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
   };
   const toggleBead = (b: Bead) =>
     void commit([{ op: "set", path: `/beads/@${b.id}/struck`, value: !b.struck }], `${b.struck ? "kept" : "cut"} bead · '${b.words.slice(0, 3).map((w) => w.text).join(" ")}…'`, "bead");
+  const [asking, setAsking] = useState<string | null>(null);
+  const addBroll = async (b: Bead) => {
+    setAsking(b.id);
+    try {
+      await requestStill({ anonId, projectId, beadId: b.id, requestId: `${Date.now()}` });
+      track("edit_interaction", { kind: "broll_request" });
+    } catch (e) {
+      // Pro gate, credits, a cold or missing GPU: the server's one line, verbatim
+      setNotice(refusalMessage(e, "couldn't ask for a still · try again"));
+    } finally {
+      setAsking(null);
+    }
+  };
+  const removeBroll = (b: Bead) => void commit([{ op: "remove", path: brollPath(b.id) }], `removed b-roll · '${serverDoc ? firstWords(serverDoc, b) : b.id}'`, "broll_remove");
   const retype = (wordId: string, from: string, to: string) =>
     void commit([{ op: "insert", path: "/captions/overrides/-", value: { wordId, text: to } }], `caption · '${from}' → '${to}'`, "caption");
   const setAspect = (a: Aspect) => {
@@ -234,15 +278,15 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
   // on-device engine (ADR 0012): the clip lives in this browser; exports are authorized by the server, rendered here
   const isDevice = data?.project.engine === "device";
   const authorizeDeviceExport = useMutation(api.pipeline.authorizeDeviceExport);
-  const [devExport, setDevExport] = useState<{ phase: "idle" | "rendering" | "done" | "failed"; progress: number; url?: string; error?: string }>({ phase: "idle", progress: 0 });
+  const [devExport, setDevExport] = useState<{ phase: "idle" | "rendering" | "done" | "failed"; progress: number; url?: string; error?: string; watermark?: boolean }>({ phase: "idle", progress: 0 });
   const deviceExporter = async (x: { aspect: Aspect; requestId: string; maxDurationMs?: 15000 | 30000 | 60000; mode: "best" | "free" }) => {
     const local = session.get(projectId)?.url;
-    if (!local) throw new Error("this clip stays on the device you dropped it on · drop it again here to export");
+    if (!local) throw new Error("this clip stays on the device you dropped it on · choose it again below to export");
     const auth = await authorizeDeviceExport({ anonId, projectId, ...x });
     setDevExport({ phase: "rendering", progress: 0 });
     try {
-      const { blob, durationMs } = await renderOnDevice(auth.doc as EditDoc, local, x.aspect, auth.watermark, (p) => setDevExport({ phase: "rendering", progress: p }));
-      setDevExport({ phase: "done", progress: 1, url: URL.createObjectURL(blob) });
+      const { blob, durationMs } = await renderOnDevice(auth.doc as EditDoc, local, x.aspect, auth.watermark, (p) => setDevExport({ phase: "rendering", progress: p }), undefined, auth.stills);
+      setDevExport({ phase: "done", progress: 1, url: URL.createObjectURL(blob), watermark: auth.watermark });
       track("export_done", { durationMs, watermark: auth.watermark });
     } catch (e) {
       setDevExport({ phase: "failed", progress: 0, error: e instanceof Error ? e.message : String(e) });
@@ -256,7 +300,7 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
     // [around-the-loop] signup (Clerk), paywall and the export call itself: see ExportGate.tsx
     const exportArgs = { aspect, requestId: `${Date.now()}-${exportReq}`, ...(useCut ? { maxDurationMs: (Number(useCut) * 1000) as 15000 | 30000 | 60000 } : {}) };
     if (isDevice && !session.get(projectId)?.url) {
-      setNotice("this clip stays on the device you dropped it on · drop it again here to export");
+      setNotice("this clip stays on the device you dropped it on · choose it again below to export");
       return;
     }
     try {
@@ -277,6 +321,27 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
       setNotice("couldn't delete that · try again");
     }
   };
+  const downloadUrl = isDevice ? devExport.url : latestExport?.url ?? undefined;
+  const filename = `${(data?.project.title ?? "").replace(/[^\w\- ]+/g, "").trim().slice(0, 60) || "edit"} - eyecandid.mp4`;
+  const exportedFree = isDevice ? devExport.phase === "done" && devExport.watermark !== false : latestExport?.status === "succeeded" && latestExport.watermark;
+  // the worker's file lives on the storage origin, where browsers ignore `download` and open the video in place of
+  // the editor; fetched on click it saves as a named file. If that fails, the video opens in a new tab instead.
+  const saveServerExport = isDevice
+    ? undefined
+    : (e: React.MouseEvent<HTMLAnchorElement>) => {
+        const href = e.currentTarget.href;
+        e.preventDefault();
+        void fetch(href)
+          .then((r) => (r.ok ? r.blob() : Promise.reject(new Error(String(r.status)))))
+          .then((b) => {
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(b);
+            a.download = filename;
+            a.click();
+            setTimeout(() => URL.revokeObjectURL(a.href), 30_000);
+          })
+          .catch(() => window.open(href, "_blank", "noopener"));
+      };
   const doneSent = useRef<string | null>(null);
   useEffect(() => {
     if (!isDevice && latestExport?.status === "succeeded" && doneSent.current !== latestExport._id) {
@@ -362,10 +427,15 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
   const cold = !isDevice && presence && presence.live === 0 && stage !== "ready" && stage !== "failed" && !uploading;
   const deviceLine = isDevice && stage !== "ready" && stage !== "failed"
     ? pending
-      ? pending.deviceStage ?? data?.project.stageDetail ?? "on this device"
-      : "this edit runs in the browser it was dropped in · keep that tab open, or drop the clip again here"
+      ? pending.deviceStage ?? data?.project.stageDetail ?? "editing on this device · your clip isn't uploaded"
+      : "this edit runs in the browser it was dropped in · keep that tab open, or drop it again on the home page"
     : null;
-  const activeJob = data?.jobs.find((j) => j.status === "running" || j.status === "leased" || j.status === "queued");
+  const activeJob = data?.jobs.find((j) => j.type !== "still" && (j.status === "running" || j.status === "leased" || j.status === "queued"));
+  // a still on its way (any bead), or the selected bead's failed / kept-aside one
+  const stillJobs = brollState?.jobs ?? [];
+  const liveStill = stillJobs.find((j) => j.status === "queued" || j.status === "leased" || j.status === "running");
+  const selStill = selected ? stillJobs.find((j) => j.beadId === selected) : undefined;
+  const still = stillLine(liveStill ?? (selStill && (selStill.status === "failed" || selStill.placed === false) ? selStill : undefined), presence?.gpu);
   const stageLine = pending?.error
     ? pending.error
     : uploading
@@ -414,6 +484,10 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
       ? coverBox(clip.w, clip.h, frameSize.w, frameSize.h, trueAspect ? { cx: 0.5, cy: 0.5, scale: punch } : { ...face, scale: face.scale * punch })
       : null;
   const outMs = tl && clip ? outputAt(tl.segments, clip.id, player.srcMs) : null;
+  // a generated still over this moment's bead, with the same slow push the renderers use
+  const brollNow = !raw && mode !== "board" && outMs != null ? brollAt(overlays, outMs) : undefined;
+  const brollUrl = brollNow ? stills[brollNow.mediaId] : undefined;
+  const kb = brollNow && outMs != null ? kenBurnsAt(brollNow, outMs) : null;
   // paused before the first kept word (e.g. on a struck "um"): show the first caption, not nothing
   const chunk = outMs != null ? tl?.captions.find((c) => outMs >= c.startMs && outMs < c.endMs) : !player.playing ? tl?.captions[0] : undefined;
   const playheadBead = doc?.beads.find((b) => player.srcMs >= b.inMs && player.srcMs < b.outMs)?.id ?? null;
@@ -531,6 +605,14 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
                     style={box ? { position: "absolute", left: box.left, top: box.top, width: box.width, height: box.height, maxWidth: "none", transition: "left 120ms linear, top 120ms linear" } : { width: "100%", height: "100%", objectFit: "cover" }}
                   />
                 )}
+                {brollUrl && kb && (
+                  <img
+                    src={brollUrl}
+                    alt=""
+                    data-testid="broll-still"
+                    style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: kb.opacity, transform: `scale(${kb.scale})`, pointerEvents: "none" }}
+                  />
+                )}
                 {doc?.captions.enabled && mode !== "board" && !raw && <Captions chunk={chunk} outMs={outMs ?? 0} look={doc.captions.look} onRetype={retype} readOnly={mode === "theater"} />}
                 {!player.playing && src && stage === "ready" && mode === "edit" && (
                   <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", pointerEvents: "none" }}>
@@ -549,7 +631,7 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
             )}
             {mode === "edit" && ready && (
               <div className={"eyl-dialbox" + (dialsShown ? " is-shown" : "") + (dialsInside ? " is-inside" : "")} data-tour="dials">
-                <DialStrip dials={dialState.dials} onChange={turnDial} busy={dialState.busy} onActive={setActiveDial} />
+                <DialStrip dials={dialState.dials} onChange={turnDial} busy={dialState.busy} onActive={setActiveDial} stills={doc?.tracks.broll.length ?? 0} />
               </div>
             )}
           </div>
@@ -606,7 +688,7 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
             {notice ? (
               <span>{notice}</span>
             ) : stageLine ? (
-              <StatusDot status={stage === "failed" || pending?.error ? "attention" : "working"} label={stageLine} />
+              <StatusDot status={stage === "failed" || pending?.error ? "attention" : "working"} label={stageLine} style={{ whiteSpace: "normal", textAlign: "left" }} />
             ) : explain ? (
               <>
                 {explain.action}
@@ -615,11 +697,32 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
                     {explain.bead.struck ? "keep" : "cut"}
                   </button>
                 )}
+                {"bead" in explain && explain.bead && serverDoc?.tracks.broll.some((t) => t.params.beadId === explain.bead!.id) ? (
+                  <button className="el-pill el-pill--quiet el-pill--sm" data-testid="broll-remove" onClick={() => removeBroll(explain.bead!)}>
+                    remove b-roll
+                  </button>
+                ) : "bead" in explain && explain.bead && !explain.bead.struck && brollState?.pro ? (
+                  // Pro only, decided on the server (broll.state); everyone else never sees it
+                  <button
+                    className="el-pill el-pill--quiet el-pill--sm"
+                    data-testid="broll-add"
+                    disabled={asking === explain.bead.id || !!liveStill}
+                    title={`a generated still over this bead · ${brollState.cost} credit · ${brollState.credits} left`}
+                    onClick={() => void addBroll(explain.bead!)}
+                  >
+                    add b-roll
+                  </button>
+                ) : null}
               </>
             ) : null}
           </div>
         )}
+        {mode === "edit" && still && <StatusDot status={still.attention ? "attention" : "working"} label={still.text} />}
 
+        {/* an on-device edit opened after a reload or in a new tab: the edit is here, the clip isn't (ADR 0012) */}
+        {isDevice && !pending && stage === "ready" && mode === "edit" && (
+          <ChooseAgain projectId={projectId} durationMs={sourceMedia?.durationMs ?? clip?.durationMs} onNotice={setNotice} />
+        )}
         {stage === "ready" && serverDoc && mode === "edit" && (
           <ExportPill
             value={view === "source" ? serverDoc.aspect : view}
@@ -630,11 +733,22 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
             phase={isDevice ? (devExport.phase === "failed" ? "idle" : devExport.phase) : exporting ? "rendering" : latestExport?.status === "succeeded" ? "done" : "idle"}
             progress={isDevice ? (devExport.phase === "rendering" ? devExport.progress : undefined) : exporting ? latestExport!.progress : undefined}
             stage={isDevice ? (devExport.phase === "rendering" ? "rendering on this device" : undefined) : exporting ? latestExport!.stage : undefined}
-            downloadUrl={isDevice ? devExport.url : latestExport?.url}
+            downloadUrl={downloadUrl}
+            filename={filename}
+            onDownload={saveServerExport}
           />
         )}
-        {isDevice && devExport.phase === "failed" && mode === "edit" && <StatusDot status="attention" label={`export failed · ${devExport.error ?? ""}`.slice(0, 120)} />}
-        {!isDevice && latestExport?.status === "failed" && mode === "edit" && <StatusDot status="attention" label={`export failed · ${latestExport.error ?? ""}`.slice(0, 120)} />}
+        {/* the Pro ask comes after value is felt: a free (watermarked) export just finished; never pushed */}
+        {stage === "ready" && mode === "edit" && exportedFree && !limits?.pro && (
+          <p className="text-meta text-ink-secondary" style={{ textAlign: "center" }} data-testid="pro-offer">
+            no watermark, clips up to 5 min?{" "}
+            <Link href="/#pricing" style={{ color: "var(--ink)", textDecoration: "underline", textUnderlineOffset: 3 }} onClick={() => track("edit_interaction", { kind: "pro_offer" })}>
+              request pro access
+            </Link>
+          </p>
+        )}
+        {isDevice && devExport.phase === "failed" && mode === "edit" && <StatusDot status="attention" label={`export failed · ${devExport.error ?? ""}`.slice(0, 160)} style={{ whiteSpace: "normal" }} />}
+        {!isDevice && latestExport?.status === "failed" && mode === "edit" && <StatusDot status="attention" label={`export failed · ${latestExport.error ?? ""}`.slice(0, 160)} style={{ whiteSpace: "normal" }} />}
         {gate.element /* [around-the-loop] modals work in every mode; the meta line only shows in edit */}
       </div>
 
@@ -657,6 +771,7 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
             outDurationMs={tl.durationMs}
             playing={player.playing}
             thumbs={thumbs}
+            stills={stills}
             onSeek={player.seekSrc}
             onToggle={player.toggle}
             onClose={() => setDrawer(false)}
@@ -673,6 +788,38 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
       {mode !== "theater" && <Help open={sheet} onToggle={() => setSheet((s) => !s)} onTour={() => (setSheet(false), setMode("edit"), setTour(0))} />}
       {tour !== null && ready && mode === "edit" && <Tour step={tour} onNext={() => stepTour(1)} onPrev={() => stepTour(-1)} onSkip={endTour} />}
     </Shell>
+  );
+}
+
+/** Put the clip back into this tab: same length as the one the edit was made from (within a second), then it plays and exports again. */
+function ChooseAgain({ projectId, durationMs, onNotice }: { projectId: string; durationMs?: number; onNotice: (s: string) => void }) {
+  const input = useRef<HTMLInputElement>(null);
+  return (
+    <p className="text-meta text-ink-secondary flex flex-wrap items-center justify-center gap-8" style={{ textAlign: "center" }} data-testid="choose-again">
+      <span>the clip stays in the browser it was dropped in, so it isn&apos;t here</span>
+      <button type="button" className="el-pill el-pill--secondary el-pill--sm" onClick={() => input.current?.click()}>
+        choose it again
+      </button>
+      <input
+        ref={input}
+        type="file"
+        accept="video/*"
+        hidden
+        aria-label="choose the clip again"
+        onChange={async (e) => {
+          const file = e.target.files?.[0];
+          e.target.value = "";
+          if (!file) return;
+          try {
+            const meta = await probeVideo(file);
+            if (durationMs && Math.abs(meta.durationMs - durationMs) > 1000) return onNotice("that's a different clip · choose the one this edit was made from");
+            session.put({ projectId, file, droppedAt: Date.now(), engine: "device" });
+          } catch (err) {
+            onNotice(err instanceof Error ? err.message : "couldn't read that file");
+          }
+        }}
+      />
+    </p>
   );
 }
 

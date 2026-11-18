@@ -49,7 +49,12 @@ export function ProCheckout() {
   } else if (token === null || (token && invite === undefined)) {
     body = <p className="text-meta text-ink-secondary" aria-live="polite">checking your link…</p>;
   } else if (!token || !invite?.valid) {
-    body = <StatusDot status="attention" label="this link isn't valid any more · ask for a new one by replying to the email" />;
+    body = (
+      <>
+        <StatusDot status="attention" label="this link isn't valid any more · ask for a new one by replying to the email" style={{ whiteSpace: "normal" }} />
+        <Link href="/#pricing" className="el-pill el-pill--secondary self-start">request access</Link>
+      </>
+    );
   } else if (!invite.billing) {
     body = (
       <>
@@ -58,7 +63,7 @@ export function ProCheckout() {
       </>
     );
   } else if (!env.clerkKey) {
-    body = <StatusDot status="attention" label="sign-in isn't switched on yet · billing can't start without an account" />;
+    body = <StatusDot status="attention" label="sign-in isn't switched on yet · billing can't start without an account" style={{ whiteSpace: "normal" }} />;
   } else {
     body = <WithClerk token={token} email={invite.email} canceled={returned === "canceled"} />;
   }
@@ -68,7 +73,7 @@ export function ProCheckout() {
       <header>
         <Link href="/" aria-label="eyecandid home"><Lockup height={22} /></Link>
       </header>
-      <h1 className="text-ink" style={{ font: "var(--font-heading)" }}>you're in</h1>
+      <h1 className="text-ink" style={{ font: "var(--font-heading)" }}>{returned === "success" || invite?.valid ? "you're in" : "pro"}</h1>
       <div className="flex flex-col gap-16" data-testid="pro-checkout">{body}</div>
     </main>
   );

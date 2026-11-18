@@ -101,8 +101,17 @@ jobs:
       - run: pnpm --filter @eyelore/web build
       - run: pnpm --filter @eyelore/web exec playwright install --with-deps chromium
       - name: playwright (functional + visual regression)
-        run: pnpm --filter @eyelore/web exec playwright test --update-snapshots=missing
+        run: pnpm --filter @eyelore/web exec playwright test --update-snapshots=missing --grep-invert @paused
         env: { E2E_WORKER: "1", E2E_REAL_WORKER: "1", CI: "1", E2E_ADMIN_TOKEN: ci-local-admin }
+      # free_paused is global, so the paused-day refusal runs alone, after everything else, and the flag goes back off
+      - name: playwright · a paused free day (flag on, one test, flag off)
+        run: |
+          npx convex run flags:set '{"key":"free_paused","enabled":true}'
+          status=0
+          pnpm --filter @eyelore/web exec playwright test e2e/ux-crawl.spec.ts --grep @paused --project=desktop --reporter=line || status=$?
+          npx convex run flags:set '{"key":"free_paused","enabled":false}'
+          exit $status
+        env: { CI: "1", E2E_PAUSED: "1" }
       - if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -134,11 +143,39 @@ jobs:
           [ -n "$CONVEX_PREVIEW_DEPLOY_KEY" ] || echo "::notice::convex preview skipped · needs CONVEX_PREVIEW_DEPLOY_KEY"
           [ -n "$EXPO_TOKEN" ] || echo "::notice::eas update on main skipped · needs EXPO_TOKEN"
 
+  # A preview costs one Convex deployment, and the team has 40. A PR that cannot change the web app or the backend
+  # (docs, scripts, the engine) gets none; the rest are deleted when the PR closes (preview-cleanup.yml).
+  preview-changes:
+    name: preview paths changed?
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions: { contents: read, pull-requests: read }
+    outputs:
+      web: ${{ steps.f.outputs.web }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: f
+        with:
+          filters: |
+            web:
+              - 'apps/web/**'
+              - 'convex/**'
+              - 'packages/**'
+              - 'brand/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'turbo.json'
+              - 'convex.json'
+              - '.github/workflows/ci.yml'
+
   preview-web:
     name: preview · convex + vercel
-    if: github.event_name == 'pull_request' && needs.keys.outputs.vercel == 'yes' && needs.keys.outputs.convex == 'yes'
-    needs: [keys, checks]
+    if: github.event_name == 'pull_request' && needs.keys.outputs.vercel == 'yes' && needs.keys.outputs.convex == 'yes' && needs.preview-changes.outputs.web == 'true'
+    needs: [keys, checks, preview-changes]
     runs-on: ubuntu-latest
+    permissions: { contents: read, statuses: write }
     env:
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
@@ -154,8 +191,16 @@ jobs:
         env: { CONVEX_DEPLOY_KEY: "${{ secrets.CONVEX_PREVIEW_DEPLOY_KEY }}" }
         run: |
           npx convex deploy --preview-create "pr-${{ github.event.number }}" \
-            --cmd 'npx vercel@latest build --token=${{ secrets.VERCEL_TOKEN }}' \
+            --cmd 'echo "$NEXT_PUBLIC_CONVEX_URL" > "$RUNNER_TEMP/convex-url" && npx vercel@latest build --token=${{ secrets.VERCEL_TOKEN }}' \
             --cmd-url-env-var-name NEXT_PUBLIC_CONVEX_URL
+      # preview-cleanup.yml reads this status when the PR closes, to delete the deployment it names
+      - name: note which convex deployment this PR's preview is
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          name=$(sed -E 's#^https://([a-z0-9-]+)\.convex\.cloud/?$#\1#' "$RUNNER_TEMP/convex-url")
+          [[ "$name" =~ ^[a-z]+-[a-z]+-[0-9]+$ ]] || { echo "::warning::could not read the preview deployment's name"; exit 0; }
+          gh api "repos/${{ github.repository }}/statuses/${{ github.event.pull_request.head.sha }}" \
+            -f state=success -f context="convex preview" -f description="$name" > /dev/null
       - id: deploy
         run: echo "url=$(npx vercel@latest deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }})" >> $GITHUB_OUTPUT
       - run: echo "::notice::web preview · ${{ steps.deploy.outputs.url }}"
