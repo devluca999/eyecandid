@@ -19,6 +19,8 @@ export function addClipChange(clip: Clip): Change {
 }
 
 const overlaps = (aS: number, aE: number, bS: number, bE: number) => aS < bE && bS < aE;
+/** shorter than this is a sub-frame sliver, not a pause worth a cut */
+const MIN_CUT_MS = 40;
 
 /**
  * Build beads for one clip from its transcript and the autocut result, as a sequence of changes:
@@ -59,28 +61,53 @@ export function beadChanges(doc: EditDoc, clipId: string, transcript: Transcript
 
   // strikes: fillers/repeats strike words; silences become cut ranges inside the bead
   let cutN = 0;
+  const pauseCut = (startMs: number, endMs: number): EditOp | null => {
+    const bead = beads.find((b) => overlaps(startMs, endMs, b.inMs, b.outMs));
+    if (!bead) return null;
+    const c = { id: `${clipId}.c${cutN++}`, startMs: Math.max(startMs, bead.inMs), endMs: Math.min(endMs, bead.outMs), kind: "silence" as const, struck: true };
+    return { op: "insert", path: `/beads/@${bead.id}/cuts/-`, value: c };
+  };
   for (const s of cut.strikes) {
-    const bead = beads.find((b) => overlaps(s.startMs, s.endMs, b.inMs, b.outMs));
-    if (!bead) continue;
     if (s.kind === "silence") {
-      const c = { id: `${clipId}.c${cutN++}`, startMs: s.startMs, endMs: s.endMs, kind: "silence" as const, struck: true };
-      changes.push({ actor: "autopilot:autocut", reason: s.reason, ops: [{ op: "insert", path: `/beads/@${bead.id}/cuts/-`, value: c }] });
-    } else {
-      const ops: EditOp[] = bead.words
-        .filter((w) => w.startMs >= s.startMs && w.endMs <= s.endMs)
-        .flatMap((w) => [
-          { op: "set" as const, path: `/beads/@${bead.id}/words/@${w.id}/struck`, value: true },
-          { op: "set" as const, path: `/beads/@${bead.id}/words/@${w.id}/strikeKind`, value: s.kind },
-        ]);
-      if (ops.length) changes.push({ actor: "autopilot:autocut", reason: s.reason, ops });
+      const op = pauseCut(s.startMs, s.endMs);
+      if (op) changes.push({ actor: "autopilot:autocut", reason: s.reason, ops: [op] });
+      continue;
     }
+    // a strike may reach across a bead edge (a retake and the pause after it), so look in every bead it touches
+    const hit = beads
+      .filter((b) => overlaps(s.startMs, s.endMs, b.inMs, b.outMs))
+      .flatMap((bead) => bead.words.filter((w) => w.startMs >= s.startMs && w.endMs <= s.endMs).map((w) => ({ bead, w })));
+    if (!hit.length) continue;
+    const ops: EditOp[] = hit.flatMap(({ bead, w }) => [
+      { op: "set" as const, path: `/beads/@${bead.id}/words/@${w.id}/struck`, value: true },
+      { op: "set" as const, path: `/beads/@${bead.id}/words/@${w.id}/strikeKind`, value: s.kind },
+    ]);
+    // the pause the strike swallowed around its words becomes restorable pause cuts in the same change (one reason).
+    // A gap between two struck words of one bead needs no cut: the timeline drops it with them.
+    let cursor = s.startMs;
+    let prevBead: Bead | undefined;
+    for (const { bead, w } of hit) {
+      if (w.startMs - cursor >= MIN_CUT_MS && prevBead !== bead) {
+        const op = pauseCut(cursor, w.startMs);
+        if (op) ops.push(op);
+      }
+      cursor = Math.max(cursor, w.endMs);
+      prevBead = bead;
+    }
+    if (s.endMs - cursor >= MIN_CUT_MS) {
+      const op = pauseCut(cursor, s.endMs);
+      if (op) ops.push(op);
+    }
+    changes.push({ actor: "autopilot:autocut", reason: s.reason, ops });
   }
 
   // moments: hook and CTA come from autocut; best line is the clearest full sentence in between
   for (const [i, b] of cut.beads.entries()) {
     if (b.moment) changes.push(momentChange(beads[i]!, b.moment));
   }
-  const best = bestLine(beads);
+  // …among lines still said: a take autocut struck whole is never the best line (hook and CTA skip it too)
+  const said = beads.filter((b) => !b.words.every((w) => cut.strikes.some((s) => s.kind !== "silence" && w.startMs >= s.startMs && w.endMs <= s.endMs)));
+  const best = bestLine(said);
   if (best && !best.moment && !cut.beads.some((b) => b.moment === "best")) changes.push(momentChange(best, "best"));
   return changes;
 }

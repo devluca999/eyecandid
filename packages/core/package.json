@@ -17,6 +17,7 @@
   "scripts": {
     "build": "tsx scripts/emit-schema.ts",
     "schema:emit": "tsx scripts/emit-schema.ts",
+    "fixtures:autocut": "tsx scripts/emit-autocut-fixtures.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src test scripts",
     "test": "vitest run"
