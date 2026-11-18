@@ -29,6 +29,7 @@ export const AnalyticsEvent = z.discriminatedUnion("name", [
   z.object({ name: z.literal("paywall_shown"), props: z.object({ ...base, reason: z.string().max(40) }) }),
   z.object({ name: z.literal("export_done"), props: z.object({ ...base, durationMs: z.number().nonnegative(), watermark: z.boolean() }) }),
   z.object({ name: z.literal("share"), props: z.object({ ...base, target: z.string().max(40) }) }),
+  z.object({ name: z.literal("version_picked"), props: z.object({ ...base, version: z.enum(["clean", "punchy", "genre"]), kind: z.string().max(16).optional() }) }),
   z.object({ name: z.literal("job_roundtrip"), props: z.object({ ...base, type: z.string(), ms: z.number().nonnegative() }) }),
 ]);
 export type AnalyticsEvent = z.infer<typeof AnalyticsEvent>;
