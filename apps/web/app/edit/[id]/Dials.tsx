@@ -66,9 +66,14 @@ export function useDials(doc: EditDoc | null | undefined, anonId: string, projec
   return { dials, change, preview, busy };
 }
 
+/** The b-roll dial's line: nothing yet, or the stills you asked for (the dial itself decides nothing until weave). */
+export function brollNote(stills: number): string {
+  return stills ? `b-roll · ${stills} still${stills === 1 ? "" : "s"} you asked for · the dial waits for weave` : BROLL_NOTE;
+}
+
 /** One honest line about what a dial is doing right now. */
 export function dialLine(key: DialKey, doc: EditDoc, dials: DialValues): string {
-  if (key === "brollDensity") return BROLL_NOTE;
+  if (key === "brollDensity") return brollNote(doc.tracks.broll.length);
   if (key === "pace") {
     const cut = doc.beads.flatMap((b) => b.cuts).filter((c) => c.struck).length;
     const s = (toTimeline(doc).durationMs / 1000).toFixed(1);
@@ -84,8 +89,8 @@ export function dialLine(key: DialKey, doc: EditDoc, dials: DialValues): string 
  * that edge, or whenever a dial has keyboard focus. Never a settings panel.
  */
 export function DialStrip({
-  dials, onChange, busy, onActive,
-}: { dials: DialValues; onChange: (k: DialKey, v: number) => void; busy: boolean; onActive: (k: DialKey | null) => void }) {
+  dials, onChange, busy, onActive, stills = 0,
+}: { dials: DialValues; onChange: (k: DialKey, v: number) => void; busy: boolean; onActive: (k: DialKey | null) => void; stills?: number }) {
   return (
     <div
       className="el-glass el-glass--float eyl-dials"
@@ -102,10 +107,10 @@ export function DialStrip({
           ["energy", "energy", "soft", "loud"],
         ] as const
       ).map(([k, label, low, high]) => (
-        <div key={k} onMouseEnter={() => onActive(k)} onFocus={() => onActive(k)} data-dial={k} title={k === "brollDensity" ? BROLL_NOTE : undefined}>
+        <div key={k} onMouseEnter={() => onActive(k)} onFocus={() => onActive(k)} data-dial={k} title={k === "brollDensity" ? brollNote(stills) : undefined}>
           {k === "brollDensity" ? (
             // nothing to weave yet: the dial keeps its value for later and says so, instead of a fake "sparse"
-            <Dial label={label} value={dials[k]} format={() => "none yet"} valueText={BROLL_NOTE} onChange={(v) => { onActive(k); onChange(k, v); }} />
+            <Dial label={label} value={dials[k]} format={() => (stills ? `${stills} still${stills === 1 ? "" : "s"}` : "none yet")} valueText={brollNote(stills)} onChange={(v) => { onActive(k); onChange(k, v); }} />
           ) : (
             <Dial label={label} value={dials[k]} low={low} high={high} onChange={(v) => { onActive(k); onChange(k, v); }} />
           )}

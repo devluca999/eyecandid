@@ -12,6 +12,7 @@ import { caller } from "./lib/owner";
 import { flagOn } from "./lib/flags";
 import { freeState, MSG, refuse } from "./lib/limits";
 import { addUsage, anonHashOf, usageFor } from "./lib/entitle";
+import { onStillDone, stillUrls } from "./broll";
 
 /**
  * The core-loop pipeline, advanced each time a project job finishes:
@@ -25,6 +26,10 @@ export const onJobDone = internalMutation({
     if (!job?.projectId) return;
     const projectId = job.projectId;
     const clipId = (job.meta as { clipId?: string } | undefined)?.clipId;
+
+    // generated b-roll (convex/broll.ts): an enhancement on its own track. A failure never fails the edit (its credit
+    // was already refunded in jobs.ts); a success lands as an explained, pin-respecting change.
+    if (job.type === "still") return await onStillDone(ctx, job);
 
     if (job.status === "failed") {
       if (job.type === "reframe") return; // reframe is an enhancement: the edit stays usable, centred
@@ -179,6 +184,7 @@ export const authorizeDeviceExport = mutation({
       usageCounted: true,
     });
     await addUsage(ctx, { userId: who.userId, anonHash: chargedAnonHash }, toTimeline(doc).durationMs / 60_000);
-    return { exportId, doc, watermark: plan.watermark, maxMs };
+    // generated b-roll stills in the doc, as signed URLs for the browser renderer (none on the free path)
+    return { exportId, doc, watermark: plan.watermark, maxMs, stills: await stillUrls(ctx, a.projectId, doc) };
   },
 });
