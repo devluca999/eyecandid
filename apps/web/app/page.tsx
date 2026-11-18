@@ -5,6 +5,7 @@ import { LandingUploader } from "./uploader-shell";
 import { Motion } from "./_landing/motion";
 import { Reel } from "./_landing/reel";
 import { Sequence } from "./_landing/sequence";
+import { Inline } from "./_landing/inline";
 import { Genre } from "./_landing/genre";
 import { Autopilots } from "./_landing/autopilots";
 import { RealAi } from "./_landing/real-ai";
@@ -30,6 +31,7 @@ export default function Landing() {
           <Hero />
           <Reel />
           <Sequence />
+          <Inline />
           <Genre />
           <Autopilots />
           <RealAi />

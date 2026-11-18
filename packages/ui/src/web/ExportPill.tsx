@@ -1,14 +1,14 @@
 "use client";
-import type { CSSProperties } from "react";
+import type { CSSProperties, MouseEvent } from "react";
 import { Icon } from "./Icon";
 import { StatusDot } from "./StatusDot";
 
 /** design/components/export/ExportPill: ratio, cutdowns and export. Pair with <Lens progress> for the edge ring. */
 export function ExportPill({
-  ratios = ["9:16", "4:5", "16:9"], value, onChange, cutdowns = ["15", "30", "60"], cut, onCut, onExport, phase = "idle", progress, downloadUrl, stage, style,
+  ratios = ["9:16", "4:5", "16:9"], value, onChange, cutdowns = ["15", "30", "60"], cut, onCut, onExport, phase = "idle", progress, downloadUrl, filename = "eyecandid.mp4", onDownload, stage, style,
 }: {
   ratios?: string[]; value: string; onChange: (r: string) => void; cutdowns?: string[]; cut: string | null; onCut: (c: string | null) => void;
-  onExport: () => void; phase?: "idle" | "rendering" | "done" | "failed"; progress?: number; downloadUrl?: string | null; stage?: string; style?: CSSProperties;
+  onExport: () => void; phase?: "idle" | "rendering" | "done" | "failed"; progress?: number; downloadUrl?: string | null; filename?: string; onDownload?: (e: MouseEvent<HTMLAnchorElement>) => void; stage?: string; style?: CSSProperties;
 }) {
   return (
     <div className="el-glass el-export" style={style} data-testid="export-pill">
@@ -16,10 +16,10 @@ export function ExportPill({
         <span className="el-export__msg">
           <StatusDot status="ready" label="ready" />
           <span className="el-meta">·</span>
-          <a className="el-pill el-pill--quiet el-pill--sm" style={{ padding: "0 6px", color: "var(--ink)" }} href={downloadUrl} download="eyecandid.mp4" data-testid="download">
+          <a className="el-pill el-pill--quiet el-pill--sm" style={{ padding: "0 6px", color: "var(--ink)" }} href={downloadUrl} download={filename} onClick={onDownload} data-testid="download">
             download
           </a>
-          <button className="el-pill el-pill--quiet el-pill--sm" style={{ padding: "0 6px" }} onClick={onExport}>again</button>
+          <button className="el-pill el-pill--quiet el-pill--sm" style={{ padding: "0 6px" }} onClick={onExport} aria-label="export again">again</button>
         </span>
       ) : (
         <>

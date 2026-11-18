@@ -1,13 +1,17 @@
-import { AbsoluteFill, OffthreadVideo, Sequence, interpolate, useCurrentFrame, useVideoConfig } from "remotion";
-import type { EditDoc } from "@eyelore/core";
-import { toTimeline, coverBox, faceAt, punchAt, type Segment } from "@eyelore/core";
+import { AbsoluteFill, Img, OffthreadVideo, Sequence, interpolate, useCurrentFrame, useVideoConfig } from "remotion";
+import type { BrollOverlay, EditDoc } from "@eyelore/core";
+import { brollOverlays, kenBurnsAt, toTimeline, coverBox, faceAt, punchAt, type Segment } from "@eyelore/core";
 
 export type CutProps = { doc: EditDoc; media: Record<string, string>; watermark: boolean };
 
-/** Renders the edit model. Captions are the speaker's words exactly (22/26 bold white, soft shadow, scaled). */
+/**
+ * Renders the edit model. Captions are the speaker's words exactly (22/26 bold white, soft shadow, scaled).
+ * Generated b-roll stills sit over their beads, under the captions (ADR 0013).
+ */
 export function Cut({ doc, media, watermark }: CutProps) {
   const { fps } = useVideoConfig();
   const tl = toTimeline(doc);
+  const broll = brollOverlays(doc, tl.segments);
   let at = 0;
   return (
     <AbsoluteFill style={{ backgroundColor: "#0F0F10", overflow: "hidden" }}>
@@ -21,6 +25,7 @@ export function Cut({ doc, media, watermark }: CutProps) {
           </Sequence>
         );
       })}
+      <BrollLayer overlays={broll} urls={media} />
       <Captions chunks={tl.captions} />
       {watermark && (
         <div style={{ position: "absolute", right: "4%", bottom: "3%", color: "rgba(255,255,255,.8)", font: "500 34px Geist, sans-serif", textShadow: "0 1px 2px rgba(0,0,0,.4)" }}>
@@ -59,6 +64,40 @@ export function shotBox(doc: EditDoc, seg: Segment, W: number, H: number, srcMs:
   if (!clip) return null;
   const face = faceAt(doc.reframe[clip.id], srcMs);
   return coverBox(clip.w, clip.h, W, H, { ...face, scale: face.scale * punchAt(doc, clip.id, srcMs) });
+}
+
+/**
+ * B-roll stills over their beads: cover-cropped, a slow Ken Burns push, a short fade at each end. Spans come from
+ * `brollOverlays` in core, so this, CutWeb and the Lens agree. A still with no URL is skipped, never faked.
+ */
+export function BrollLayer({ overlays, urls }: { overlays: BrollOverlay[]; urls: Record<string, string> }) {
+  const { fps } = useVideoConfig();
+  return (
+    <>
+      {overlays.map((o) => {
+        const src = urls[o.mediaId];
+        if (!src) return null;
+        const from = Math.round((o.startMs / 1000) * fps);
+        const frames = Math.max(1, Math.round((o.endMs / 1000) * fps) - from);
+        return (
+          <Sequence key={o.id} from={from} durationInFrames={frames}>
+            <BrollStill o={o} src={src} />
+          </Sequence>
+        );
+      })}
+    </>
+  );
+}
+
+function BrollStill({ o, src }: { o: BrollOverlay; src: string }) {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const { scale, opacity } = kenBurnsAt(o, o.startMs + (frame / fps) * 1000);
+  return (
+    <AbsoluteFill style={{ opacity, overflow: "hidden" }}>
+      <Img src={src} style={{ width: "100%", height: "100%", objectFit: "cover", transform: `scale(${scale})` }} />
+    </AbsoluteFill>
+  );
 }
 
 function Captions({ chunks }: { chunks: ReturnType<typeof toTimeline>["captions"] }) {

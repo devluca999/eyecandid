@@ -7,8 +7,9 @@ export default function Privacy() {
   return (
     <LegalPage title="Privacy" updated="2026-11-17">
       <p style={{ margin: 0 }}>
-        Short version: we keep your clip and your edit so you can come back to them, we delete the video files on a schedule, and you can delete
-        an edit yourself at any time. This page says what that means.
+        Short version: when your browser can run the edit itself, your clip isn&apos;t uploaded at all. When it can&apos;t, we keep the clip so
+        you can come back to it and delete the video files on a schedule. Either way we keep the edit itself, and you can delete it at any time.
+        This page says what that means.
       </p>
 
       <Section title="What we store">

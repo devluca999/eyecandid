@@ -28,8 +28,8 @@ type Paywall = { args: ExportArgs; reason: string; freeAvailable: boolean };
 type AuthState = { enabled: boolean; isSignedIn: boolean; isAuthenticated: boolean };
 
 const REASON_COPY: Record<string, string> = {
-  length_cap: "this edit is longer than a free export. free exports are watermarked and stop at 60s.",
-  minutes: "this month's free export minutes are used up.",
+  length_cap: "this edit runs past 60 s · free exports stop at 60 s and carry a small watermark",
+  minutes: "this month's free export minutes are used up",
 };
 const HEARTBEAT_MS = 20_000;
 
@@ -196,7 +196,7 @@ function useGateCore(projectId: Id<"projects">, anonId: string, ready: boolean, 
       {paywall && (
         <Modal label="export options" onClose={() => setPaywall(null)}>
           <div className="flex flex-col gap-16" data-testid="paywall">
-            <p>{REASON_COPY[paywall.reason] ?? "this export needs a paid plan."}</p>
+            <p>{REASON_COPY[paywall.reason] ?? "this export needs a paid plan"}</p>
             <div className="flex flex-col gap-8">
               {PAID_PLAN_IDS.map((id) => (
                 <PillButton key={id} variant="secondary" onClick={() => void upgrade(id)}>

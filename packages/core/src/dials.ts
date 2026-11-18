@@ -1,4 +1,5 @@
 import type { Bead, Cut, EditDoc, Effect, Moment } from "./editModel";
+import { pauseAround } from "./autocut";
 import { applyChange, isPinned, type Change, type EditOp } from "./ops";
 
 /**
@@ -9,7 +10,8 @@ import { applyChange, isPinned, type Change, type EditOp } from "./ops";
  * - pace: how long a pause may last. Pauses (gaps between words) at least `pauseLimitMs(pace)` long are cut;
  *   shorter ones are kept. Existing silence cuts are struck / restored; a pause autocut left alone gets a new,
  *   dial-owned cut (removed again when the dial comes back). Pace 0.5 matches autocut's own 450ms line, so a
- *   fresh edit is already where the dial says it is.
+ *   fresh edit is already where the dial says it is. A pause is measured between kept words, as autocut does: a
+ *   struck filler doesn't split it in two, and dial cuts keep autocut's breath (140ms tail, 80ms lead).
  * - energy: punch-ins (a 1.04–1.12 push-in on the face) on your hook and best line, then the call to action,
  *   then every other bead. At 0.5 and below the cut is as shot.
  * - b-roll density: stored in style only. There is no b-roll until Weave (Phase 3), so it decides nothing.
@@ -19,8 +21,6 @@ export type DialValues = { pace: number; brollDensity: number; energy: number };
 export const DIALS_ACTOR = "autopilot:dials" as const;
 /** autocut's default pause line (jobs.ts autocut.minSilenceMs); pace 0.5 lands exactly here */
 export const AUTOCUT_PAUSE_MS = 450;
-/** breath left on each side of a pause the pace dial cuts */
-export const PACE_HANDLE_MS = 80;
 /** effect ids the energy dial owns */
 export const PUNCH_PREFIX = "pi_";
 
@@ -50,21 +50,48 @@ function touchesPin(pins: readonly string[], path: string) {
   return isPinned(pins, path) || pins.some((p) => p.startsWith(path + "/"));
 }
 
-type Gap = { startMs: number; endMs: number };
+type Span = { startMs: number; endMs: number };
+/** A pause as the listener hears it: between two kept words, with any struck words in between already gone. */
+type Pause = { lenMs: number; silences: Span[]; pieces: Span[] };
 
-/** Pauses between consecutive words of one clip (across bead edges: beads tile the spoken span). */
-function gapsOf(beads: Bead[]): Gap[] {
+/**
+ * Pauses between consecutive kept words of one clip (across bead edges: beads tile the spoken span). Struck words
+ * between them are bridged, the same way autocut merges a filler with the pause around it: `silences` are the air
+ * either side of the struck run, `pieces` what a cut at this pause removes (autocut's own breath padding).
+ */
+function pausesOf(beads: Bead[]): Pause[] {
   const words = beads.flatMap((b) => b.words).sort((a, b) => a.startMs - b.startMs);
-  const out: Gap[] = [];
-  for (let i = 1; i < words.length; i++) {
-    const a = words[i - 1]!;
-    const b = words[i]!;
-    if (b.startMs > a.endMs) out.push({ startMs: a.endMs, endMs: b.startMs });
+  const out: Pause[] = [];
+  let prevEnd: number | undefined;
+  let run: Span | undefined;
+  const flush = (nextStart: number | undefined) => {
+    const p = pauseAround(prevEnd, nextStart, run);
+    if (!p) return;
+    if (!run) {
+      if (nextStart! > prevEnd!) out.push({ lenMs: p.pauseMs, silences: [{ startMs: prevEnd!, endMs: nextStart! }], pieces: [p] });
+      return;
+    }
+    const silences = [
+      ...(prevEnd !== undefined ? [{ startMs: prevEnd, endMs: run.startMs }] : []),
+      ...(nextStart !== undefined ? [{ startMs: run.endMs, endMs: nextStart }] : []),
+    ].filter((s) => s.endMs > s.startMs);
+    const pieces = [{ startMs: p.startMs, endMs: run.startMs }, { startMs: run.endMs, endMs: p.endMs }].filter((s) => s.endMs > s.startMs);
+    out.push({ lenMs: p.pauseMs, silences, pieces });
+  };
+  for (const w of words) {
+    if (w.struck) {
+      run = run ? { startMs: run.startMs, endMs: Math.max(run.endMs, w.endMs) } : { startMs: w.startMs, endMs: w.endMs };
+      continue;
+    }
+    if (prevEnd !== undefined || run) flush(w.startMs);
+    prevEnd = w.endMs;
+    run = undefined;
   }
+  if (run) flush(undefined);
   return out;
 }
 
-const overlaps = (c: { startMs: number; endMs: number }, g: Gap) => c.startMs < g.endMs && g.startMs < c.endMs;
+const overlaps = (c: Span, g: Span) => c.startMs < g.endMs && g.startMs < c.endMs;
 
 function paceChanges(doc: EditDoc, pace: number): Change[] {
   const limit = pauseLimitMs(pace);
@@ -74,35 +101,40 @@ function paceChanges(doc: EditDoc, pace: number): Change[] {
 
   for (const beads of byClip.values()) {
     const cuts: { bead: Bead; cut: Cut }[] = beads.flatMap((bead) => bead.cuts.map((cut) => ({ bead, cut })));
-    for (const gap of gapsOf(beads)) {
-      const len = gap.endMs - gap.startMs;
+    for (const pause of pausesOf(beads)) {
+      const len = pause.lenMs;
       const want = len >= limit;
-      const found = cuts.find((x) => overlaps(x.cut, gap));
-      if (found) {
-        const { bead, cut } = found;
-        const path = `/beads/@${bead.id}/cuts/@${cut.id}`;
-        const ours = cut.id.startsWith(`${bead.id}.p`);
-        if (ours && !want) {
-          // a pause only the dial cut: take the cut away again, so turning back restores the doc exactly
-          if (!touchesPin(doc.pins, path)) changes.push({ actor: DIALS_ACTOR, reason: `pause kept · ${secs(len)}s · pace`, ops: [{ op: "remove", path }] });
-          continue;
-        }
-        if (cut.struck !== want && !touchesPin(doc.pins, `${path}/struck`)) {
-          changes.push({ actor: DIALS_ACTOR, reason: `pause ${want ? "cut" : "kept"} · ${secs(len)}s · pace`, ops: [{ op: "set", path: `${path}/struck`, value: want }] });
+      const found = cuts.filter((x) => pause.silences.some((s) => overlaps(x.cut, s)));
+      if (found.length) {
+        for (const { bead, cut } of found) {
+          const path = `/beads/@${bead.id}/cuts/@${cut.id}`;
+          const ours = cut.id.startsWith(`${bead.id}.p`);
+          if (ours && !want) {
+            // a pause only the dial cut: take the cut away again, so turning back restores the doc exactly
+            if (!touchesPin(doc.pins, path)) changes.push({ actor: DIALS_ACTOR, reason: `pause kept · ${secs(len)}s · pace`, ops: [{ op: "remove", path }] });
+            continue;
+          }
+          if (cut.struck !== want && !touchesPin(doc.pins, `${path}/struck`)) {
+            changes.push({ actor: DIALS_ACTOR, reason: `pause ${want ? "cut" : "kept"} · ${secs(len)}s · pace`, ops: [{ op: "set", path: `${path}/struck`, value: want }] });
+          }
         }
         continue;
       }
       if (!want) continue;
-      const mid = (gap.startMs + gap.endMs) / 2;
-      const bead = beads.find((b) => mid >= b.inMs && mid < b.outMs);
-      if (!bead) continue;
-      const startMs = Math.max(bead.inMs, gap.startMs + PACE_HANDLE_MS);
-      const endMs = Math.min(bead.outMs, gap.endMs - PACE_HANDLE_MS);
-      if (endMs - startMs < 40) continue;
-      const id = `${bead.id}.p${gap.startMs}`;
-      if (touchesPin(doc.pins, `/beads/@${bead.id}/cuts/@${id}`)) continue;
-      const cut: Cut = { id, startMs, endMs, kind: "silence", struck: true };
-      changes.push({ actor: DIALS_ACTOR, reason: `pause cut · ${secs(len)}s · pace`, ops: [{ op: "insert", path: `/beads/@${bead.id}/cuts/-`, value: cut }] });
+      const ops: EditOp[] = [];
+      for (const piece of pause.pieces) {
+        const mid = (piece.startMs + piece.endMs) / 2;
+        const bead = beads.find((b) => mid >= b.inMs && mid < b.outMs);
+        if (!bead) continue;
+        const startMs = Math.max(bead.inMs, piece.startMs);
+        const endMs = Math.min(bead.outMs, piece.endMs);
+        if (endMs - startMs < 40) continue;
+        const id = `${bead.id}.p${piece.startMs}`;
+        if (touchesPin(doc.pins, `/beads/@${bead.id}/cuts/@${id}`)) continue;
+        const cut: Cut = { id, startMs, endMs, kind: "silence", struck: true };
+        ops.push({ op: "insert", path: `/beads/@${bead.id}/cuts/-`, value: cut });
+      }
+      if (ops.length) changes.push({ actor: DIALS_ACTOR, reason: `pause cut · ${secs(len)}s · pace`, ops });
     }
   }
   return changes;
