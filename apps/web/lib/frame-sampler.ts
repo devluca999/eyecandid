@@ -77,8 +77,8 @@ export function audioLevels(channels: Float32Array[]): { peakDb: number; rmsDb: 
   return { peakDb: db(peak), rmsDb: db(n ? Math.sqrt(sq / n) : 0), clippedRatio: n ? clipped / n : 0 };
 }
 
-/** `onFrame` for renderMediaOnWeb: samples due frames into a small canvas; never changes the frame. Browser only. */
-export function frameTap(sampler: FrameSampler, width: number, height: number): (frame: VideoFrame) => void {
+/** `onFrame` for renderMediaOnWeb: samples due frames into a small canvas and hands the same frame back (the renderer requires it). Browser only. */
+export function frameTap(sampler: FrameSampler, width: number, height: number): (frame: VideoFrame) => VideoFrame {
   const scale = SAMPLE_SIDE / Math.max(width, height);
   const w = Math.max(1, Math.round(width * scale));
   const h = Math.max(1, Math.round(height * scale));
@@ -86,13 +86,14 @@ export function frameTap(sampler: FrameSampler, width: number, height: number): 
   const g = canvas.getContext("2d", { willReadFrequently: true });
   return (frame) => {
     sampler.frames++;
-    if (!g) return;
+    if (!g) return frame;
     const tMs = frame.timestamp / 1000;
-    if (!sampler.due(tMs)) return;
+    if (!sampler.due(tMs)) return frame;
     const t0 = performance.now();
     g.drawImage(frame, 0, 0, w, h);
     sampler.push(g.getImageData(0, 0, w, h).data);
     sampler.ms += performance.now() - t0;
+    return frame;
   };
 }
 
