@@ -45,6 +45,16 @@ The landing page (apps/web/app/page.tsx) uses demo edits made from stock footage
 
 **To change the list:** edit `scripts/media/clips.tsv` and `SLOT`, then run `scripts/media/build.sh`. The script needs curl and ffmpeg, and puts raw downloads in the git-ignored `scripts/media/.raw/`. Check the licence on each new clip's page first. The committed media stays under about 30 MB; it is 29 MB now.
 
+# Models
+
+## Z-Image-Turbo (generated b-roll stills, Pro)
+
+Generated b-roll stills (ADR 0013) are made on our own GPU worker by [Tongyi-MAI/Z-Image-Turbo](https://huggingface.co/Tongyi-MAI/Z-Image-Turbo), © Tongyi-MAI (Alibaba), through Hugging Face diffusers.
+
+**Licence:** the model card's licence tag is **Apache License 2.0**, checked on 17 Nov 2026. The repository has no separate LICENSE file; the tag covers the whole repo, including its text encoder (a `qwen3` model with Qwen3-4B's shape per its config; Qwen3-4B's card is also tagged Apache-2.0), VAE and tokenizer. Apache-2.0 allows commercial use, modification and distribution; it asks us to keep the copyright and licence notice (this section) and gives no trademark rights. The model is ungated, so no terms need accepting to download it. Images it produces belong to whoever generated them under our terms; Apache-2.0 places no restriction on outputs.
+
+**Not used, and why:** SDXL-Turbo (its licence does not allow commercial use); FLUX.1-schnell (Apache-2.0, but gated behind a Hugging Face click-through; it is the fallback if Z-Image-Turbo disappoints).
+
 ## MediaPipe face detection (on-device reframe)
 
 The browser reframe pass (`apps/web/lib/device-engine.ts`, ADR 0012) uses Google MediaPipe Tasks Vision, self-hosted under `apps/web/public/mediapipe/` so nothing loads from a CDN at runtime.

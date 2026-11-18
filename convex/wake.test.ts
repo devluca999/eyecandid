@@ -95,4 +95,40 @@ describe("wake on demand (scale-to-zero workers)", () => {
     await t.mutation(internal.workers.register, { name: "laptop", provider: "cpu" });
     expect(await t.query(internal.wake.keys, {})).toEqual([]);
   });
+
+  const queuedStill = (t: ReturnType<typeof convexTest>) =>
+    t.run((ctx) =>
+      ctx.db.insert("jobs", { type: "still", version: 1, idempotencyKey: "s1", input: { prompt: "p", refMediaIds: [], w: 720, h: 1280 }, status: "queued", progress: 0, stage: "queued", attempts: 0, maxAttempts: 2, createdAt: Date.now() }),
+    );
+
+  it("GPU pool: a queued still wakes the GPU host even while a CPU worker polls, and never wakes the CPU host", async () => {
+    vi.stubEnv("EYELORE_GPU_WAKE_URL", "https://gpu.example/wake");
+    const t = convexTest(schema, modules);
+    const cpu = await t.mutation(internal.workers.register, { name: "modal", provider: "modal" });
+    const gpu = await t.mutation(internal.workers.register, { name: "modal-gpu", provider: "modal-gpu" });
+    await t.mutation(internal.workers.touch, { tokenHash: await sha(cpu.token) }); // the CPU worker is busy polling
+    const fetchMock = vi.fn(async () => new Response('{"started":true}', { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await queuedStill(t);
+    expect(await t.mutation(internal.wake.check, {})).toEqual({ wake: true, why: "queued job, no worker", pool: "gpu" });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe("https://gpu.example/wake");
+    expect((init.headers as Record<string, string>)["x-eyelore-wake"]).toBe(await wakeKey(await sha(gpu.token)));
+    expect(await t.query(api.jobs.workerPresence, {})).toMatchObject({ live: 1, wake: null, gpu: { live: 0, registered: true, wake: "asked" } });
+    expect((await state(t))?.lastWakeResult).toBeUndefined(); // the CPU pool's bookkeeping is untouched
+  });
+
+  it("GPU pool without EYELORE_GPU_WAKE_URL says so", async () => {
+    vi.stubEnv("EYELORE_GPU_WAKE_URL", "");
+    const t = convexTest(schema, modules);
+    await t.mutation(internal.workers.register, { name: "modal-gpu", provider: "modal-gpu" });
+    vi.stubGlobal("fetch", vi.fn());
+    await queuedStill(t);
+    await t.mutation(internal.wake.check, {});
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    expect((await state(t))?.gpuLastWakeResult).toBe("not configured · set EYELORE_GPU_WAKE_URL");
+    expect((await t.query(api.jobs.workerPresence, {})).gpu.wake).toBe("none");
+  });
 });

@@ -82,8 +82,49 @@ class RunPodProvider(ColabProvider):
     name = "runpod"
 
 
+# The free CPU job types (packages/core/src/plans.ts FREE_CPU_JOB_TYPES; tests/test_pools.py keeps the two in step).
+CPU_JOB_TYPES = frozenset({"hello", "transcribe", "autocut", "reframe", "render"})
+
+
+def is_gpu_pool(provider: GpuProvider) -> bool:
+    """A provider named `*-gpu` is the GPU pool (same rule as isGpuWorkerProvider in packages/core)."""
+    return provider.name.endswith("-gpu")
+
+
+def claimable(provider: GpuProvider) -> list[str]:
+    """The job types this worker asks for: its capabilities, restricted to its pool. The server enforces the same."""
+    gpu = is_gpu_pool(provider)
+    return [t for t in provider.capabilities() if (t not in CPU_JOB_TYPES) == gpu]
+
+
+class ModalGpuProvider(GpuProvider):
+    """Modal GPU function (services/engine/deploy/modal_gpu_app.py): GPU job types only, never the free CPU work."""
+
+    name = "modal-gpu"
+
+    def capabilities(self) -> list[str]:
+        try:
+            import diffusers  # noqa: F401
+            import torch
+
+            if not torch.cuda.is_available():
+                return []
+        except ImportError:
+            return []
+        return ["still"]
+
+    def describe(self) -> str:
+        try:
+            import torch
+
+            gpu = torch.cuda.get_device_name(0) if torch.cuda.is_available() else "no cuda"
+        except ImportError:
+            gpu = "no torch"
+        return f"{self.name} on {platform.node()} ({gpu})"
+
+
 PROVIDERS: dict[str, type[GpuProvider]] = {
-    p.name: p for p in (CpuStubProvider, LocalCpuProvider, ColabProvider, ModalProvider, RunPodProvider)
+    p.name: p for p in (CpuStubProvider, LocalCpuProvider, ColabProvider, ModalProvider, RunPodProvider, ModalGpuProvider)
 }
 
 

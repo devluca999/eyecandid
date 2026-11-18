@@ -3,11 +3,11 @@ import { internalMutation, mutation, query } from "./_generated/server";
 import { internal } from "./_generated/api";
 import type { MutationCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
-import { JOB_SPECS, JobTypeSchema, DEFAULT_LEASE_MS, DEFAULT_MAX_ATTEMPTS, MAX_LEASE_MS, evaluateFlag } from "@eyelore/core";
+import { JOB_SPECS, JOB_TYPES, JobTypeSchema, DEFAULT_LEASE_MS, DEFAULT_MAX_ATTEMPTS, MAX_LEASE_MS, evaluateFlag, isGpuJobType, isGpuWorkerProvider, poolClaims } from "@eyelore/core";
 import type { JobType } from "@eyelore/core";
 import { caller, owns } from "./lib/owner";
 import { mediaIdsIn, mediaStore } from "./lib/mediaStore";
-import { requestWake } from "./wake";
+import { requestWake, wakeWord } from "./wake";
 import { chargeGpuJob, recordCharge, refundJobCredits } from "./lib/entitle";
 
 /** Insert a job, validating input against the contract. Idempotent on idempotencyKey. */
@@ -87,20 +87,32 @@ export const get = query({
   },
 });
 
-/** Is any worker alive? Used to say honestly when the GPU is cold. */
+/**
+ * Is any worker alive? Used to say honestly when the engine is cold. The top-level fields are the CPU pool (the free
+ * core loop); `gpu` is the GPU pool (generated media, ADR 0013), with whether one is registered at all.
+ */
 export const workerPresence = query({
   args: {},
   handler: async (ctx) => {
-    const recent = await ctx.db.query("workers").order("desc").take(50);
+    const recent = await ctx.db.query("workers").order("desc").take(100);
     const now = Date.now();
-    const live = recent.filter((w) => !w.disabled && w.lastSeenAt && now - w.lastSeenAt < 60_000);
+    const alive = (w: Doc<"workers">) => !w.disabled && !!w.lastSeenAt && now - w.lastSeenAt < 60_000;
+    const live = recent.filter((w) => alive(w) && !isGpuWorkerProvider(w.provider));
+    const gpuLive = recent.filter((w) => alive(w) && isGpuWorkerProvider(w.provider));
     // how the last wake of a scale-to-zero host went, so the UI can say what is really happening while it waits
     const state = await ctx.db.query("engineState").first();
-    const r = state?.lastWakeResult ?? "";
-    const wake: "asked" | "none" | "failing" | null = !state ? null : r.startsWith("ok") || r === "asking" ? "asked" : r.startsWith("not configured") || r.startsWith("no wake-able") ? "none" : "failing";
-    return { live: live.length, providers: [...new Set(live.map((w) => w.provider))], wake };
+    const wake = wakeWord(state?.lastWakeResult, !!state && state.lastWakeAt > 0);
+    const gpuWake = wakeWord(state?.gpuLastWakeResult, !!state?.gpuLastWakeAt);
+    const gpuRegistered = recent.some((w) => !w.disabled && isGpuWorkerProvider(w.provider));
+    return { live: live.length, providers: [...new Set(live.map((w) => w.provider))], wake, gpu: { live: gpuLive.length, registered: gpuRegistered, wake: gpuWake } };
   },
 });
+
+/** Is a GPU worker registered (enabled) at all? Without one a GPU job would queue forever, so it is refused before charging. */
+export async function gpuPoolExists(ctx: MutationCtx) {
+  const workers = await ctx.db.query("workers").order("desc").take(100);
+  return workers.some((w) => !w.disabled && isGpuWorkerProvider(w.provider));
+}
 
 // ───────────── worker side (called only from http.ts after token auth) ─────────────
 
@@ -112,8 +124,12 @@ export const claim = internalMutation({
   handler: async (ctx, { workerId, types, leaseMs }) => {
     const lease = Math.min(Math.max(leaseMs ?? DEFAULT_LEASE_MS, 5_000), MAX_LEASE_MS);
     let oldest: Doc<"jobs"> | null = null;
+    // two pools (ADR 0013): a `-gpu` worker claims only GPU types, every other worker only the free CPU types,
+    // whatever it asks for. The CPU worker can never pick up (and burn a lease on) generated media.
+    const worker = await ctx.db.get(workerId);
     for (const t of types) {
       if (!JobTypeSchema.safeParse(t).success) continue;
+      if (!poolClaims(worker?.provider, t)) continue;
       for (const s of CLAIMABLE) {
         const j = await ctx.db
           .query("jobs")
@@ -280,9 +296,40 @@ export const requeueExpired = internalMutation({
         n++;
       }
     }
+    n += await expireStrandedGpuJobs(ctx, now);
     // canceled shells (edit deleted mid-job) whose worker never reported back: nothing can arrive a day later
     const dead = await ctx.db.query("jobs").withIndex("by_status_lease", (q) => q.eq("status", "canceled").lt("leaseExpiresAt", now - CANCELED_KEEP_MS)).take(100);
     for (const job of dead) await ctx.db.delete(job._id);
     return n;
   },
 });
+
+/** A paid GPU job waits this long for a GPU worker before it is failed and its credits refunded (ADR 0013). */
+export const GPU_QUEUE_TIMEOUT_MS = 10 * 60_000;
+/** A GPU worker heard from this recently (any call: poll, heartbeat, progress) may still get to the queue. */
+const GPU_SEEN_MS = 2 * 60_000;
+
+/**
+ * GPU jobs nobody will run: queued past GPU_QUEUE_TIMEOUT_MS with no GPU worker heard from lately (the app isn't
+ * deployed, Modal's spend cap stopped it, the wake keeps failing). Fail them for good so the credit comes back and the
+ * editor can ask again, instead of holding a paid job forever. A GPU worker that is busy (loading the model,
+ * generating) heartbeats, so the jobs queued behind it are left alone.
+ */
+async function expireStrandedGpuJobs(ctx: MutationCtx, now: number) {
+  const workers = await ctx.db.query("workers").order("desc").take(100);
+  if (workers.some((w) => !w.disabled && isGpuWorkerProvider(w.provider) && w.lastSeenAt && now - w.lastSeenAt < GPU_SEEN_MS)) return 0;
+  let n = 0;
+  for (const type of JOB_TYPES.filter((t) => isGpuJobType(t))) {
+    const stale = await ctx.db
+      .query("jobs")
+      .withIndex("by_status_type_created", (q) => q.eq("status", "queued").eq("type", type).lt("createdAt", now - GPU_QUEUE_TIMEOUT_MS))
+      .take(50);
+    for (const job of stale) {
+      await ctx.db.patch(job._id, { status: "failed", stage: "failed · no gpu", error: "the gpu didn't start", finishedAt: now });
+      await refundJobCredits(ctx, job._id);
+      if (job.projectId) await ctx.scheduler.runAfter(0, internal.pipeline.onJobDone, { jobId: job._id });
+      n++;
+    }
+  }
+  return n;
+}
