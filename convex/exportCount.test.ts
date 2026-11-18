@@ -111,6 +111,21 @@ describe("anonymous: one free export", () => {
   });
 });
 
+describe("an on-device render that fails in the browser", () => {
+  it("gives the export back once, only to its owner", async () => {
+    const t = mk();
+    await signInOn(t);
+    const p = await seed(t, { engine: "device" });
+    const { exportId } = await device(t, p, "d1");
+    await expect(t.mutation(api.pipeline.deviceExportFailed, { anonId: "anon_" + "9".repeat(32), exportId })).rejects.toThrow();
+    expect(await t.mutation(api.pipeline.deviceExportFailed, { anonId: ANON, exportId })).toBe(true);
+    expect(await t.mutation(api.pipeline.deviceExportFailed, { anonId: ANON, exportId })).toBe(false);
+    expect((await mine(t)).exports.used).toBe(0);
+    await device(t, p, "d2"); // the free export is there again
+    await expect(device(t, p, "d3")).rejects.toThrow(/sign_in_required/);
+  });
+});
+
 describe("signed in on Free: 3 a calendar month", () => {
   it("the 4th is refused with when they come back; a new month starts again", async () => {
     vi.useFakeTimers();

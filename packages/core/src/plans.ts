@@ -50,7 +50,10 @@ export const PRO_PLAN: PlanId = "creator";
 /** Job types that run on CPU for everyone. Every other job type is GPU work: Pro only, paid with credits. */
 export const FREE_CPU_JOB_TYPES = ["hello", "transcribe", "autocut", "reframe", "render"] as const;
 
-/** Credits charged when a GPU job is enqueued (refunded if it finally fails). PLACEHOLDER sizes. */
+/**
+ * DEPRECATED (ADR 0014): the server charges `creditCost` (credits.ts, one credit = one generated second), not this
+ * table. Kept only for its tests of which types are GPU work; do not price anything with it.
+ */
 export const GPU_CREDIT_COST: Record<string, number> = { still: 1, grade: 1, voice: 2, matte: 2, inpaint: 2, i2v: 5, t2v: 5 };
 
 export function isGpuJobType(type: string): boolean {

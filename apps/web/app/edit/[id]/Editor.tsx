@@ -278,6 +278,7 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
   // on-device engine (ADR 0012): the clip lives in this browser; exports are authorized by the server, rendered here
   const isDevice = data?.project.engine === "device";
   const authorizeDeviceExport = useMutation(api.pipeline.authorizeDeviceExport);
+  const deviceExportFailed = useMutation(api.pipeline.deviceExportFailed);
   const [devExport, setDevExport] = useState<{ phase: "idle" | "rendering" | "done" | "failed"; progress: number; url?: string; error?: string; watermark?: boolean }>({ phase: "idle", progress: 0 });
   const deviceExporter = async (x: { aspect: Aspect; requestId: string; maxDurationMs?: 15000 | 30000 | 60000; mode: "best" | "free" }) => {
     const local = session.get(projectId)?.url;
@@ -290,6 +291,8 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
       track("export_done", { durationMs, watermark: auth.watermark });
     } catch (e) {
       setDevExport({ phase: "failed", progress: 0, error: e instanceof Error ? e.message : String(e) });
+      // nothing was delivered: the free export it was counted as comes back
+      void deviceExportFailed({ anonId, exportId: auth.exportId }).catch(() => {});
     }
   };
   const doExport = async (cutOverride?: string | null) => {

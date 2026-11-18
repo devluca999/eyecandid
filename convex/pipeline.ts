@@ -187,6 +187,23 @@ export const startExport = mutation({
 });
 
 /**
+ * The browser's render of an authorized on-device export failed: the free export it was counted as comes back, once.
+ * Client-reported, like the render itself (ADR 0012): a free export costs us nothing, so this trust is acceptable.
+ */
+export const deviceExportFailed = mutation({
+  args: { anonId: v.string(), exportId: v.id("exports") },
+  handler: async (ctx, a) => {
+    const exp = await ctx.db.get(a.exportId);
+    if (!exp?.device) return false;
+    await ownedProject(ctx, exp.projectId, a.anonId);
+    if (!exp.countKey) return false;
+    await bumpExportCount(ctx, exp.countKey, -1);
+    await ctx.db.patch(exp._id, { countKey: undefined });
+    return true;
+  },
+});
+
+/**
  * On-device export (ADR 0012): the same server-side plan (watermark, cap, paywall) as a worker render, recorded and
  * counted now; the visitor's browser renders the returned snapshot. A determined user could alter their own browser's
  * render; the free tier accepts that (it costs us nothing) — paid features stay server-side.

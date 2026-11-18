@@ -5,8 +5,9 @@
  * metered. A job reserves its credits when it is enqueued, settles for what it actually made when it passes the
  * quality check, and gets everything back if it fails or the check rejects it.
  *
- * This file is the contract. The server still charges through `gpuCreditCost` in plans.ts and a single
- * `entitlements.credits` number until the wiring in ADR 0014 "Rollout" lands.
+ * This file is the contract, and the server charges through it (convex/lib/credits.ts, ADR 0014 rollout 1–2): lots in
+ * `creditLots`, reserved from the job's generated seconds. The plan amounts still come from plans.ts until the owner
+ * confirms the catalog below.
  */
 
 /** Credits per generated second. */
