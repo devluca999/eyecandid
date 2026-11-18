@@ -101,6 +101,8 @@ body { background: var(--canvas); transition: background-color var(--dur-recede)
   .eyl-helppill, .eyl-drawerhandle .el-kbd { display: none; }
 }
 @media (max-width: 640px) {
+  /* phones: once the edit is ready, "export" stays on screen under the thumb instead of below the thread */
+  .eyl-exportdock { position: sticky; bottom: 12px; z-index: 40; }
   .eyl-top { padding: 12px 16px; gap: 8px; }
   /* phones: the view switch gets its own row, so it never runs into delete and the theme toggle */
   .eyl-top { grid-template-columns: 1fr auto; }

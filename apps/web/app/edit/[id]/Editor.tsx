@@ -8,8 +8,7 @@ import type { Id } from "@convex/_generated/dataModel";
 import { brollAt, brollOverlays, brollPath, coverBox, faceAt, firstWords, kenBurnsAt, outputAt, punchAt, toTimeline, type Aspect, type Bead, type EditDoc, type EditOp, type VersionId } from "@eyelore/core";
 import { ContextMenu, ExportPill, Icon, Lens, Lockup, StatusDot, RATIOS, type MenuItem } from "@eyelore/ui";
 import { getAnonId } from "@/lib/anon";
-import { refusalMessage } from "@/lib/refusal";
-import { probeVideo } from "@/lib/upload";
+import { probeVideo, uploadFile } from "@/lib/upload";
 import { session } from "@/lib/session";
 import { useTrack } from "@/lib/track";
 import { renderOnDevice } from "@/lib/device-engine";
@@ -24,6 +23,8 @@ import { Drawer } from "./Drawer";
 import { Board } from "./Board";
 import { VersionPicker } from "./Versions";
 import { pickerOffered, pickReason } from "@/lib/versions-picker";
+import { getClientHint } from "@/lib/client-hint";
+import { refusalMessage } from "@/lib/refusal";
 import { Help, Tour, TOUR, TOUR_KEY } from "./Help";
 
 const STAGE_WORD: Record<string, string> = {
@@ -97,6 +98,8 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
   const [versionsHidden, setVersionsHidden] = useState(false);
   const [picking, setPicking] = useState(false);
   const remove = useMutation(api.projects.remove);
+  const uploadUrl = useMutation(api.projects.uploadUrl);
+  const addSource = useMutation(api.projects.addSource);
   const router = useRouter();
   const track = useTrack();
   const pending = useSyncExternalStore(session.subscribe, () => session.get(projectId), () => undefined);
@@ -337,6 +340,20 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
     }
     setExportReq((n) => n + 1);
   };
+  // a failed upload (server engine): the file is still held in this tab, so send it again from here
+  const retryUpload = async () => {
+    const p = session.get(projectId);
+    if (!p?.meta || p.engine === "device") return;
+    session.update(projectId, { error: undefined, uploadProgress: 0 });
+    try {
+      const clientHint = await getClientHint();
+      const storageId = await uploadFile(() => uploadUrl({ anonId, projectId, clientHint }), p.file, (x) => session.update(projectId, { uploadProgress: x }));
+      await addSource({ anonId, projectId, storageId: storageId as Id<"_storage">, contentType: p.file.type || "video/mp4", source: "upload", ...p.meta });
+      session.update(projectId, { uploadProgress: 1 });
+    } catch (e) {
+      session.update(projectId, { error: refusalMessage(e, "upload failed again · check your connection and try again") });
+    }
+  };
   const doDelete = async () => {
     setDel("deleting");
     try {
@@ -477,6 +494,8 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
             ? null
             : `${STAGE_WORD[stage] ?? stage}${activeJob?.status === "running" ? ` · ${Math.round(activeJob.progress * 100)}%` : ""}`;
   const ready = stage === "ready" && !!doc && doc.beads.length > 0;
+  // first visit on the device engine: the model downloads (~206 MB) while the clip is already here, so it plays raw meanwhile
+  const preparing = isDevice && !!pending && stage !== "ready" && stage !== "failed";
 
   // deletable once the clip is registered (or its upload failed): deleting under a live upload would strand the file
   const canDelete = !!data && (!!sourceMedia || !!pending?.error || !pending);
@@ -641,7 +660,7 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
                   />
                 )}
                 {doc?.captions.enabled && mode !== "board" && !raw && <Captions chunk={chunk} outMs={outMs ?? 0} look={doc.captions.look} onRetype={retype} readOnly={mode === "theater"} />}
-                {!player.playing && src && stage === "ready" && mode === "edit" && (
+                {!player.playing && src && (stage === "ready" || preparing) && mode === "edit" && (
                   <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", pointerEvents: "none" }}>
                     <span className="el-glass" style={{ width: 52, height: 52, borderRadius: 999, display: "grid", placeItems: "center" }}>
                       <Icon name="play" />
@@ -718,7 +737,14 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
             {notice ? (
               <span>{notice}</span>
             ) : stageLine ? (
-              <StatusDot status={stage === "failed" || pending?.error ? "attention" : "working"} label={stageLine} style={{ whiteSpace: "normal", textAlign: "left" }} />
+              <>
+                <StatusDot status={stage === "failed" || pending?.error ? "attention" : "working"} label={stageLine} style={{ whiteSpace: "normal", textAlign: "left" }} />
+                {pending?.error && pending.engine === "server" && pending.meta && (
+                  <button className="el-pill el-pill--quiet el-pill--sm" data-testid="retry-upload" onClick={() => void retryUpload()}>
+                    try again
+                  </button>
+                )}
+              </>
             ) : explain ? (
               <>
                 {explain.action}
@@ -754,6 +780,7 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
           <ChooseAgain projectId={projectId} durationMs={sourceMedia?.durationMs ?? clip?.durationMs} onNotice={setNotice} />
         )}
         {stage === "ready" && serverDoc && mode === "edit" && (
+          <div className="eyl-exportdock" data-testid="export-dock">
           <ExportPill
             value={view === "source" ? serverDoc.aspect : view}
             onChange={(r) => setAspect(r as Aspect)}
@@ -767,6 +794,7 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
             filename={filename}
             onDownload={saveServerExport}
           />
+          </div>
         )}
         {/* the Pro ask comes after value is felt: a free (watermarked) export just finished; never pushed */}
         {stage === "ready" && mode === "edit" && exportedFree && !limits?.pro && (

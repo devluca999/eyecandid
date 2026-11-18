@@ -4,6 +4,8 @@ export * from "./jobs";
 export * from "./analytics";
 export * from "./flags";
 export * from "./pipeline";
+export * from "./eval";
+export * from "./labels";
 export * from "./timeline";
 export * from "./captions";
 export * from "./reframe";
