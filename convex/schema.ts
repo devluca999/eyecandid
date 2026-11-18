@@ -99,6 +99,8 @@ export default defineSchema({
     planMaxMs: v.optional(v.number()),
     /** on-device: the browser reported the render failed and the count was given back; a replay counts again */
     givenBack: v.optional(v.boolean()),
+    /** on-device: when the browser reported the render failed (recorded even when the count isn't given back) */
+    failedAt: v.optional(v.number()),
   })
     .index("by_project", ["projectId"])
     .index("by_job", ["jobId"]),

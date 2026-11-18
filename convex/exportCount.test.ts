@@ -183,6 +183,38 @@ describe("an on-device render that fails in the browser", () => {
     await expect(device(t, b, "x2")).rejects.toThrow(/sign_in_required/);
   });
 
+  it("authorize → report failure can't loop: one give-back per anonymous session, then the failure is only recorded", async () => {
+    const t = mk();
+    await signInOn(t);
+    const p = await seed(t, { engine: "device" });
+    let plans = 0;
+    for (let i = 0; i < 5; i++) {
+      const a = await device(t, p, `r${i}`).catch(() => null); // refused once the free export is spent
+      if (!a) continue;
+      plans++;
+      await t.mutation(api.pipeline.deviceExportFailed, { anonId: ANON, exportId: a.exportId });
+    }
+    expect(plans).toBeLessThanOrEqual(2); // the free one, plus at most one more after a single give-back
+    expect((await mine(t)).exports.used).toBeGreaterThanOrEqual(1);
+    const failed = await t.run(async (ctx) => (await ctx.db.query("exports").collect()).filter((e) => e.failedAt));
+    expect(failed).toHaveLength(plans); // every failure is recorded, given back or not
+  });
+
+  it("a signed-in Free account gets one give-back a month", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-17T12:00:00Z"));
+    const t = mk();
+    await signInOn(t);
+    await t.withIdentity(ALICE).mutation(api.users.ensure, {});
+    const p = await seed(t, { as: ALICE, engine: "device" });
+    const fail = async (r: string) => t.withIdentity(ALICE).mutation(api.pipeline.deviceExportFailed, { anonId: ANON, exportId: (await device(t, p, r, ALICE)).exportId });
+    expect(await fail("a")).toBe(true);
+    expect(await fail("b")).toBe(false);
+    expect((await mine(t, ALICE)).exports.used).toBe(1);
+    vi.setSystemTime(new Date("2026-12-02T12:00:00Z"));
+    expect(await fail("c")).toBe(true); // a new month
+  });
+
   it("only soon after it was authorized: a failure reported 10 minutes later gives nothing back", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-11-17T12:00:00Z"));

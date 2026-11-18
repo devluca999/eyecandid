@@ -212,6 +212,8 @@ export const startExport = mutation({
  */
 /** How long after authorization an on-device render may report failing and get its free export back. */
 export const DEVICE_RENDER_WINDOW_MS = 10 * 60_000;
+/** Free exports given back for a failed on-device render: per anonymous session ever, per Free account per month. */
+export const DEVICE_GIVE_BACKS = 1;
 
 export const deviceExportFailed = mutation({
   args: { anonId: v.string(), exportId: v.id("exports") },
@@ -220,7 +222,14 @@ export const deviceExportFailed = mutation({
     if (!exp?.device) return false;
     await ownedProject(ctx, exp.projectId, a.anonId);
     // only for a render that could still be in progress: a minute-old authorization, not one reported days later
-    if (!exp.countKey || Date.now() - exp.createdAt > DEVICE_RENDER_WINDOW_MS) return false;
+    if (!exp.countKey || exp.failedAt || Date.now() - exp.createdAt > DEVICE_RENDER_WINDOW_MS) return false;
+    // the failure is always recorded; the count comes back at most once per counter (an anonymous session ever, a
+    // Free account per month: the counter key already carries the month), so authorize → "failed" can't loop
+    await ctx.db.patch(exp._id, { failedAt: Date.now() });
+    const cap = `g:${exp.countKey}`;
+    const used = await ctx.db.query("exportCounts").withIndex("by_key", (q) => q.eq("key", cap)).unique();
+    if ((used?.count ?? 0) >= DEVICE_GIVE_BACKS) return false;
+    await bumpExportCount(ctx, cap, 1);
     await bumpExportCount(ctx, exp.countKey, -1);
     await ctx.db.patch(exp._id, { countKey: undefined, givenBack: true });
     return true;
