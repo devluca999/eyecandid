@@ -102,6 +102,12 @@ export const Captions = z.object({
   look: CaptionLook.default("clean"),
   /** inline edits: spelling/casing only — never change meaning */
   overrides: z.array(z.object({ wordId: Id, text: z.string() })).default([]),
+  /**
+   * Where the captions sit, per aspect ("9:16" → centre as a fraction of frame height). Absent: the default lower
+   * third (CAPTION_DEFAULT_TOP). Set by the export quality check when the default would cover the face or leave the
+   * safe area (captionPlacement in captions.ts; both renderers read it).
+   */
+  place: z.record(z.string(), z.number().min(0).max(1)).optional(),
 });
 
 export const Dials = z.object({

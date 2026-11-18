@@ -11,6 +11,22 @@ const MediaRef = z.object({ mediaId: z.string().min(1) });
 const Ms = z.number().int().nonnegative();
 const WordTiming = z.object({ text: z.string(), startMs: Ms, endMs: Ms, conf: z.number().min(0).max(1) });
 
+/** A stretch of a file, in ms. */
+const Span = z.object({ startMs: Ms, endMs: Ms });
+/** ffmpeg's view of one file: black and frozen stretches (short minimums; qc.ts applies the thresholds) and sound levels. */
+const FileMeasure = z.object({
+  black: z.array(Span),
+  frozen: z.array(Span),
+  /** dBFS, with -120 standing in for silence (-inf). clippedRatio: the share of samples at full scale */
+  audio: z.object({ peakDb: z.number(), rmsDb: z.number(), clippedRatio: z.number().min(0).max(1) }).optional(),
+});
+export const RenderMeasure = FileMeasure.extend({
+  durationMs: Ms,
+  /** the takes (by clip id, in source time), measured only when the export showed black, a freeze or clipping */
+  sources: z.record(z.string(), FileMeasure).optional(),
+});
+export type RenderMeasure = z.infer<typeof RenderMeasure>;
+
 export const JOB_SPECS = {
   hello: {
     version: 1,
@@ -85,7 +101,12 @@ export const JOB_SPECS = {
       maxDurationMs: Ms.optional(),
       loudnessLufs: z.number().default(-14),
     }),
-    output: MediaRef.extend({ durationMs: Ms, qc: z.object({ freezes: z.number().int(), silentAudio: z.boolean(), lufs: z.number() }) }),
+    /**
+     * `measure`: what ffmpeg saw in the file (blackdetect, freezedetect, astats), and in the takes when the file showed
+     * something; Convex runs the quality check (qc.ts) on it. Optional: an older worker leaves it out and its export is
+     * delivered marked unchecked.
+     */
+    output: MediaRef.extend({ durationMs: Ms, qc: z.object({ freezes: z.number().int(), silentAudio: z.boolean(), lufs: z.number() }), measure: RenderMeasure.optional() }),
   },
 } as const;
 
@@ -133,7 +154,11 @@ export const ProgressRequest = z.object({
   previewMediaId: z.string().optional(),
 });
 export const CompleteRequest = z.object({ jobId: z.string(), output: z.unknown() });
-export const FailRequest = z.object({ jobId: z.string(), error: z.string().max(2000), retryable: z.boolean().default(true) });
+/**
+ * `outcome: "qc_failed"`: the job ran but its result failed the quality check (ADR 0014). Final, never retried, and its
+ * credits are refunded; the result is never shown as a success. Optional, so older workers are unaffected.
+ */
+export const FailRequest = z.object({ jobId: z.string(), error: z.string().max(2000), retryable: z.boolean().default(true), outcome: z.enum(["qc_failed"]).optional() });
 export const UploadUrlRequest = z.object({ contentType: z.string() });
 export const DownloadUrlRequest = z.object({ mediaId: z.string() });
 
