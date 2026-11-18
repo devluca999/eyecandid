@@ -11,6 +11,7 @@
     "./editModel": "./src/editModel.ts",
     "./analytics": "./src/analytics.ts",
     "./flags": "./src/flags.ts",
+    "./credits": "./src/credits.ts",
     "./schema/jobs.schema.json": "./schema/jobs.schema.json"
   },
   "scripts": {
