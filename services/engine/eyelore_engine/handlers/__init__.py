@@ -18,6 +18,11 @@ class NonRetryable(Exception):
     """The job can never succeed as asked (bad size, unsupported input): fail it without a retry."""
 
 
+class QcFailed(Exception):
+    """The job ran but its result failed the quality check (ADR 0014): reported as `qc_failed`, final, never retried,
+    and a paid job's credits come back. The message is the one line the person sees."""
+
+
 Handler = Callable[[dict[str, Any], JobContext], dict[str, Any]]
 
 
