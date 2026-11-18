@@ -3,7 +3,7 @@ import { internal } from "./_generated/api";
 import { mutation } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
-import { EditDoc, qcAutoFix, qcDoc, qcExport, qcVerdict, RenderMeasure, statsFromMeasure, type Aspect, type QcIssue, type QcResult } from "@eyelore/core";
+import { EditDoc, invertOps, QC_ACTOR, qcAutoFix, qcDoc, qcExport, qcVerdict, RenderMeasure, statsFromMeasure, type Aspect, type EditOp, type QcIssue, type QcResult } from "@eyelore/core";
 import { commitChanges, headDoc } from "./lib/docs";
 import { ownedProject } from "./projects";
 
@@ -113,3 +113,20 @@ async function giveBackMinutes(ctx: MutationCtx, exp: Doc<"exports">, minutes: n
     if (row) await ctx.db.patch(row._id, { minutesUsed: Math.max(0, row.minutesUsed - minutes) });
   }
 }
+
+/**
+ * Put back the quality check's last fix (a cut moved to a word boundary goes back where it was). The inverse is the
+ * person's own change, so it is pinned: the next export leaves it alone and asks about it instead of moving it again.
+ */
+export const undoFix = mutation({
+  args: { anonId: v.string(), projectId: v.id("projects") },
+  handler: async (ctx, a) => {
+    await ownedProject(ctx, a.projectId, a.anonId);
+    const recent = await ctx.db.query("editOps").withIndex("by_project_version", (q) => q.eq("projectId", a.projectId)).order("desc").take(50);
+    const last = recent.find((r) => r.actor === QC_ACTOR && !r.undone);
+    if (!last) return { ok: false as const, nothing: true };
+    const r = await commitChanges(ctx, a.projectId, [{ actor: "user", reason: `undo · ${last.reason}`.slice(0, 120), ops: invertOps(last.ops as EditOp[]) }]);
+    if (r.ok) await ctx.db.patch(last._id, { undone: true });
+    return r;
+  },
+});

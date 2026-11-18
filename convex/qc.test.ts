@@ -144,6 +144,14 @@ describe("before rendering: safe fixes, then refuse what still blocks", () => {
     // the job renders the fixed edit
     const job = (await t.run((ctx) => ctx.db.query("jobs").collect())).find((j) => j.type === "render")!;
     expect((job.input as { doc: EditDoc }).doc.version).toBe((await head(t, p)).version);
+
+    // "put back": the cut returns where it was, as the person's own (pinned) choice; the next export asks, doesn't move it
+    expect(await t.mutation(api.qc.undoFix, { anonId: ANON, projectId: p })).toMatchObject({ ok: true });
+    const back = (await head(t, p)).beads.flatMap((b) => b.cuts).find((c) => c.struck)!;
+    expect(back.endMs).toBe(500);
+    await startExport(t, p);
+    expect((await t.run((ctx) => ctx.db.query("editOps").collect())).filter((o) => o.actor === "autopilot:qc")).toHaveLength(1);
+    expect((await head(t, p)).beads.flatMap((b) => b.cuts).find((c) => c.struck)!.endMs).toBe(500);
   });
 
   it("an edit with nothing left is refused before anything is rendered or counted", async () => {
