@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
-import { brollAt, brollOverlays, brollPath, coverBox, faceAt, firstWords, kenBurnsAt, outputAt, punchAt, toTimeline, type Aspect, type Bead, type EditDoc, type EditOp } from "@eyelore/core";
+import { brollAt, brollOverlays, brollPath, coverBox, faceAt, firstWords, kenBurnsAt, outputAt, punchAt, toTimeline, type Aspect, type Bead, type EditDoc, type EditOp, type VersionId } from "@eyelore/core";
 import { ContextMenu, ExportPill, Icon, Lens, Lockup, StatusDot, RATIOS, type MenuItem } from "@eyelore/ui";
 import { getAnonId } from "@/lib/anon";
 import { refusalMessage } from "@/lib/refusal";
@@ -22,6 +22,8 @@ import { useExportGate } from "./ExportGate"; // [around-the-loop] signup + payw
 import { DialStrip, dialLine, useDials, type DialKey } from "./Dials";
 import { Drawer } from "./Drawer";
 import { Board } from "./Board";
+import { VersionPicker } from "./Versions";
+import { pickerOffered, pickReason } from "@/lib/versions-picker";
 import { Help, Tour, TOUR, TOUR_KEY } from "./Help";
 
 const STAGE_WORD: Record<string, string> = {
@@ -91,6 +93,9 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
   const limits = useQuery(api.limits.status, anonId ? { anonId } : "skip");
   const apply = useMutation(api.edits.apply);
   const undo = useMutation(api.edits.undo);
+  const pickVersion = useMutation(api.edits.pickVersion);
+  const [versionsHidden, setVersionsHidden] = useState(false);
+  const [picking, setPicking] = useState(false);
   const remove = useMutation(api.projects.remove);
   const router = useRouter();
   const track = useTrack();
@@ -230,6 +235,28 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
       }
     },
     [anonId, apply, serverDoc, projectId, track],
+  );
+
+  const pick = useCallback(
+    async (version: VersionId) => {
+      if (!serverDoc || picking) return;
+      setPicking(true);
+      try {
+        const r = await pickVersion({ anonId, projectId, baseVersion: serverDoc.version, version });
+        if (!r.ok) setNotice("someone else just edited · try again");
+        else {
+          const kind = version === "genre" ? serverDoc.genre ?? undefined : undefined;
+          track("version_picked", { version, ...(kind ? { kind } : {}) });
+          // the change is in the history with its reason; say it where every other explanation shows
+          if (!("same" in r && r.same)) setNotice(pickReason(serverDoc, version));
+        }
+      } catch (e) {
+        setNotice(e instanceof Error ? e.message.replace(/^.*Uncaught Error: /, "").split("\n")[0]! : "couldn't pick that");
+      } finally {
+        setPicking(false);
+      }
+    },
+    [anonId, pickVersion, picking, projectId, serverDoc, track],
   );
 
   const toggleWord = (b: Bead, wordId: string) => {
@@ -682,6 +709,9 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
             <button className={"el-seg__opt" + (!raw ? " is-on" : "")} role="radio" aria-checked={!raw} onClick={() => setRaw(false)}>edit</button>
             <button className={"el-seg__opt" + (raw ? " is-on" : "")} role="radio" aria-checked={raw} onClick={() => { setRaw(true); track("edit_interaction", { kind: "raw" }); }}>raw take</button>
           </div>
+        )}
+        {pickerOffered(stage, mode, serverDoc) && serverDoc && !versionsHidden && (
+          <VersionPicker doc={serverDoc} src={src} ratio={editRatio} busy={picking} onPick={(v) => void pick(v)} onHide={() => setVersionsHidden(true)} />
         )}
         {mode !== "theater" && (
           <div className="el-explain" style={{ minHeight: 22 }} aria-live="polite" data-testid="explain">

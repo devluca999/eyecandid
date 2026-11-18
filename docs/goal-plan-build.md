@@ -8,7 +8,7 @@ The order follows one rule: pure, tested functions in `packages/core` first; wir
 |---|---|---|---|
 | 1 | Credits and plans | ADR 0014, `packages/core/src/credits.ts` | Pure model built. Server wiring waits for #37. |
 | 2 | Taste heuristics | below | Cut rules and captions in a PR. J/L cuts, emphasis, loudness not started. |
-| 3 | Three versions | below | Not started. |
+| 3 | Three versions | below | Core preset logic and the editor picker (`edits.pickVersion`, `version_picked` event) are in. |
 | 4 | Quality check on every export | below | Not started. |
 | 5 | First cut under 15 s, streamed | below | On-device flow measured at 14–21 s landing to export; the first-cut time is not measured on its own. |
 | 6 | Eval harness and labels | below | Harness and pure labels in a PR. No editor references exist yet. |
