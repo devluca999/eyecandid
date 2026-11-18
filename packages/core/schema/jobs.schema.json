@@ -159,6 +159,10 @@
                   "type": "number",
                   "minimum": 0,
                   "maximum": 1
+                },
+                "rms": {
+                  "type": "number",
+                  "minimum": 0
                 }
               },
               "required": [
@@ -212,6 +216,10 @@
                   "type": "number",
                   "minimum": 0,
                   "maximum": 1
+                },
+                "rms": {
+                  "type": "number",
+                  "minimum": 0
                 }
               },
               "required": [
@@ -604,6 +612,10 @@
                   "type": "number",
                   "minimum": 0,
                   "maximum": 1
+                },
+                "rms": {
+                  "type": "number",
+                  "minimum": 0
                 }
               },
               "required": [
@@ -910,6 +922,10 @@
                               "repeat",
                               "user"
                             ]
+                          },
+                          "rms": {
+                            "type": "number",
+                            "minimum": 0
                           }
                         },
                         "required": [
@@ -1446,6 +1462,46 @@
           "loudnessLufs": {
             "default": -14,
             "type": "number"
+          },
+          "sound": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "mediaId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "fromMs": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "toMs": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "atMs": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "fadeInMs": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "fadeOutMs": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              },
+              "required": [
+                "mediaId",
+                "fromMs",
+                "toMs",
+                "atMs",
+                "fadeInMs",
+                "fadeOutMs"
+              ]
+            }
           }
         },
         "required": [

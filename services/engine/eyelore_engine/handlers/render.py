@@ -1,6 +1,13 @@
-"""Render the edit model to MP4: Remotion cut (services/render) → voice clean-up + loudness → QC → upload.
+"""Render the edit model to MP4: Remotion cut (services/render) → sound mix + voice clean-up + loudness → QC → upload.
 
 Needs Node and the services/render package (EYELORE_RENDER_DIR, default: the repo checkout) plus ffmpeg.
+
+Sound: when the job carries the sound plan (toTimeline().sound: J/L cuts, a fade at every cut), Remotion renders the
+picture only and ffmpeg mixes the sound from the sources sample-accurately (Remotion applies volume per video frame,
+which can't make a 15 ms fade). Without a plan (older apps) the renderer's own sound is used, as before.
+
+Loudness: two-pass loudnorm to the target (default -14 LUFS integrated, -1 dBTP), measured through the same
+high-pass and denoise chain it is applied with, linear where loudnorm can manage it.
 """
 from __future__ import annotations
 
@@ -12,6 +19,10 @@ import tempfile
 from pathlib import Path
 
 from ..qc import qc_file
+
+TRUE_PEAK_DB = -1.0
+LRA = 11
+CLEANUP = "highpass=f=80,afftdn=nf=-25"
 
 
 def _render_dir() -> Path:
@@ -31,6 +42,74 @@ def _lufs(path: str) -> float:
     return float(m[-1]) if m else -70.0
 
 
+def sound_filter(pieces: list[dict], input_of: dict[str, int]) -> str:
+    """ffmpeg filtergraph for the sound plan: each piece trimmed from its source, faded (half-sine, inside the kept
+    range), then all of them back to back. Pieces tile the output (toTimeline), so concat is exact. Output label [snd]."""
+    chains = []
+    for k, p in enumerate(pieces):
+        start, end = p["fromMs"] / 1000, p["toMs"] / 1000
+        length = end - start
+        f = [f"[{input_of[p['mediaId']]}:a]atrim=start={start:.4f}:end={end:.4f}", "asetpts=PTS-STARTPTS", "aresample=48000", "aformat=sample_fmts=fltp:channel_layouts=stereo"]
+        if p.get("fadeInMs", 0) > 0:
+            f.append(f"afade=t=in:st=0:d={p['fadeInMs'] / 1000:.4f}:curve=hsin")
+        if p.get("fadeOutMs", 0) > 0:
+            d = p["fadeOutMs"] / 1000
+            f.append(f"afade=t=out:st={max(0.0, length - d):.4f}:d={d:.4f}:curve=hsin")
+        chains.append(",".join(f) + f"[s{k}]")
+    joined = "".join(f"[s{k}]" for k in range(len(pieces)))
+    return ";".join(chains) + f";{joined}concat=n={len(pieces)}:v=0:a=1[snd]"
+
+
+def parse_loudnorm(stderr: str) -> dict:
+    """The JSON block loudnorm prints with print_format=json (the last {...} in stderr)."""
+    m = re.findall(r"\{[^{}]*\"input_i\"[^{}]*\}", stderr, flags=re.S)
+    if not m:
+        raise RuntimeError("loudnorm printed no measurement")
+    return json.loads(m[-1])
+
+
+def loudnorm_pass2(measured: dict, target: float) -> str:
+    """Second-pass loudnorm with the first pass's numbers (linear gain when the true-peak ceiling allows it)."""
+    return (
+        f"loudnorm=I={target}:TP={TRUE_PEAK_DB}:LRA={LRA}"
+        f":measured_I={measured['input_i']}:measured_TP={measured['input_tp']}:measured_LRA={measured['input_lra']}"
+        f":measured_thresh={measured['input_thresh']}:offset={measured['target_offset']}:linear=true:print_format=summary"
+    )
+
+
+def _has_audio(path: str) -> bool:
+    out = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "a", "-show_entries", "stream=index", "-of", "csv=p=0", path], capture_output=True, text=True).stdout
+    return bool(out.strip())
+
+
+def mix_sound(pieces: list[dict], sources: dict[str, str], out: str) -> None:
+    """Mix the sound plan from local source files into a 48 kHz stereo float WAV."""
+    ids = list(dict.fromkeys(p["mediaId"] for p in pieces))
+    args = ["ffmpeg", "-v", "error", "-y"]
+    for mid in ids:
+        args += ["-i", sources[mid]]
+    graph = sound_filter(pieces, {mid: i for i, mid in enumerate(ids)})
+    subprocess.run([*args, "-filter_complex", graph, "-map", "[snd]", "-c:a", "pcm_f32le", out], check=True)
+
+
+def normalize(video: str, audio: str, out: str, target: float) -> dict:
+    """Two-pass loudnorm of `audio` (through the clean-up chain), muxed with `video`'s picture."""
+    if not _has_audio(audio):
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", video, "-c", "copy", "-movflags", "+faststart", out], check=True)
+        return {}
+    err = subprocess.run(["ffmpeg", "-hide_banner", "-nostats", "-i", audio, "-af", f"{CLEANUP},loudnorm=I={target}:TP={TRUE_PEAK_DB}:LRA={LRA}:print_format=json", "-f", "null", "-"], capture_output=True, text=True).stderr
+    measured = parse_loudnorm(err)
+    finite = all(re.fullmatch(r"-?\d+(\.\d+)?", str(measured.get(k, ""))) for k in ("input_i", "input_tp", "input_lra", "input_thresh", "target_offset"))
+    # silence measures -inf: nothing to normalise, keep the clean-up only
+    af = f"{CLEANUP},{loudnorm_pass2(measured, target)}" if finite else CLEANUP
+    subprocess.run(
+        ["ffmpeg", "-v", "error", "-y", "-i", video, "-i", audio, "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy",
+         "-af", af, "-ar", "48000", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", out],
+        check=True,
+    )
+    return measured
+
+
 def run(inp: dict, ctx) -> dict:
     doc = inp["doc"]
     media = {c["mediaId"]: ctx.url(c["mediaId"]) for c in doc["clips"]}
@@ -39,8 +118,14 @@ def run(inp: dict, ctx) -> dict:
         if item.get("ref") and item["ref"] not in media:
             media[item["ref"]] = ctx.url(item["ref"])
     work = Path(tempfile.mkdtemp(prefix="eyelore-render-"))
+    pieces = inp.get("sound") or []
+    sources: dict[str, str] = {}
+    if pieces:
+        sources = {mid: ctx.download(mid) for mid in dict.fromkeys(p["mediaId"] for p in pieces)}
+        if not all(_has_audio(p) for p in sources.values()):
+            pieces = []  # a source without sound: let the renderer handle it as before
     props = work / "props.json"
-    props.write_text(json.dumps({"doc": doc, "media": media, "watermark": inp["watermark"]}))
+    props.write_text(json.dumps({"doc": doc, "media": media, "watermark": inp["watermark"], "audio": not pieces}))
     raw = work / "cut.mp4"
     rdir = _render_dir()
     ctx.progress(0.05, "cutting")
@@ -59,15 +144,15 @@ def run(inp: dict, ctx) -> dict:
     if proc.wait() != 0:
         raise RuntimeError("remotion render failed: " + "".join(tail)[-800:])
 
-    # polish how it sounds, never what was said: gentle high-pass, light denoise, loudness to target
+    # polish how it sounds, never what was said: the cut's sound, gentle high-pass, light denoise, loudness to target
     ctx.progress(0.85, "balancing sound")
+    audio = str(raw)
+    if pieces:
+        audio = str(work / "sound.wav")
+        mix_sound(pieces, sources, audio)
     out = work / "final.mp4"
     target = float(inp.get("loudnessLufs", -14))
-    subprocess.run(
-        ["ffmpeg", "-v", "error", "-y", "-i", str(raw), "-c:v", "copy",
-         "-af", f"highpass=f=80,afftdn=nf=-25,loudnorm=I={target}:TP=-1.5:LRA=11", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", str(out)],
-        check=True,
-    )
+    normalize(str(raw), audio, str(out), target)
     ctx.progress(0.92, "checking")
     qc = qc_file(str(out), sheet=False)
     lufs = _lufs(str(out))

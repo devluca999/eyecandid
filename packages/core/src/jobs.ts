@@ -9,7 +9,8 @@ import { Aspect, EditDoc, ReframeKeyframe } from "./editModel";
 
 const MediaRef = z.object({ mediaId: z.string().min(1) });
 const Ms = z.number().int().nonnegative();
-const WordTiming = z.object({ text: z.string(), startMs: Ms, endMs: Ms, conf: z.number().min(0).max(1) });
+/** `rms`: the word's RMS level relative to the take's median word (optional; older workers don't send it) */
+const WordTiming = z.object({ text: z.string(), startMs: Ms, endMs: Ms, conf: z.number().min(0).max(1), rms: z.number().nonnegative().optional() });
 
 export const JOB_SPECS = {
   hello: {
@@ -84,6 +85,22 @@ export const JOB_SPECS = {
       watermark: z.boolean(),
       maxDurationMs: Ms.optional(),
       loudnessLufs: z.number().default(-14),
+      /**
+       * the sound track as toTimeline plans it (J/L cuts, fades at every cut), so the worker mixes it sample-accurately
+       * with ffmpeg instead of taking the renderer's frame-stepped audio. Optional: older apps don't send it.
+       */
+      sound: z
+        .array(
+          z.object({
+            mediaId: z.string().min(1),
+            fromMs: z.number().nonnegative(),
+            toMs: z.number().nonnegative(),
+            atMs: z.number().nonnegative(),
+            fadeInMs: z.number().nonnegative(),
+            fadeOutMs: z.number().nonnegative(),
+          }),
+        )
+        .optional(),
     }),
     output: MediaRef.extend({ durationMs: Ms, qc: z.object({ freezes: z.number().int(), silentAudio: z.boolean(), lufs: z.number() }) }),
   },

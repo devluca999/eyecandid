@@ -1,35 +1,51 @@
 "use client";
 import { AbsoluteFill, Img, Sequence, useCurrentFrame, useVideoConfig } from "remotion";
-import { Video } from "@remotion/media";
+import { Audio, Video } from "@remotion/media";
 import { loadFont } from "@remotion/google-fonts/Geist";
-import { brollOverlays, coverBox, faceAt, kenBurnsAt, toTimeline, type BrollOverlay, type EditDoc, type Segment } from "@eyelore/core";
+import { brollOverlays, coverBox, faceAt, framesOf, kenBurnsAt, punchAt, toTimeline, type BrollOverlay, type EditDoc, type Segment, type SoundPiece } from "@eyelore/core";
 
 const { fontFamily } = loadFont("normal", { weights: ["500", "700"], subsets: ["latin"] });
 
-/** `stills`: signed URLs of the doc's generated b-roll stills, by mediaId (from authorizeDeviceExport); empty on Free. */
-export type CutWebProps = { doc: EditDoc; src: string; watermark: boolean; stills?: Record<string, string> };
+/**
+ * `stills`: signed URLs of the doc's generated b-roll stills, by mediaId (from authorizeDeviceExport); empty on Free.
+ * `sound`: the edit's sound already mixed (a WAV URL from renderOnDevice: J/L cuts, sample-accurate fades, loudness).
+ * Without it each sound piece plays from the clip with frame-level fades, at `gain`.
+ */
+export type CutWebProps = { doc: EditDoc; src: string; watermark: boolean; stills?: Record<string, string>; sound?: string; gain?: number };
 
 /**
  * The browser twin of services/render/src/Cut.tsx for @remotion/web-renderer: same timeline maths
  * (toTimeline and brollOverlays from core), <Video> from @remotion/media instead of <OffthreadVideo>, Geist via google-fonts.
+ * Picture and sound are separate tracks (J/L cuts); the picture follows the energy dial's punch-ins like the preview.
  */
-export function CutWeb({ doc, src, watermark, stills = {} }: CutWebProps) {
+export function CutWeb({ doc, src, watermark, stills = {}, sound, gain = 1 }: CutWebProps) {
   const { fps, width: W, height: H } = useVideoConfig();
   const tl = toTimeline(doc);
   const broll = brollOverlays(doc, tl.segments);
-  let at = 0;
   return (
     <AbsoluteFill style={{ backgroundColor: "#0F0F10", overflow: "hidden" }}>
-      {tl.segments.map((s, i) => {
-        const frames = Math.max(1, Math.round(((s.toMs - s.fromMs) / 1000) * fps));
-        const start = at;
-        at += frames;
+      {tl.picture.map((p, i) => {
+        const f = framesOf(p, fps);
+        if (f.frames <= 0) return null;
         return (
-          <Sequence key={i} from={start} durationInFrames={frames}>
-            <Shot seg={s} doc={doc} src={src} W={W} H={H} fps={fps} />
+          <Sequence key={`v${i}`} from={f.from} durationInFrames={f.frames}>
+            <Shot seg={p} doc={doc} src={src} W={W} H={H} fps={fps} />
           </Sequence>
         );
       })}
+      {sound ? (
+        <Audio src={sound} />
+      ) : (
+        tl.sound.map((p, i) => {
+          const f = framesOf(p, fps);
+          if (f.frames <= 0) return null;
+          return (
+            <Sequence key={`a${i}`} from={f.from} durationInFrames={f.frames}>
+              <Audio src={src} trimBefore={f.trimBefore} volume={(fr: number) => gain * edgeVolume(p, fr, f.frames)} />
+            </Sequence>
+          );
+        })
+      )}
       {broll.map((o) => {
         const url = stills[o.mediaId];
         if (!url) return null;
@@ -50,15 +66,26 @@ export function CutWeb({ doc, src, watermark, stills = {} }: CutWebProps) {
   );
 }
 
-/** One kept range of the clip, framed for the output aspect (face-centred when the doc has a reframe track). */
+/** Frame-level fades (fallback only, see Cut.tsx soundVolume): silent on the first and last frame of a faded piece. */
+function edgeVolume(p: SoundPiece, frame: number, frames: number): number {
+  if (frames < 4) return 1;
+  if (p.fadeInMs > 0 && frame === 0) return 0;
+  if (p.fadeOutMs > 0 && frame === frames - 1) return 0;
+  return 1;
+}
+
+/** One kept range of the clip, framed for the output aspect (face-centred, pushed in by the energy dial's punch-ins). */
 function Shot({ seg, doc, src, W, H, fps }: { seg: Segment; doc: EditDoc; src: string; W: number; H: number; fps: number }) {
   const frame = useCurrentFrame();
   const clip = doc.clips.find((c) => c.id === seg.clipId);
   if (!clip) return null;
-  const box = coverBox(clip.w, clip.h, W, H, faceAt(doc.reframe[clip.id], seg.fromMs + (frame / fps) * 1000));
+  const srcMs = seg.fromMs + (frame / fps) * 1000;
+  const face = faceAt(doc.reframe[clip.id], srcMs);
+  const box = coverBox(clip.w, clip.h, W, H, { ...face, scale: face.scale * punchAt(doc, clip.id, srcMs) });
   return (
     <Video
       src={src}
+      muted
       trimBefore={Math.round((seg.fromMs / 1000) * fps)}
       style={{ position: "absolute", left: box.left, top: box.top, width: box.width, height: box.height }}
     />
