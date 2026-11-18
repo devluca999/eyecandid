@@ -308,8 +308,9 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
   // on-device engine (ADR 0012): the clip lives in this browser; exports are authorized by the server, rendered here
   const isDevice = data?.project.engine === "device";
   const authorizeDeviceExport = useMutation(api.pipeline.authorizeDeviceExport);
+  const deviceExportFailed = useMutation(api.pipeline.deviceExportFailed);
   const [devExport, setDevExport] = useState<{ phase: "idle" | "rendering" | "done" | "failed"; progress: number; url?: string; error?: string; watermark?: boolean }>({ phase: "idle", progress: 0 });
-  const deviceExporter = async (x: { aspect: Aspect; requestId: string; maxDurationMs?: 15000 | 30000 | 60000; mode: "best" | "free" }) => {
+  const deviceExporter = async (x: { aspect: Aspect; requestId: string; maxDurationMs?: 15000 | 30000 | 60000; mode: "best" | "free"; canSignIn: boolean }) => {
     const local = session.get(projectId)?.url;
     if (!local) throw new Error("this clip stays on the device you dropped it on · choose it again below to export");
     const auth = await authorizeDeviceExport({ anonId, projectId, ...x });
@@ -320,6 +321,8 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
       track("export_done", { durationMs, watermark: auth.watermark });
     } catch (e) {
       setDevExport({ phase: "failed", progress: 0, error: e instanceof Error ? e.message : String(e) });
+      // nothing was delivered: the free export it was counted as comes back
+      void deviceExportFailed({ anonId, exportId: auth.exportId }).catch(() => {});
     }
   };
   const doExport = async (cutOverride?: string | null) => {
@@ -336,7 +339,8 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
     try {
       await gate.run(exportArgs, isDevice ? deviceExporter : undefined);
     } catch (e) {
-      setNotice(e instanceof Error ? e.message.replace(/^.*Uncaught Error: /, "").split("\n")[0]! : "couldn't export");
+      // a refusal carries its own line (free exports used up, the pause); anything else shows what we know
+      setNotice(refusalMessage(e, e instanceof Error ? e.message.replace(/^.*Uncaught Error: /, "").split("\n")[0]! : "couldn't export"));
     }
     setExportReq((n) => n + 1);
   };

@@ -89,7 +89,9 @@ legacy-engine/      the Colab engine as found, reference only, never imported at
 | `workers` | registered GPU workers | `name`, `tokenHash` (SHA-256), `provider`, `capabilities[]`, `lastSeenAt`, `disabled` | `by_tokenHash` |
 | `events` | funnel analytics | `name`, `anonId?`, `userId?`, `props`, `ts` | `by_name_ts`, `by_anon` |
 | `flags` | feature flags | `key`, `enabled`, `rolloutPct`, `allow[]` | `by_key` |
-| `entitlements` | server-checked plan limits | `userId`, `plan`, `minutesUsed`, `minutesLimit`, `credits`, `watermark` | `by_user` |
+| `entitlements` | server-checked plan limits | `userId`, `plan`, `minutesUsed`, `minutesLimit`, `credits` (deprecated: see `creditLots`), `watermark` | `by_user` |
+| `creditLots` | credit balance as expiring lots (ADR 0014) | `userId`, `lotId`, `kind`, `remaining`, `expiresAt` | `by_user_lot` |
+| `exportCounts` | free exports counted (1 per anon session, 3 a month on Free) | `key`, `count` | `by_key` |
 | `stripeEvents` | webhook idempotency | `eventId` | `by_eventId` |
 | `accessRequests` | Pro "request access" from the landing (3 a day per email and per anon session) | `email`, `note`, `link`, `anonHash`, `createdAt`, `status` | `by_email_created`, `by_anon_created` |
 
@@ -267,4 +269,6 @@ Where work runs (decided 2026-11-16): one worker codebase behind `GpuProvider`. 
 - [x] GPU gate: `enqueueJob` refuses any GPU job type without an approved, paid, credited owner; charge on enqueue, refund once on final failure (PR #24)
 - [x] GPU worker pool: `services/engine/deploy/modal_gpu_app.py` (`modal-gpu`, L4, scale to zero, one container, 15 min cap), per-pool wake (`EYELORE_GPU_WAKE_URL`), server-side pool split in `jobs.claim` (ADR 0013). **Built, not deployed**
 - [x] First GPU job type: `still` handler (Z-Image-Turbo, Apache-2.0), `broll.requestStill` on a bead → explained `autopilot:broll` change; stills shown in the Lens, Remotion `Cut` and `CutWeb`; Pro-only "add b-roll" in the editor. Plumbing tested with the model injected; **real generation untested until the GPU app runs**
+- [x] Credits as generated seconds (ADR 0014 rollout 1–2): `creditLots` (one lot per paid Stripe billing period, ending with it, no rollover; 12-month top-up lots; old `entitlements.credits` folded into a never-expiring `legacy:` lot, `migrations:creditsToLots`); reserve from the job's seconds at enqueue, settle on success, release on final failure, delete and the worker's new `qc_failed` outcome. A still for a pinned b-roll slot is refused up front, nothing charged. Tests: `convex/credits.test.ts`
+- [x] Free export count (mvp-spec "Access model"), server-side on both engines: 1 per anonymous session, then Clerk sign-in at the 2nd (only when `CLERK_JWT_ISSUER_DOMAIN` is set and flag `accounts` is on; otherwise the export goes and the gate says "sign-in isn't switched on yet"); 3 a calendar month on Free; paid plans unlimited. Counts shown under the export. Tests: `convex/exportCount.test.ts`
 - [ ] **Accept:** a test user requests, is approved, pays with a Stripe test card, removes the watermark and spends one credit on a generated b-roll; an unapproved user cannot enqueue a GPU job. Unapproved refusal is proven in `convex/broll.test.ts`; the paid end-to-end path needs the keys and the GPU deploy (HANDOFF "Needs you")

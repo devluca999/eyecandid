@@ -5,8 +5,9 @@
  * metered. A job reserves its credits when it is enqueued, settles for what it actually made when it passes the
  * quality check, and gets everything back if it fails or the check rejects it.
  *
- * This file is the contract. The server still charges through `gpuCreditCost` in plans.ts and a single
- * `entitlements.credits` number until the wiring in ADR 0014 "Rollout" lands.
+ * This file is the contract, and the server charges through it (convex/lib/credits.ts, ADR 0014 rollout 1–2): lots in
+ * `creditLots`, reserved from the job's generated seconds. The plan amounts still come from plans.ts until the owner
+ * confirms the catalog below.
  */
 
 /** Credits per generated second. */
@@ -39,10 +40,17 @@ export function creditCost(type: string, opts: { seconds?: number } = {}): numbe
   return Math.max(1, Math.ceil(s - 1e-9)) * rate;
 }
 
-/** Spoken length of a text at a natural pace (2.5 words a second), for reserving a `voice` job. */
+/** Longest text a `voice` job may speak (about 100 s at a natural pace); the job contract enforces it. */
+export const MAX_VOICE_TEXT = 1500;
+
+/**
+ * Spoken length of a text, for reserving a `voice` job: about 15 characters a second, and never less than 2.5 words a
+ * second. Characters, not just spaces, so text without spaces ("a,b,c…") can't reserve far less than it will say.
+ */
 export function estimateSpeechSeconds(text: string): number {
-  const words = text.trim().split(/\s+/).filter(Boolean).length;
-  return Math.max(1, Math.ceil(words / 2.5));
+  const t = text.trim();
+  const words = t.split(/\s+/).filter(Boolean).length;
+  return Math.max(1, Math.ceil(t.length / 15), Math.ceil(words / 2.5));
 }
 
 // ───────────── the balance: lots that expire ─────────────

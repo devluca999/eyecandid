@@ -88,7 +88,7 @@ http.route({
   path: "/worker/fail",
   method: "POST",
   handler: workerRoute(FailRequest, async (ctx, workerId, b) => {
-    const ok = await ctx.runMutation(internal.jobs.fail, { workerId, jobId: b.jobId, error: b.error, retryable: b.retryable });
+    const ok = await ctx.runMutation(internal.jobs.fail, { workerId, jobId: b.jobId, error: b.error, retryable: b.retryable, outcome: b.outcome });
     return ok ? json({ ok }) : json({ error: "stale lease" }, 409);
   }),
 });
@@ -158,7 +158,7 @@ http.route({
  * Stripe webhook. Real signature check (Stripe-Signature, HMAC-SHA256 over `${t}.${rawBody}`, 5 minute tolerance,
  * constant-time compare); applied once per event id. 501 until STRIPE_WEBHOOK_SECRET is set.
  * Register `<convex site url>/stripe/webhook` with checkout.session.completed, customer.subscription.updated,
- * customer.subscription.deleted.
+ * customer.subscription.deleted, invoice.paid (each paid period's credits, ADR 0014).
  */
 http.route({
   path: "/stripe/webhook",

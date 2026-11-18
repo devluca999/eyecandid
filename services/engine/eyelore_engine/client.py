@@ -66,8 +66,12 @@ class ConvexWorkerClient:
     def complete(self, job_id: str, output: dict[str, Any]) -> None:
         self._post("/worker/complete", {"jobId": job_id, "output": output})
 
-    def fail(self, job_id: str, error: str, retryable: bool = True) -> None:
-        self._post("/worker/fail", {"jobId": job_id, "error": error[:2000], "retryable": retryable})
+    def fail(self, job_id: str, error: str, retryable: bool = True, qc_failed: bool = False) -> None:
+        """qc_failed: the job ran but its result failed the quality check (ADR 0014). Final; the credits come back."""
+        body: dict[str, Any] = {"jobId": job_id, "error": error[:2000], "retryable": retryable}
+        if qc_failed:
+            body["outcome"] = "qc_failed"
+        self._post("/worker/fail", body)
 
     def upload(self, data: bytes, content_type: str, kind: str = "generated") -> str:
         url = self._post("/worker/upload-url", {"contentType": content_type}).json()["uploadUrl"]

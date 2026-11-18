@@ -37,6 +37,12 @@
 
 Until step 2 is done, Pro users who choose "add b-roll" get "the gpu isn't set up yet · nothing was charged". After step 2, if the app isn't deployed or isn't answering, a still is charged and then waits. After 10 minutes with no GPU worker heard from, it fails with "the gpu didn't start" and the credit is refunded.
 
+**Credits as lots and the free export count (ADR 0014).** After the deploy that adds `creditLots`:
+
+0. **Before deploying, add `invoice.paid`** to the Stripe webhook endpoint's events, in **both** environments (test mode for dev, live mode for prod: Stripe dashboard → Developers → Webhooks → the `/stripe/webhook` endpoint → add event). Each paid renewal's credits arrive with it; without it, only the first period (from checkout) is granted.
+1. Fold old balances into lots (optional: any charge or grant folds a balance first, and reads count it meanwhile): `npx convex run migrations:creditsToLots` on dev, then `npx convex run --prod migrations:creditsToLots`. Safe to run again.
+2. Switching sign-in on, in this order, or anonymous visitors are asked to sign in with no way to do it: set the Clerk publishable key on Vercel and redeploy the web, set `CLERK_JWT_ISSUER_DOMAIN` in Convex, and only then turn the `accounts` flag on (`npx convex run flags:set '{"key":"accounts","enabled":true}'`). From then on the 2nd anonymous export asks for sign-in on the web, and Free accounts get 3 exports a month. The mobile app has no sign-in yet: there, the 2nd anonymous export is refused with "this free export is used · sign in on the web for 3 a month".
+
 ## 1b. Landing (Eyecandid v2, PR #17) — measured on production, 2026-11-17
 
 Lighthouse 12 against https://eyecandid.vercel.app:

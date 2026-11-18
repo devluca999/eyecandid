@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { Aspect, EditDoc, ReframeKeyframe } from "./editModel";
+import { MAX_VOICE_TEXT } from "./credits";
 
 /**
  * Engine job contract — the ONLY interface between the app and the GPU (ADR 0003, 0004).
@@ -57,7 +58,7 @@ export const JOB_SPECS = {
   },
   voice: {
     version: 1,
-    input: z.object({ text: z.string(), voiceId: z.string(), consentId: z.string().min(1) }),
+    input: z.object({ text: z.string().max(MAX_VOICE_TEXT), voiceId: z.string(), consentId: z.string().min(1) }),
     output: MediaRef.extend({ words: z.array(WordTiming) }),
   },
   matte: {
@@ -133,7 +134,11 @@ export const ProgressRequest = z.object({
   previewMediaId: z.string().optional(),
 });
 export const CompleteRequest = z.object({ jobId: z.string(), output: z.unknown() });
-export const FailRequest = z.object({ jobId: z.string(), error: z.string().max(2000), retryable: z.boolean().default(true) });
+/**
+ * `outcome: "qc_failed"`: the job ran but its result failed the quality check (ADR 0014). Final, never retried, and its
+ * credits are refunded; the result is never shown as a success. Optional, so older workers are unaffected.
+ */
+export const FailRequest = z.object({ jobId: z.string(), error: z.string().max(2000), retryable: z.boolean().default(true), outcome: z.enum(["qc_failed"]).optional() });
 export const UploadUrlRequest = z.object({ contentType: z.string() });
 export const DownloadUrlRequest = z.object({ mediaId: z.string() });
 

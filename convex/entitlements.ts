@@ -3,14 +3,19 @@ import { internalMutation, query } from "./_generated/server";
 import { PLANS } from "@eyelore/core";
 import { caller } from "./lib/owner";
 import { addUsage, usageFor } from "./lib/entitle";
+import { exportCountFor, signInAvailable } from "./lib/exportCount";
 
-/** The caller's plan and usage, for the UI. Always derived on the server. */
+/**
+ * The caller's plan and usage, for the UI. Always derived on the server. `exports` is the free export count the gate
+ * shows: used of limit (null = unlimited) this session or this month, and whether sign-in is switched on at all.
+ */
 export const mine = query({
   args: { anonId: v.optional(v.string()) },
   handler: async (ctx, { anonId }) => {
     const who = await caller(ctx, anonId);
     const u = await usageFor(ctx, who);
     const def = PLANS[u.plan];
+    const c = await exportCountFor(ctx, who, u.plan);
     return {
       signedIn: u.signedIn,
       plan: u.plan,
@@ -19,6 +24,7 @@ export const mine = query({
       exportCapMs: def.exportCapMs,
       minutesUsed: Math.round(u.minutesUsed * 100) / 100,
       minutesLimit: u.minutesLimit ?? def.monthlyMinutes,
+      exports: { used: c.used, limit: c.limit, scope: c.scope, signInAvailable: await signInAvailable(ctx, anonId) },
     };
   },
 });
