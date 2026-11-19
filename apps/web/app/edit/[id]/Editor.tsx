@@ -119,6 +119,7 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
   const [raw, setRaw] = useState(false);
   const player = usePlayer(raw ? null : tl?.segments ?? null, clip?.id ?? null);
   const thumbs = useThumbs(src, useMemo(() => serverDoc?.beads.map((b) => b.inMs) ?? [], [serverDoc?.beads]));
+  const playEdit = player.play;
   // generated b-roll (Pro, ADR 0013): who may ask is decided on the server; stills are this edit's generated media
   const brollState = useQuery(api.broll.state, anonId && data?.project.stage === "ready" ? { anonId, projectId } : "skip");
   const requestStill = useMutation(api.broll.requestStill);
@@ -194,8 +195,11 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
     if (!wowSent.current && data?.project.stage === "ready" && pending?.droppedAt) {
       wowSent.current = true;
       track("first_preview", { msSinceDrop: Date.now() - pending.droppedAt });
+      // the first preview plays by itself (MVP spec, first minute 4). The drop was a gesture in this tab, so browsers
+      // allow sound; if one refuses anyway, the play button stays and nothing else changes.
+      if (mode === "edit" && !raw) playEdit();
     }
-  }, [data?.project.stage, pending?.droppedAt, track]);
+  }, [data?.project.stage, pending?.droppedAt, track, mode, raw, playEdit]);
 
   // first-run tour: once the edit is ready, unless you've finished or skipped it before
   const stage = data?.project.stage ?? "empty";
