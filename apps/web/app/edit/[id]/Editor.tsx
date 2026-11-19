@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMutation, useQuery } from "convex/react";
+import { useConvex, useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { brollAt, brollOverlays, brollPath, coverBox, faceAt, firstWords, kenBurnsAt, outputAt, punchAt, toTimeline, type Aspect, type Bead, EditDoc, type EditOp, type VersionId } from "@eyelore/core";
@@ -15,6 +15,7 @@ import { session } from "@/lib/session";
 import { useShareFile } from "@/lib/share-file";
 import { useTrack } from "@/lib/track";
 import { checkDeviceExport, renderOnDevice } from "@/lib/device-engine";
+import { deviceRunning, runDeviceEdit } from "@/lib/device-run";
 import { ReadyEmail } from "./ReadyEmail";
 import { usePlayer } from "./usePlayer";
 import { Thread, type Hover } from "./Thread";
@@ -98,8 +99,9 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
   const uploadUrl = useMutation(api.projects.uploadUrl);
   const addSource = useMutation(api.projects.addSource);
   const router = useRouter();
+  const convex = useConvex();
   const track = useTrack();
-  const pending = useSyncExternalStore(session.subscribe, () => session.get(projectId), () => undefined);
+  const pending =useSyncExternalStore(session.subscribe, () => session.get(projectId), () => undefined);
 
   const [notice, setNotice] = useState<string | null>(null);
   const serverDoc = data?.doc as EditDoc | null | undefined;
@@ -226,15 +228,26 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
 
   // time-to-wow: first moment the edit is ready after the drop
   const wowSent = useRef(false);
+  // the raw take plays muted (autoplay allows that) while an on-device edit gets ready, so there's something to watch
+  const rawWhileReady = useRef(false);
   useEffect(() => {
     if (!wowSent.current && data?.project.stage === "ready" && pending?.droppedAt) {
       wowSent.current = true;
       track("first_preview", { msSinceDrop: Date.now() - pending.droppedAt });
       // the first preview plays by itself (MVP spec, first minute 4). The drop was a gesture in this tab, so browsers
       // allow sound; if one refuses anyway, the play button stays and nothing else changes.
+      const v = player.video.current;
+      if (v && rawWhileReady.current) {
+        // the raw take was playing muted while the editor got ready: the edit starts from its top, with sound
+        rawWhileReady.current = false;
+        v.pause();
+        v.muted = false;
+        v.loop = false;
+        v.currentTime = 0;
+      }
       if (mode === "edit" && !raw) playEdit();
     }
-  }, [data?.project.stage, pending?.droppedAt, track, mode, raw, playEdit]);
+  }, [data?.project.stage, pending?.droppedAt, track, mode, raw, playEdit, player.video]);
 
   // the tour never starts by itself: the first minute is the edit playing, nothing over it (mvp-spec, "The first
   // minute"). It is one tap away in the shortcuts sheet ("take the tour").
@@ -347,6 +360,20 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
   // on-device engine (ADR 0012): the clip lives in this browser; exports are authorized by the server, rendered here
   // before the project loads, the tab that dropped the clip already knows its engine (no false "no engine" flash)
   const isDevice = data ? data.project.engine === "device" : pending?.engine === "device";
+  // while an on-device edit gets ready (the model downloads once, ~206 MB), the raw take plays muted and loops
+  // what went wrong in this tab: a failed upload, or an on-device run that gave up (shown even before the server hears it)
+  const localError = pending?.error ?? (isDevice && stage !== "ready" ? pending?.deviceError : undefined);
+  const gettingReady = isDevice && !!pending && stage !== "ready" && stage !== "failed" && !localError;
+  useEffect(() => {
+    const v = player.video.current;
+    if (!gettingReady || !v || mode !== "edit" || rawWhileReady.current || !v.paused) return;
+    rawWhileReady.current = true;
+    v.muted = true;
+    v.loop = true;
+    void v.play().catch(() => {
+      rawWhileReady.current = false; // refused: the play button stays
+    });
+  }, [gettingReady, mode, player.video, src]);
   const authorizeDeviceExport = useMutation(api.pipeline.authorizeDeviceExport);
   const deviceExportFailed = useMutation(api.pipeline.deviceExportFailed);
   const [devExport, setDevExport] = useState<{ phase: "idle" | "rendering" | "done" | "failed"; progress: number; url?: string; error?: string; watermark?: boolean; stage?: string }>({ phase: "idle", progress: 0 });
@@ -559,7 +586,7 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
   const deviceLine = isDevice && stage !== "ready" && stage !== "failed"
     ? pending
       ? pending.deviceStage ?? data?.project.stageDetail ?? "editing on this device · your clip isn't uploaded"
-      : "this edit runs in the browser it was dropped in · keep that tab open, or drop it again on the home page"
+      : "this edit is made in the tab the clip was dropped in · your clip isn't in this one"
     : null;
   const activeJob = data?.jobs.find((j) => j.type !== "still" && (j.status === "running" || j.status === "leased" || j.status === "queued"));
   // a still on its way (any bead), or the selected bead's failed / kept-aside one
@@ -567,12 +594,14 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
   const liveStill = stillJobs.find((j) => j.status === "queued" || j.status === "leased" || j.status === "running");
   const selStill = selected ? stillJobs.find((j) => j.beadId === selected) : undefined;
   const still = stillLine(liveStill ?? (selStill && (selStill.status === "failed" || selStill.placed === false) ? selStill : undefined), presence?.gpu);
-  const stageLine = pending?.error
-    ? pending.error
+  const stageLine = localError
+    ? localError
     : uploading
       ? `uploading · ${Math.round((pending?.uploadProgress ?? 0) * 100)}%`
       : stage === "failed"
-        ? data?.project.stageDetail ?? "something went wrong"
+        ? isDevice
+          ? deviceFailedLine(data?.project.stageDetail)
+          : data?.project.stageDetail ?? "something went wrong"
         : deviceLine
           ? deviceLine
           : cold
@@ -582,7 +611,14 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
             : `${STAGE_WORD[stage] ?? stage}${activeJob?.status === "running" ? ` · ${Math.round(activeJob.progress * 100)}%` : ""}`;
   const ready = stage === "ready" && !!doc && doc.beads.length > 0;
   // first visit on the device engine: the model downloads (~206 MB) while the clip is already here, so it plays raw meanwhile
-  const preparing = isDevice && !!pending && stage !== "ready" && stage !== "failed";
+  const preparing = gettingReady;
+  // an on-device edit that gave up, with its clip still in this tab: run it again, same edit (lib/device-run.ts)
+  const canRetryDevice = isDevice && stage !== "ready" && (stage === "failed" || !!pending?.deviceError) && !!pending && !!clip && !deviceRunning(projectId);
+  const retryDevice = () => {
+    if (!pending || !clip) return;
+    session.update(projectId, { deviceStage: "trying again · on this device" });
+    void runDeviceEdit(convex, { anonId, projectId, clipId: clip.id, file: pending.file, durationMs: sourceMedia?.durationMs ?? clip.durationMs, restart: true });
+  };
 
   // deletable once the clip is registered (or its upload failed): deleting under a live upload would strand the file
   const canDelete = !!data && (!!sourceMedia || !!pending?.error || !pending);
@@ -714,7 +750,7 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
               aspect={String(ratio)}
               scene="void"
               glow={mode !== "board"}
-              state={selected && mode === "edit" ? "selected" : stage !== "ready" && !pending?.error ? "generating" : "rest"}
+              state={selected && mode === "edit" ? "selected" : stage !== "ready" && !localError ? "generating" : "rest"}
               progress={mode !== "edit" ? null : isDevice ? (devExport.phase === "rendering" ? devExport.progress : null) : exporting ? latestExport!.progress : null}
               label="your clip"
               style={{ width: "100%" }}
@@ -725,6 +761,8 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
                 onClick={() => (mode === "theater" ? setMode("edit") : player.toggle())}
                 data-testid="lens"
               >
+                {/* no clip in this tab (an on-device edit after a reload): a plain frame, never the Lens's stand-in figure as if it were theirs */}
+                {!src && isDevice && <div aria-hidden data-testid="no-clip" style={{ position: "absolute", inset: 0, background: "var(--surface-sunken)" }} />}
                 {src && (
                   <video
                     ref={player.video}
@@ -891,7 +929,12 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
               <span>{notice}</span>
             ) : stageLine ? (
               <>
-                <StatusDot status={stage === "failed" || pending?.error ? "attention" : "working"} label={stageLine} style={{ whiteSpace: "normal", textAlign: "left" }} />
+                <StatusDot status={stage === "failed" || localError ? "attention" : "working"} label={stageLine} style={{ whiteSpace: "normal", textAlign: "left" }} />
+                {canRetryDevice && (
+                  <button className="el-pill el-pill--quiet el-pill--sm" data-testid="retry-device" onClick={retryDevice}>
+                    try again
+                  </button>
+                )}
                 {pending?.error && pending.engine === "server" && pending.meta && (
                   <button className="el-pill el-pill--quiet el-pill--sm" data-testid="retry-upload" onClick={() => void retryUpload()}>
                     try again
@@ -929,8 +972,17 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
         {mode === "edit" && still && <StatusDot status={still.attention ? "attention" : "working"} label={still.text} />}
 
         {/* an on-device edit opened after a reload or in a new tab: the edit is here, the clip isn't (ADR 0012) */}
-        {isDevice && !pending && stage === "ready" && mode === "edit" && (
-          <ChooseAgain projectId={projectId} durationMs={sourceMedia?.durationMs ?? clip?.durationMs} onNotice={setNotice} />
+        {/* ... or one that never got ready (the tab closed, a reload mid-download): choosing the clip again finishes the same edit */}
+        {isDevice && !pending && !!data && mode === "edit" && (
+          <ChooseAgain
+            projectId={projectId}
+            durationMs={sourceMedia?.durationMs ?? clip?.durationMs}
+            onNotice={setNotice}
+            unfinished={stage !== "ready"}
+            onChosen={(file, durationMs) => {
+              if (stage !== "ready" && clip) void runDeviceEdit(convex, { anonId, projectId, clipId: clip.id, file, durationMs, restart: true });
+            }}
+          />
         )}
         {stage === "ready" && serverDoc && mode === "edit" && (
           <div className="eyl-exportdock" data-testid="export-dock">
@@ -1010,11 +1062,11 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
 }
 
 /** Put the clip back into this tab: same length as the one the edit was made from (within a second), then it plays and exports again. */
-function ChooseAgain({ projectId, durationMs, onNotice }: { projectId: string; durationMs?: number; onNotice: (s: string) => void }) {
+function ChooseAgain({ projectId, durationMs, onNotice, unfinished, onChosen }: { projectId: string; durationMs?: number; onNotice: (s: string) => void; unfinished?: boolean; onChosen?: (file: File, durationMs: number) => void }) {
   const input = useRef<HTMLInputElement>(null);
   return (
     <p className="text-meta text-ink-secondary flex flex-wrap items-center justify-center gap-8" style={{ textAlign: "center" }} data-testid="choose-again">
-      <span>the clip stays in the browser it was dropped in, so it isn&apos;t here</span>
+      <span>{unfinished ? "if that tab is closed, finish the edit here" : "the clip stays in the browser it was dropped in, so it isn't here"}</span>
       <button type="button" className="el-pill el-pill--secondary el-pill--sm" onClick={() => input.current?.click()}>
         choose it again
       </button>
@@ -1032,6 +1084,7 @@ function ChooseAgain({ projectId, durationMs, onNotice }: { projectId: string; d
             const meta = await probeVideo(file);
             if (durationMs && Math.abs(meta.durationMs - durationMs) > 1000) return onNotice("that's a different clip · choose the one this edit was made from");
             session.put({ projectId, file, droppedAt: Date.now(), engine: "device" });
+            onChosen?.(file, meta.durationMs);
           } catch (err) {
             onNotice(err instanceof Error ? err.message : "couldn't read that file");
           }
@@ -1039,6 +1092,15 @@ function ChooseAgain({ projectId, durationMs, onNotice }: { projectId: string; d
       />
     </p>
   );
+}
+
+/**
+ * A failed on-device edit's line. Edits that failed before plain lines existed carry the browser's own error after
+ * "couldn't edit on this device · " (e.g. "failed to execute 'put' on 'cache'…"); that text is never shown.
+ */
+function deviceFailedLine(detail: string | undefined) {
+  if (!detail) return "couldn't edit on this device · try again";
+  return detail.startsWith("couldn't edit on this device · ") ? "couldn't edit on this device · try again" : detail;
 }
 
 const fmtTc = (ms: number) => `${Math.floor(ms / 60000)}:${String(Math.floor((ms / 1000) % 60)).padStart(2, "0")}`;

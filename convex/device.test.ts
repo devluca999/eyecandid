@@ -68,6 +68,23 @@ describe("on-device engine (ADR 0012)", () => {
   });
 });
 
+describe("an on-device edit that didn't finish comes back to work (same edit, no new project)", () => {
+  it("failed → try again → transcribing → ready; a ready edit is left alone; only the owner", async () => {
+    const t = convexTest(schema, modules);
+    const { projectId, clipId } = await deviceProject(t);
+    await t.mutation(api.projects.deviceFailed, { anonId: ANON, projectId, reason: "the editor download kept stalling · check your connection and try again" });
+    await expect(t.mutation(api.projects.deviceRestart, { anonId: OTHER, projectId })).rejects.toThrow();
+    expect(await t.mutation(api.projects.deviceRestart, { anonId: ANON, projectId })).toEqual({ ok: true, ready: false });
+    let view = (await t.query(api.projects.get, { projectId, anonId: ANON }))!;
+    expect(view.project).toMatchObject({ stage: "transcribing", stageDetail: "on this device" });
+    await t.mutation(api.projects.applyDeviceTranscript, { anonId: ANON, projectId, clipId, transcript: { language: "en", words, durationMs: 6000 } });
+    expect(await t.mutation(api.projects.deviceRestart, { anonId: ANON, projectId })).toEqual({ ok: true, ready: true });
+    view = (await t.query(api.projects.get, { projectId, anonId: ANON }))!;
+    expect(view.project.stage).toBe("ready");
+    expect(await t.run((ctx) => ctx.db.query("projects").collect())).toHaveLength(1);
+  });
+});
+
 describe("on-device export (ADR 0012)", () => {
   it("is authorized by the same server-side plan, recorded and counted, with no render job", async () => {
     const t = convexTest(schema, modules);

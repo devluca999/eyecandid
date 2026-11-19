@@ -9,7 +9,8 @@ import { getAnonId } from "@/lib/anon";
 import { session } from "@/lib/session";
 import { probeVideo, uploadFile } from "@/lib/upload";
 import { useTrack } from "@/lib/track";
-import { deviceSupport, faceTrackOnDevice, transcribeOnDevice } from "@/lib/device-engine";
+import { deviceSupport } from "@/lib/device-engine";
+import { runDeviceEdit } from "@/lib/device-run";
 import { env } from "@/lib/env";
 import { getClientHint } from "@/lib/client-hint";
 import { refusalMessage } from "@/lib/refusal";
@@ -30,10 +31,6 @@ export function UploaderProvider({ children }: { children: ReactNode }) {
   const uploadUrl = useMutation(api.projects.uploadUrl);
   const addSource = useMutation(api.projects.addSource);
   const addDeviceSource = useMutation(api.projects.addDeviceSource);
-  const deviceProgress = useMutation(api.projects.deviceProgress);
-  const applyDeviceTranscript = useMutation(api.projects.applyDeviceTranscript);
-  const applyDeviceReframe = useMutation(api.projects.applyDeviceReframe);
-  const deviceFailed = useMutation(api.projects.deviceFailed);
   const flags = useQuery(api.flags.forSubject, typeof window === "undefined" ? "skip" : { subject: getAnonId() });
   const track = useTrack();
   // can this clip be edited at all: on this device, or by a worker that is up or can be woken? (engine-reach.ts)
@@ -121,36 +118,8 @@ export function UploaderProvider({ children }: { children: ReactNode }) {
         session.put({ projectId, file, droppedAt, engine: "device" });
         starting.current = false;
         router.push(`/edit/${projectId}`);
-        let lastSent = 0;
-        const onStage = (detail: string) => {
-          session.update(projectId, { deviceStage: detail });
-          if (Date.now() - lastSent > 2000) {
-            lastSent = Date.now();
-            void deviceProgress({ anonId, projectId, detail }).catch(() => {});
-          }
-        };
-        try {
-          const transcript = await transcribeOnDevice(file, meta.durationMs, onStage);
-          if (transcript.words.length === 0) {
-            await deviceFailed({ anonId, projectId, reason: "no speech found · try a clip where someone talks" });
-          } else {
-            session.update(projectId, { deviceStage: "trimming the ums" });
-            await applyDeviceTranscript({ anonId, projectId, clipId, transcript });
-            // the edit is ready; the face pass runs behind it (like the server's background reframe). Non-fatal:
-            // on any failure the doc keeps its centred crop, and an export before it lands uses whatever the doc has.
-            void faceTrackOnDevice(file, meta.durationMs)
-              .then((r) => {
-                console.info(`[reframe] ${r.faces}/${r.frames} frames with a face · ${r.keyframes.length} keyframes · ${r.ms} ms`);
-                return applyDeviceReframe({ anonId, projectId, clipId, keyframes: r.keyframes, faces: r.faces });
-              })
-              .catch((e) => console.warn("[reframe] skipped, keeping the clip centred", e));
-          }
-        } catch (e) {
-          const why = e instanceof Error ? e.message : String(e);
-          await deviceFailed({ anonId, projectId, reason: `couldn't edit on this device · ${why}`.slice(0, 160) }).catch(() => {});
-        } finally {
-          session.update(projectId, { deviceStage: undefined });
-        }
+        // the same run "try again" and "choose it again" use in the editor (lib/device-run.ts)
+        await runDeviceEdit(convex, { anonId, projectId, clipId, file, durationMs: meta.durationMs });
         return;
       }
       session.put({ projectId, file, droppedAt, engine: "server", meta });
@@ -166,7 +135,7 @@ export function UploaderProvider({ children }: { children: ReactNode }) {
         session.update(projectId, { error: refusalMessage(e, "upload failed · check your connection and try again") });
       }
     },
-    [addDeviceSource, addSource, applyDeviceReframe, applyDeviceTranscript, convex, create, deviceFailed, deviceProgress, flags?.on_device, router, track, uploadUrl],
+    [addDeviceSource, addSource, convex, create, flags?.on_device, router, track, uploadUrl],
   );
   // refused with the same line the well shows: no dialog, no project, no upload
   const pick = useCallback(() => {
