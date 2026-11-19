@@ -55,13 +55,14 @@ async function counts(t: T) {
     projects: (await ctx.db.query("projects").collect()).length,
     editDocs: (await ctx.db.query("editDocs").collect()).length,
     editOps: (await ctx.db.query("editOps").collect()).length,
+    editLabels: (await ctx.db.query("editLabels").collect()).length,
     exports: (await ctx.db.query("exports").collect()).length,
     jobs: (await ctx.db.query("jobs").collect()).length,
     media: (await ctx.db.query("media").collect()).length,
     files: (await ctx.db.system.query("_storage").collect()).length,
   }));
 }
-const NOTHING = { projects: 0, editDocs: 0, editOps: 0, exports: 0, jobs: 0, media: 0, files: 0 };
+const NOTHING = { projects: 0, editDocs: 0, editOps: 0, editLabels: 0, exports: 0, jobs: 0, media: 0, files: 0 };
 
 describe("deleting an edit", () => {
   it("the owner deletes it and every row and stored file is gone, the rendered export included", async () => {
@@ -77,8 +78,9 @@ describe("deleting an edit", () => {
     // a second export still waiting in the queue
     await t.mutation(api.pipeline.startExport, { anonId: ANON, projectId, aspect: "1:1", requestId: "e2" });
 
+    await t.run((ctx) => ctx.db.insert("editLabels", { projectId, kind: "restore", atMs: 0, spanMs: 100, strikeKind: "filler", docVersion: 1, at: Date.now(), owner: "a:x" }));
     const before = await counts(t);
-    expect(before).toMatchObject({ projects: 1, editDocs: 1, exports: 2, media: 3, files: 3 });
+    expect(before).toMatchObject({ projects: 1, editDocs: 1, editLabels: 1, exports: 2, media: 3, files: 3 });
     expect(before.jobs).toBe(5); // transcribe, autocut, reframe, render (done), render (queued)
     expect(before.editOps).toBeGreaterThan(0);
 
@@ -95,6 +97,7 @@ describe("deleting an edit", () => {
   it("someone else can't delete it, and nothing is removed", async () => {
     const t = convexTest(schema, modules);
     const projectId = await readyProject(t, await worker(t));
+    await t.run((ctx) => ctx.db.insert("editLabels", { projectId, kind: "restore", atMs: 0, spanMs: 100, strikeKind: "filler", docVersion: 1, at: Date.now(), owner: "a:x" }));
     const before = await counts(t);
     await expect(t.mutation(api.projects.remove, { projectId, anonId: OTHER })).rejects.toThrow("not found");
     await expect(t.mutation(api.projects.remove, { projectId })).rejects.toThrow("not found"); // no session at all

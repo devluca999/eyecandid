@@ -5,6 +5,8 @@ import { headDoc } from "./lib/docs";
 import type { EditOp } from "@eyelore/core";
 import { commitChanges } from "./lib/docs";
 import { ownedProject } from "./projects";
+import { caller } from "./lib/owner";
+import { dropLabelsAt, labelOwnerOf } from "./lib/labels";
 
 /** A user edit: ops + one-line reason. Pins the touched paths so autopilots never re-decide them. */
 export const apply = mutation({
@@ -24,7 +26,7 @@ export const apply = mutation({
         if (!original || !v?.text || !isSpellingFix(original, v.text)) throw new Error("captions keep your words · fix spelling only");
       }
     }
-    return await commitChanges(ctx, a.projectId, [change], a.baseVersion);
+    return await commitChanges(ctx, a.projectId, [change], a.baseVersion, await labelOwnerOf(await caller(ctx, a.anonId)));
   },
 });
 
@@ -41,7 +43,11 @@ export const undo = mutation({
     if (!last) return { ok: false as const, nothing: true };
     const change = { actor: "user", reason: `undo · ${last.reason}`.slice(0, 120), ops: invertOps(last.ops as EditOp[]) };
     const r = await commitChanges(ctx, a.projectId, [change], a.baseVersion);
-    if (r.ok) await ctx.db.patch(last._id, { undone: true });
+    if (r.ok) {
+      await ctx.db.patch(last._id, { undone: true });
+      // the undone change takes its labels back (same docVersion); the undo itself writes none (no labelOwner above)
+      await dropLabelsAt(ctx, a.projectId, last.version);
+    }
     // undoing a dial move (or a picked version, which moves the dials) puts the dial back, so the cut follows it back too
     if (r.ok && change.ops.some((o) => o.path.startsWith("/style/dials"))) {
       const head = (await headDoc(ctx, a.projectId))!.doc;

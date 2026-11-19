@@ -17,6 +17,7 @@ export default function Privacy() {
           <li><b>Clips you upload</b> and the low-res copy (proxy) the editor makes from them.</li>
           <li><b>Your edit</b>: one document per project (cuts, captions, framing), its title (taken from the file name), and the list of changes made to it.</li>
           <li><b>Exports</b> you render.</li>
+          <li><b>Which automatic cuts you undo or add</b> (timings only, no words), kept to improve the cuts and deleted with the edit.</li>
           <li><b>Emails</b>, only when you give one: a request for Pro access, a "tell me when it's ready" email, or an account.</li>
           <li><b>A random session id</b> kept in your browser so your edits are yours without signing up. It is a key to your edits: don&apos;t share it.</li>
         </ul>

@@ -308,4 +308,24 @@ export default defineSchema({
   rateLimits: defineTable({ key: v.string(), windowStart: v.number(), count: v.number() }).index("by_key", ["key"]).index("by_window", ["windowStart"]),
   /** free server jobs started per UTC day ("2026-11-17") against EYELORE_FREE_DAILY_JOBS */
   dailyUsage: defineTable({ day: v.string(), freeJobs: v.number() }).index("by_day", ["day"]),
+
+  // ── flywheel labels (convex/lib/labels.ts) ──
+  /**
+   * Where the automatic cut was wrong, as the person corrected it: timings and kinds only. No word text, no caption
+   * text, no email. `owner` is a hash (`a:<anon hash>` or `u:<hash of user id>`), never a raw id. Deleted with the
+   * edit (`purge` in convex/projects.ts). At most LABEL_CAP rows per project.
+   */
+  editLabels: defineTable({
+    projectId: v.id("projects"),
+    kind: v.union(v.literal("restore"), v.literal("strike"), v.literal("pin"), v.literal("caption_edit")),
+    atMs: v.number(),
+    spanMs: v.number(),
+    strikeKind: v.optional(v.union(v.literal("filler"), v.literal("silence"), v.literal("repeat"), v.literal("user"))),
+    /** the doc version the change produced */
+    docVersion: v.number(),
+    at: v.number(),
+    owner: v.string(),
+  })
+    .index("by_project", ["projectId"])
+    .index("by_kind_at", ["kind", "at"]),
 });
