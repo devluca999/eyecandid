@@ -1,6 +1,7 @@
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { PLANS, PRO_PLAN } from "@eyelore/core";
+import { balance, PLANS, PRO_PLAN } from "@eyelore/core";
+import { ledgerFor } from "./lib/credits";
 import schema from "./schema";
 import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
@@ -229,15 +230,16 @@ async function proUser(t: T, opts: { approved?: boolean; paid?: boolean; credits
     });
   }
   if (opts.credits !== undefined) {
+    // exactly this many: drop the checkout's monthly lot, hold the balance as a migrated (pre-ADR 0014) one
     await t.run(async (ctx) => {
+      for (const l of await ctx.db.query("creditLots").withIndex("by_user_lot", (q) => q.eq("userId", userId)).collect()) await ctx.db.delete(l._id);
       const ent = await ctx.db.query("entitlements").withIndex("by_user", (q) => q.eq("userId", userId)).unique();
       await ctx.db.patch(ent!._id, { credits: opts.credits });
     });
   }
   return userId;
 }
-const credits = (t: T, userId: Id<"users">) =>
-  t.run(async (ctx) => (await ctx.db.query("entitlements").withIndex("by_user", (q) => q.eq("userId", userId)).unique())!.credits);
+const credits = (t: T, userId: Id<"users">) => t.run(async (ctx) => balance((await ledgerFor(ctx, userId, Date.now())).lots, Date.now()));
 const still = (t: T, ownerUserId?: Id<"users">, key = "still:1") =>
   t.run((ctx) => enqueueJob(ctx, { type: "still", input: { prompt: "a bead", w: 512, h: 512 }, idempotencyKey: key, ownerUserId, ownerAnonId: anon("a") }));
 const jobCount = (t: T) => t.run(async (ctx) => (await ctx.db.query("jobs").collect()).length);
@@ -257,7 +259,7 @@ describe("entitlements from the Stripe webhook", () => {
     expect(ent).toMatchObject({ plan: PRO_PLAN, subscriptionStatus: "active", watermark: false });
   });
 
-  it("a renewal in a new month grants the month's credits", async () => {
+  it("a paid renewal invoice grants the next period's credits; a subscription update alone grants nothing", async () => {
     vi.useFakeTimers();
     try {
       vi.setSystemTime(new Date("2026-11-20T00:00:00Z"));
@@ -265,9 +267,16 @@ describe("entitlements from the Stripe webhook", () => {
       const userId = await proUser(t, { credits: 3 });
       vi.setSystemTime(new Date("2026-12-20T00:00:00Z"));
       await t.mutation(internal.billing.applyStripeEvent, {
-        eventId: "evt_renew",
+        eventId: "evt_update2",
         type: "customer.subscription.updated",
         object: { id: "sub_1", customer: "cus_1", status: "active", metadata: { plan: PRO_PLAN } },
+      });
+      expect(await credits(t, userId)).toBe(3);
+      const s = Date.UTC(2026, 11, 20) / 1000;
+      await t.mutation(internal.billing.applyStripeEvent, {
+        eventId: "evt_renew",
+        type: "invoice.paid",
+        object: { id: "in_2", customer: "cus_1", subscription: "sub_1", billing_reason: "subscription_cycle", amount_paid: 1900, lines: { data: [{ period: { start: s, end: s + 31 * 86400 } }] }, subscription_details: { metadata: { plan: PRO_PLAN } } },
       });
       expect(await credits(t, userId)).toBe(3 + PLANS[PRO_PLAN].monthlyCredits);
     } finally {

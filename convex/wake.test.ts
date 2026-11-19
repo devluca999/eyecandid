@@ -96,6 +96,17 @@ describe("wake on demand (scale-to-zero workers)", () => {
     expect(await t.query(internal.wake.keys, {})).toEqual([]);
   });
 
+  it("workerPresence says whether a cold engine can be woken at all (the landing's honest line)", async () => {
+    const t = convexTest(schema, modules);
+    expect((await t.query(api.jobs.workerPresence, {})).wakeable).toBe(false); // nothing registered
+    await t.mutation(internal.workers.register, { name: "laptop", provider: "cpu" });
+    expect((await t.query(api.jobs.workerPresence, {})).wakeable).toBe(false); // a cpu worker has no wake host
+    await t.mutation(internal.workers.register, { name: "modal", provider: "modal" });
+    expect((await t.query(api.jobs.workerPresence, {})).wakeable).toBe(true);
+    vi.stubEnv("EYELORE_WAKE_URL", "");
+    expect((await t.query(api.jobs.workerPresence, {})).wakeable).toBe(false); // no wake url
+  });
+
   const queuedStill = (t: ReturnType<typeof convexTest>) =>
     t.run((ctx) =>
       ctx.db.insert("jobs", { type: "still", version: 1, idempotencyKey: "s1", input: { prompt: "p", refMediaIds: [], w: 720, h: 1280 }, status: "queued", progress: 0, stage: "queued", attempts: 0, maxAttempts: 2, createdAt: Date.now() }),

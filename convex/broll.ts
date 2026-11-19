@@ -2,7 +2,7 @@ import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
-import { brollMediaIds, brollStillChange, gpuCreditCost, MAX_STILL_PROMPT, STILL_SIZE, stillPrompt } from "@eyelore/core";
+import { brollMediaIds, brollSlotPinned, brollStillChange, creditCost, MAX_STILL_PROMPT, STILL_SIZE, stillPrompt } from "@eyelore/core";
 import type { EditDoc } from "@eyelore/core";
 import { commitChanges, headDoc } from "./lib/docs";
 import { caller, owns } from "./lib/owner";
@@ -38,11 +38,13 @@ export const requestStill = mutation({
     const bead = head?.doc.beads.find((b) => b.id === a.beadId);
     if (!head || !bead) throw new ConvexError("that bead isn't in this edit any more");
     if (bead.struck) throw new ConvexError("that bead is cut · keep it first");
+    // the person's pin wins: the still could never be placed, so don't take a credit for it
+    if (brollSlotPinned(head.doc.pins, a.beadId)) throw new ConvexError("you pinned the b-roll here · unpin it to ask for a still");
     const prompt = (a.prompt?.trim() || stillPrompt(head.doc, bead)).replace(/\s+/g, " ").slice(0, MAX_STILL_PROMPT);
     if (!prompt) throw new ConvexError("this bead has no words to picture · type a prompt");
 
     // Pro first, so a free account hears about Pro rather than about our GPU. enqueueJob checks again and charges.
-    const standing = await gpuStanding(ctx, who.userId, gpuCreditCost("still"));
+    const standing = await gpuStanding(ctx, who.userId, creditCost("still"));
     if (!standing.ok) throw new ConvexError({ code: standing.code, message: standing.message, ...(standing.extra ?? {}) });
     if ((await stillJobs(ctx, a.projectId)).some((j) => IN_FLIGHT.includes(j.status) && beadOf(j) === a.beadId)) {
       throw new ConvexError("a still for this bead is already on its way");
@@ -109,7 +111,7 @@ export const state = query({
     const who = await caller(ctx, a.anonId);
     const project = await ctx.db.get(a.projectId);
     if (!project || !owns(project, who)) return null;
-    const cost = gpuCreditCost("still");
+    const cost = creditCost("still");
     const s = await gpuStanding(ctx, who.userId, cost);
     const pro = s.ok || s.code === "credits_required";
     const credits = s.ok ? s.credits : (s.extra?.have ?? 0);

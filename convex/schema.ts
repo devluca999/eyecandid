@@ -107,6 +107,17 @@ export default defineSchema({
         at: v.optional(v.number()),
       }),
     ),
+    /** the client's request id: a replayed export request returns this row instead of counting again */
+    requestId: v.optional(v.string()),
+    /** the `exportCounts` key this export was counted against; cleared when a failed render gives it back */
+    countKey: v.optional(v.string()),
+    /** on-device: the exact render plan handed to the browser (doc snapshot, cap), so a replayed request gets it again */
+    planDoc: v.optional(v.any()),
+    planMaxMs: v.optional(v.number()),
+    /** on-device: the browser reported the render failed and the count was given back; a replay counts again */
+    givenBack: v.optional(v.boolean()),
+    /** on-device: when the browser reported the render failed (recorded even when the count isn't given back) */
+    failedAt: v.optional(v.number()),
   })
     .index("by_project", ["projectId"])
     .index("by_job", ["jobId"]),
@@ -173,6 +184,7 @@ export default defineSchema({
     plan: v.string(),
     minutesUsed: v.number(),
     minutesLimit: v.number(),
+    /** DEPRECATED (ADR 0014): the balance lives in `creditLots`. A nonzero value is folded into a `legacy:` lot. */
     credits: v.number(),
     watermark: v.boolean(),
     /** usage period (UTC month, "2026-11") that minutesUsed belongs to; a new month resets it */
@@ -181,7 +193,7 @@ export default defineSchema({
     stripeSubscriptionId: v.optional(v.string()),
     /** raw Stripe subscription status, for support */
     subscriptionStatus: v.optional(v.string()),
-    /** Phase 4: UTC month ("2026-11") whose monthly GPU credits were last granted; one grant per month */
+    /** before ADR 0014: UTC month whose credits the old checkout put into `credits`; marks that the first paid period was already granted */
     creditsPeriod: v.optional(v.string()),
   })
     .index("by_user", ["userId"])
@@ -252,14 +264,44 @@ export default defineSchema({
     .index("by_status_created", ["status", "createdAt"])
     .index("by_inviteTokenHash", ["inviteTokenHash"]),
 
-  /** Phase 4: GPU credits charged when a job is enqueued, and refunded once if it finally fails (convex/lib/entitle.ts). */
+  /**
+   * GPU credits reserved when a job is enqueued (ADR 0014, convex/lib/credits.ts): `taken` says lot by lot where they
+   * came from. Settled once on success (`settledAt`, `actual`) or refunded once on failure (`refundedAt`, `refundReason`).
+   * Rows from before ADR 0014 have no `taken`; their refund goes back to the migrated balance.
+   */
   creditCharges: defineTable({
     userId: v.id("users"),
     jobId: v.id("jobs"),
     credits: v.number(),
     at: v.number(),
     refundedAt: v.optional(v.number()),
+    taken: v.optional(v.array(v.object({ lotId: v.string(), credits: v.number() }))),
+    settledAt: v.optional(v.number()),
+    actual: v.optional(v.number()),
+    /** settled short: the job made this many credits more than was reserved and the balance could not cover them */
+    uncharged: v.optional(v.number()),
+    refundReason: v.optional(v.union(v.literal("failed"), v.literal("qc_failed"), v.literal("cancelled"))),
   }).index("by_job", ["jobId"]),
+
+  /**
+   * A user's credit balance as lots that expire (ADR 0014). `lotId` is deterministic per grant (`m:2026-11` a month's
+   * allowance, `t:<checkout session>` a top-up, `legacy:<entitlement>` a balance migrated from `entitlements.credits`,
+   * `r:<charge>` a refund whose lot had expired), so a replayed grant never adds twice. Drained lots are kept.
+   */
+  creditLots: defineTable({
+    userId: v.id("users"),
+    lotId: v.string(),
+    kind: v.union(v.literal("monthly"), v.literal("topup"), v.literal("grant")),
+    remaining: v.number(),
+    expiresAt: v.optional(v.number()),
+    createdAt: v.number(),
+  }).index("by_user_lot", ["userId", "lotId"]),
+
+  /**
+   * Free exports counted (mvp-spec "Access model"): key `a:<anonHash>` for an anonymous session (lifetime), or
+   * `u:<userId>:<UTC month>` for a signed-in Free account. Kept apart from `exports`, which are deleted with the edit.
+   */
+  exportCounts: defineTable({ key: v.string(), count: v.number() }).index("by_key", ["key"]),
 
   // ── cost controls (convex/lib/limits.ts, convex/expiry.ts) ──
   /** fixed-window rate limit counters; key = "<action>:anon|hint:<hash>", swept by the expiry cron */

@@ -1,3 +1,4 @@
+import { giveBackDeviceCount } from "./lib/exportCount";
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import { mutation } from "./_generated/server";
@@ -76,6 +77,8 @@ export const recordDevice = mutation({
     const issues = a.issues.slice(0, 50) as QcIssue[];
     const status = statusOf({ verdict: qcVerdict(issues) });
     if (status === "blocked" && exp.qc?.minutes) await giveBackMinutes(ctx, exp, exp.qc.minutes);
+    // a blocked export was never delivered: its free export comes back too (capped, like a failed render)
+    if (status === "blocked" && exp.qc?.status !== "blocked") await giveBackDeviceCount(ctx, exp);
     await ctx.db.patch(exp._id, { qc: { ...exp.qc, status, checked: a.checked, issues, at: Date.now() } });
     for (const n of issues.filter((i) => i.gate === "note")) console.log(`[qc] device note ${n.code} · ${n.message}`);
     return status;

@@ -158,7 +158,7 @@ http.route({
  * Stripe webhook. Real signature check (Stripe-Signature, HMAC-SHA256 over `${t}.${rawBody}`, 5 minute tolerance,
  * constant-time compare); applied once per event id. 501 until STRIPE_WEBHOOK_SECRET is set.
  * Register `<convex site url>/stripe/webhook` with checkout.session.completed, customer.subscription.updated,
- * customer.subscription.deleted.
+ * customer.subscription.deleted, invoice.paid (each paid period's credits, ADR 0014).
  */
 http.route({
   path: "/stripe/webhook",

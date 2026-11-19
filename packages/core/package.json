@@ -10,6 +10,7 @@
     "./jobs": "./src/jobs.ts",
     "./qc": "./src/qc.ts",
     "./editModel": "./src/editModel.ts",
+    "./versions": "./src/versions.ts",
     "./analytics": "./src/analytics.ts",
     "./flags": "./src/flags.ts",
     "./credits": "./src/credits.ts",

@@ -1,9 +1,10 @@
 import { convexTest } from "convex-test";
 import { afterEach, describe, expect, it } from "vitest";
-import { addClipChange, applyChange, beadChanges, emptyEditDoc, PRO_PLAN, toTimeline, type EditDoc, type RenderMeasure } from "@eyelore/core";
+import { addClipChange, applyChange, balance, beadChanges, emptyEditDoc, PRO_PLAN, toTimeline, type EditDoc, type RenderMeasure } from "@eyelore/core";
 import schema from "./schema";
 import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
+import { ledgerFor } from "./lib/credits";
 
 /** The quality check on every export (convex/qc.ts): safe fixes before, the file's measurements after, qc_failed. */
 
@@ -206,7 +207,9 @@ describe("qc_failed: a paid result that fails its check releases its credits (AD
       const ent = await ctx.db.query("entitlements").withIndex("by_user", (q) => q.eq("userId", userId)).unique();
       await ctx.db.patch(ent!._id, { credits: 3 });
     });
-    const credits = () => t.run(async (ctx) => (await ctx.db.query("entitlements").withIndex("by_user", (q) => q.eq("userId", userId)).unique())!.credits);
+    // the spendable balance across credit lots (ADR 0014), not the legacy entitlements.credits field
+    const credits = () => t.run(async (ctx) => balance((await ledgerFor(ctx, userId, Date.now())).lots, Date.now()));
+    const start = await credits();
     const gpu = await worker(t, "modal-gpu");
     const projectId = await t.withIdentity(ALICE).mutation(api.projects.create, { anonId: ANON });
     await t.run(async (ctx) => {
@@ -217,13 +220,13 @@ describe("qc_failed: a paid result that fails its check releases its credits (AD
       await ctx.db.patch(projectId, { stage: "ready", headVersion: doc.version });
     });
     await t.withIdentity(ALICE).mutation(api.broll.requestStill, { anonId: ANON, projectId, beadId: "c1.b0", requestId: "r1" });
-    expect(await credits()).toBe(2);
+    expect(await credits()).toBe(start - 1);
     const job = (await t.mutation(internal.jobs.claim, { workerId: gpu, types: ["still"] }))!;
     // retryable is ignored for qc_failed: the result was bad, running it again on the same input isn't the answer
     expect(await t.mutation(internal.jobs.fail, { workerId: gpu, jobId: job.id, error: "the still came out blank", retryable: true, outcome: "qc_failed" })).toBe(true);
     await t.finishAllScheduledFunctions(() => {});
     const row = (await t.run((ctx) => ctx.db.query("jobs").collect())).find((j) => j.type === "still")!;
     expect(row).toMatchObject({ status: "failed", stage: "failed · quality check", error: "the still came out blank" });
-    expect(await credits()).toBe(3);
+    expect(await credits()).toBe(start);
   });
 });

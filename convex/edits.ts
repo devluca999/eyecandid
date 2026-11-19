@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { Change, dialChanges, invertOps, isSpellingFix, type DialValues } from "@eyelore/core";
+import { Change, dialChanges, invertOps, isSpellingFix, VERSION_IDS, versionChanges, type DialValues, type VersionId } from "@eyelore/core";
 import { headDoc } from "./lib/docs";
 import type { EditOp } from "@eyelore/core";
 import { commitChanges } from "./lib/docs";
@@ -42,8 +42,8 @@ export const undo = mutation({
     const change = { actor: "user", reason: `undo · ${last.reason}`.slice(0, 120), ops: invertOps(last.ops as EditOp[]) };
     const r = await commitChanges(ctx, a.projectId, [change], a.baseVersion);
     if (r.ok) await ctx.db.patch(last._id, { undone: true });
-    // undoing a dial move puts the dial back, so the cut follows it back too
-    if (r.ok && change.ops.length && change.ops.every((o) => o.path.startsWith("/style/dials"))) {
+    // undoing a dial move (or a picked version, which moves the dials) puts the dial back, so the cut follows it back too
+    if (r.ok && change.ops.some((o) => o.path.startsWith("/style/dials"))) {
       const head = (await headDoc(ctx, a.projectId))!.doc;
       const follow = dialChanges(head, head.style.dials);
       if (follow.length) return await commitChanges(ctx, a.projectId, follow);
@@ -79,6 +79,25 @@ export const setDials = mutation({
     const set: EditOp[] = moved.map((k) => ({ op: "set", path: `/style/dials/${k}`, value: dials[k] }));
     const reason = moved.map((k) => `${DIAL_WORD[k]} ${Math.round(dials[k] * 100)}%`).join(", ");
     const changes = [{ actor: "user", reason: `dial · ${reason}`, ops: set }, ...dialChanges(head.doc, dials)];
+    return await commitChanges(ctx, a.projectId, changes, a.baseVersion);
+  },
+});
+
+/**
+ * Pick one of the three versions of the take (packages/core/src/versions.ts). One undoable change by you with a
+ * one-line reason ("picked punchy · tighter pauses, push-ins, bold captions"), then the explained autopilot changes
+ * that follow it; anything you pinned stays as you left it. Same optimistic rule as `apply`.
+ */
+export const pickVersion = mutation({
+  args: { anonId: v.string(), projectId: v.id("projects"), baseVersion: v.number(), version: v.string() },
+  handler: async (ctx, a) => {
+    await ownedProject(ctx, a.projectId, a.anonId);
+    if (!(VERSION_IDS as readonly string[]).includes(a.version)) throw new Error("unknown version");
+    const head = await headDoc(ctx, a.projectId);
+    if (!head) throw new Error("no edit doc");
+    if (head.doc.version !== a.baseVersion) return { ok: false as const, conflict: true, version: head.doc.version };
+    const changes = versionChanges(head.doc, a.version as VersionId);
+    if (!changes.length) return { ok: true as const, version: head.doc.version, skipped: [] as string[], same: true as const };
     return await commitChanges(ctx, a.projectId, changes, a.baseVersion);
   },
 });

@@ -298,8 +298,10 @@ describe("billing", () => {
     const uid = await t.withIdentity(ALICE).mutation(api.users.ensure, {});
     const body = evt("evt_3", "checkout.session.completed", { client_reference_id: uid, customer: "cus_3", payment_status: "paid", metadata: { kind: "credits", pack: "small" } });
     for (let i = 0; i < 3; i++) expect((await post(t, body, await signStripe(SECRET, now(), body))).status).toBe(200);
-    const ent = await t.run((ctx) => ctx.db.query("entitlements").withIndex("by_user", (q) => q.eq("userId", uid)).unique());
-    expect(ent!.credits).toBe(100); // not 300
+    // a pack is one top-up lot (12 months), whatever the replays (ADR 0014)
+    const lots = await t.run((ctx) => ctx.db.query("creditLots").collect());
+    expect(lots).toHaveLength(1);
+    expect(lots[0]).toMatchObject({ userId: uid, kind: "topup", remaining: 100 }); // not 300
     expect(await t.run((ctx) => ctx.db.query("stripeEvents").collect())).toHaveLength(1);
   });
 

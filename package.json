@@ -16,7 +16,8 @@
     "format": "prettier --write .",
     "convex:dev": "convex dev",
     "convex:test": "vitest run --config convex/vitest.config.ts",
-    "schema:emit": "pnpm --filter @eyelore/core schema:emit"
+    "schema:emit": "pnpm --filter @eyelore/core schema:emit",
+    "eval": "pnpm --filter @eyelore/core exec tsx ../../scripts/eval/run.ts"
   },
   "devDependencies": {
     "@edge-runtime/vm": "5.0.0",
