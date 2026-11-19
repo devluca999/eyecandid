@@ -65,7 +65,7 @@ Target: the first cut plays within 15 s of the drop starting.
 
 - `packages/core/src/eval.ts` and `scripts/eval/run.ts`: score the automatic cut against a human editor's kept ranges (precision and recall over removed time, boundary error, mid-word cuts). `eval/golden/` holds the cases.
 - The north star, a blind pairwise win rate of 50% or more against a human editor, is not measured. It needs about 200 raw clips with editor cuts, and raters.
-- Labels: every restore, pin and caption edit by the person is a label (`labelsFromChange`). Storing them and tuning thresholds per person and globally comes after.
+- Labels: every restore, pin and caption edit by the person is a label (`labelsFromChange`). Stored since the `editLabels` table (timings and kinds only, deleted with the edit, read with `labels.summary`); tuning thresholds per person and globally is still manual.
 
 ## What needs the owner
 

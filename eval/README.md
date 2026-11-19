@@ -72,8 +72,12 @@ Scored over the window `[0, durationMs]`. The automatic cut keeps the spoken spa
 - **midWordCuts**: our cut boundaries strictly inside a word's `[startMs, endMs]`. Should be 0.
 - **summary**: means of precision, recall, f1, iou and the per-case boundary percentiles; totals of the cut counts; `winRate` is `undefined` (see above).
 
-## Flywheel labels (next step)
+## Labels
 
-`packages/core/src/labels.ts` turns a user's edit into labels: `labelsFromChange(before, change)` returns `restore` (we cut something the user wanted back), `strike` (the user cut something we kept), `pin`, and `caption_edit`, each with `atMs`, `spanMs` and, where known, `strikeKind`. Only changes with actor `user` yield labels; autopilot changes yield none.
+`packages/core/src/labels.ts` turns a user's edit into labels: `labelsFromChange(before, change)` returns `restore` (we cut something the user wanted back), `strike` (the user cut something we kept), `pin`, and `caption_edit`. Only changes with actor `user` yield labels; autopilot changes yield none.
 
-This PR is the pure part only. **Not done yet:** a Convex table to store labels, calling `labelsFromChange` from the change mutation, and the per-user and global threshold tuning that consumes them. That wiring touches `convex/` and the editor and is the next step. Implicit pins (a user edit pins the paths it touches) are not labelled; only an explicit insert into `/pins` is.
+Now stored. Every edit by a person (`edits.apply`) writes its labels in the same transaction into the `editLabels` table. A row holds: `projectId`, `kind`, `atMs` and `spanMs` (source-clip milliseconds), `strikeKind` (where known), `docVersion` (the version the change produced), `at`, and `owner` as a hash (`a:<anon hash>` or `u:<hash of user id>`). It holds no word text, no caption text and no email. At most 200 rows per project. Undo writes no label and takes back the labels of the change it undid. Deleting the edit deletes its labels.
+
+Read them with the token-gated query `labels.summary` (`{ token, days? }`, same `EYELORE_ADMIN_TOKEN` as /funnel; days defaults to 30). It returns counts by kind and by `kind:strikeKind`, reads at most 2000 newest rows per kind, and sets `truncated` (read the counts as "at least") when it hits that.
+
+Not done: tuning thresholds from labels, per person or globally, is still manual. Implicit pins (a user edit pins the paths it touches) are not labelled; only an explicit insert into `/pins` is.
