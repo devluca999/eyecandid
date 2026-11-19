@@ -11,7 +11,7 @@ export const RENDER_FPS = 30;
 
 /**
  * The fast free render's picture and captions, planned here so the worker's ffmpeg graph draws exactly what the Cut
- * composition draws (ADR 0017). Frames are on the 30 fps output grid; crops are fractions of the source frame.
+ * composition draws (ADR 0018). Frames are on the 30 fps output grid; crops are fractions of the source frame.
  */
 export const FastPlan = z.object({
   width: z.number().int().positive(),

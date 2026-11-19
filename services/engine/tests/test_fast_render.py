@@ -1,4 +1,4 @@
-"""The fast free render (ADR 0017): the ffmpeg graph built from core's fastPlan, the captions .ass, and a real render
+"""The fast free render (ADR 0018): the ffmpeg graph built from core's fastPlan, the captions .ass, and a real render
 when the host's ffmpeg can burn subtitles."""
 import json
 import re

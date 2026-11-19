@@ -4,7 +4,7 @@ import { emptyEditDoc, JOB_SPECS } from "@eyelore/core";
 import schema from "./schema";
 import { api } from "./_generated/api";
 
-/** ADR 0017: a free worker export renders with plain ffmpeg from a plan; anything with generated stills stays on Remotion. */
+/** ADR 0018: a free worker export renders with plain ffmpeg from a plan; anything with generated stills stays on Remotion. */
 
 const modules = import.meta.glob("./**/*.ts");
 const ANON = "anon_" + "f".repeat(32);

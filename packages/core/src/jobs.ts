@@ -120,7 +120,7 @@ export const JOB_SPECS = {
         )
         .optional(),
       /**
-       * which renderer: "fast" = plain ffmpeg from `fast` (free exports without generated overlays, ADR 0017); absent or
+       * which renderer: "fast" = plain ffmpeg from `fast` (free exports without generated overlays, ADR 0018); absent or
        * "remotion" = the Cut composition. Optional: older apps don't send it, and older workers ignore it (Remotion).
        */
       engine: z.enum(["remotion", "fast"]).optional(),

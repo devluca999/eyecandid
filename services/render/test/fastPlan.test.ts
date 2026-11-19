@@ -48,7 +48,7 @@ function planBox(plan: FastPlan, n: number) {
   throw new Error(`frame ${n} not covered`);
 }
 
-describe("fast render plan (ADR 0017)", () => {
+describe("fast render plan (ADR 0018)", () => {
   it("draws, frame by frame, the source frame and the box the Cut composition draws", () => {
     const d = doc();
     const plan = fastPlan(d, "9:16");

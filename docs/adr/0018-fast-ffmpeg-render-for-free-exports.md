@@ -1,4 +1,4 @@
-# 0017 · Free exports on the worker render with plain ffmpeg; Remotion stays for Pro
+# 0018 · Free exports on the worker render with plain ffmpeg; Remotion stays for Pro
 
 **Status:** accepted · 2026-11-19
 

@@ -1,4 +1,4 @@
-"""The fast free render (ADR 0017): the Cut composition's picture, captions and watermark drawn by one ffmpeg graph.
+"""The fast free render (ADR 0018): the Cut composition's picture, captions and watermark drawn by one ffmpeg graph.
 
 The plan comes from packages/core fastPlan (the job's `fast` field), so nothing here re-derives the edit: shots are
 source frame ranges on the 30 fps grid with a crop that follows the reframe track (punch-ins split a shot, since a

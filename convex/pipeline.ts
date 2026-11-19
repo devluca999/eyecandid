@@ -208,7 +208,7 @@ export const startExport = mutation({
         watermark: plan.watermark,
         maxDurationMs: maxMs,
         sound: toTimeline(doc).sound.map(({ mediaId, fromMs, toMs, atMs, fadeInMs, fadeOutMs }) => ({ mediaId, fromMs, toMs, atMs, fadeInMs, fadeOutMs })),
-        // a free export with nothing generated on screen renders with plain ffmpeg from this plan (ADR 0017); Remotion otherwise
+        // a free export with nothing generated on screen renders with plain ffmpeg from this plan (ADR 0018); Remotion otherwise
         ...(canRenderFast(doc, decision.plan) ? { engine: "fast" as const, fast: fastPlan(doc, a.aspect as Aspect) } : {}),
       },
       idempotencyKey: `render:${a.projectId}:${head.doc.version}:${a.aspect}:${maxMs}:${a.requestId}`,
