@@ -1,4 +1,4 @@
-# 0016 · Free edits without WebGPU or a worker, and how we compete on cost
+# 0017 · Free edits without WebGPU or a worker, and how we compete on cost
 
 **Status:** proposed · 2026-11-18 · needs Luca's decision on part 2 (a new service)
 
@@ -25,7 +25,7 @@ So the free tier needs **no server compute at all, except possibly transcription
 
 `transcribeOnDevice` already returns one `Transcript` shape that the rest of the pipeline consumes. Make the transcriber a choice:
 
-1. **WASM Whisper in the browser** (no new service, $0, being built now: PR "feat/wasm-transcribe"). Transformers.js on the CPU with a quantized `tiny.en`/`base.en`. It covers every browser with WebCodecs. It is slower than WebGPU and still a one-time model download, and on phones it may miss the 30 s bar. Its job is to make sure **nobody waits forever**.
+1. **WASM Whisper in the browser** (no new service, $0; ADR 0016, PR #65). Transformers.js on the CPU with a quantized `tiny.en`/`base.en`. It covers every browser with WebCodecs. It is slower than WebGPU and still a one-time model download, and on phones it may miss the 30 s bar. Its job is to make sure **nobody waits forever**.
 2. **Hosted speech-to-text, audio only** (**new service; needs the owner's yes and an ADR amendment to the fixed stack**). The browser extracts the audio and uploads only that to Convex storage. A Convex action calls a hosted Whisper-class API and gets word timestamps back. It is the same `applyDeviceTranscript` path, so nothing downstream changes.
    - **Accuracy:** large-v3-turbo instead of base.en. This fixes the mishearing.
    - **Speed:** about 1–2 s for a 60 s clip, with no 206 MB download. The first minute holds on any phone.
