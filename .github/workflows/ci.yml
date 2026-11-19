@@ -69,7 +69,10 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
       - run: .venv/bin/pytest -q
       - name: fast render benchmark (temporary, for the PR's numbers)
-        run: .venv/bin/python scripts/bench_fast_render.py
+        run: |
+          .venv/bin/python scripts/bench_fast_render.py /tmp/bench-src.mp4
+          .venv/bin/python scripts/bench_fast_render.py /tmp/bench-src.mp4
+          EYELORE_FAST_PRESET=ultrafast .venv/bin/python scripts/bench_fast_render.py /tmp/bench-src.mp4
 
   e2e:
     name: web e2e + visual (local convex + real cpu worker)
