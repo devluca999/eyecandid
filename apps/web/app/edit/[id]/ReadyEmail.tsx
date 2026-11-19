@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
+import { useTrack } from "@/lib/track";
 
 /**
  * "Leave your email and we'll send it when it's ready" (MVP spec, Phase 2): appears while the server pipeline works,
@@ -10,6 +11,7 @@ import type { Id } from "@convex/_generated/dataModel";
  */
 export function ReadyEmail({ projectId, anonId, working }: { projectId: Id<"projects">; anonId: string; working: boolean }) {
   const setReadyEmail = useMutation(api.projects.setReadyEmail);
+  const track = useTrack();
   // the server only sends while `ready_email` is on (convex/notify.ts): never promise an email nobody will send
   const flags = useQuery(api.flags.forSubject, anonId ? { subject: anonId } : "skip");
   const [show, setShow] = useState(false);
@@ -40,6 +42,7 @@ export function ReadyEmail({ projectId, anonId, working }: { projectId: Id<"proj
         try {
           await setReadyEmail({ anonId, projectId, email });
           setState("saved");
+          track("ready_email_left", {}); // no address in the event: the count only
         } catch {
           setState("error");
           setWhy("couldn't save that · check the address and try again"); // production Convex hides plain error text

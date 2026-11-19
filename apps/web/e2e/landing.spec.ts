@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 test("landing: the hero line, the real drop well and the sections, in order", async ({ page }) => {
   await page.goto("/");
@@ -90,4 +90,38 @@ test("visual: landing hero", async ({ page }) => {
     .toBe(0);
   await page.waitForLoadState("networkidle");
   await expect(page).toHaveScreenshot("landing-hero.png", { mask: [page.locator(".ec-hero__recent")] });
+});
+
+/** The hero's boxes, to prove the pause slot moves nothing: the well, the slot, and the h1 above it. */
+async function heroBoxes(page: Page) {
+  const box = async (sel: string) => (await page.locator(sel).first().boundingBox())!;
+  return { h1: await box("#hero-title"), well: await box(".ec-hero__well"), hero: await box(".ec-hero") };
+}
+
+test("landing: free is open, so the pause slot is empty and the hero keeps its box", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("eyelore.engine", "server"));
+  await page.goto("/");
+  const before = await heroBoxes(page);
+  await expect(page.getByTestId("file-input")).toHaveAttribute("data-ready", "1");
+  await expect(page.locator('input[data-testid="file-input-backend"]')).toBeAttached({ timeout: 30_000 }); // the lazy backend is in
+  await page.waitForTimeout(1500); // let its queries answer
+  await expect(page.locator(".ec-hero__pause")).toBeEmpty();
+  expect((await page.locator(".ec-hero__pause").boundingBox())?.height ?? 0).toBe(0);
+  expect(await heroBoxes(page)).toEqual(before);
+});
+
+// free_paused is global: CI runs this alone with the flag on (E2E_PAUSED=1), like the paused refusal in ux-crawl.spec.ts
+test("landing: a paused free day is said by the drop well before any drop, without moving the hero @paused", async ({ page }, info) => {
+  test.skip(process.env.E2E_PAUSED !== "1", "needs the free_paused flag on (CI runs this alone, then turns it off)");
+  test.skip(info.project.name !== "desktop", "the flag is global: one project");
+  await page.addInitScript(() => localStorage.setItem("eyelore.engine", "server")); // the pause only applies to server edits
+  await page.goto("/");
+  const before = await heroBoxes(page); // measured before the lazy backend (and so the line) exists
+  const line = page.locator(".ec-hero__pause").getByText("free edits are paused for today · back tomorrow");
+  await expect(line).toBeVisible({ timeout: 30_000 });
+  const l = (await line.boundingBox())!;
+  const well = (await page.getByTestId("choose-clip").boundingBox())!;
+  expect(l.y).toBeGreaterThanOrEqual(well.y + well.height); // by the well, below it
+  expect(l.y - (well.y + well.height)).toBeLessThan(60);
+  expect(await heroBoxes(page)).toEqual(before); // nothing moved when it appeared
 });

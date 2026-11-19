@@ -15,6 +15,12 @@ export const FUNNEL = [
   "share",
 ] as const;
 
+/**
+ * Side events counted on /funnel as plain totals. They are NOT steps of the core loop (a visitor can skip them), so
+ * they stay out of `FUNNEL`: they live in the `AnalyticsEvent` union only. Props never carry an email or any personal data.
+ */
+export const COUNTED_EVENTS = ["ready_email_left", "access_requested", "checkout_started"] as const;
+
 const base = { variant: z.string().max(32).optional(), platform: z.enum(["web", "ios", "android"]) };
 
 export const AnalyticsEvent = z.discriminatedUnion("name", [
@@ -30,6 +36,10 @@ export const AnalyticsEvent = z.discriminatedUnion("name", [
   z.object({ name: z.literal("export_done"), props: z.object({ ...base, durationMs: z.number().nonnegative(), watermark: z.boolean() }) }),
   z.object({ name: z.literal("share"), props: z.object({ ...base, target: z.string().max(40) }) }),
   z.object({ name: z.literal("version_picked"), props: z.object({ ...base, version: z.enum(["clean", "punchy", "genre"]), kind: z.string().max(16).optional() }) }),
+  z.object({ name: z.literal("ready_email_left"), props: z.object(base) }),
+  z.object({ name: z.literal("access_requested"), props: z.object(base) }),
+  z.object({ name: z.literal("checkout_started"), props: z.object({ ...base, plan: z.string().max(40).optional() }) }),
+  // defined but emitted nowhere (kept so stored events and old clients still parse); the worker round trip is not tracked
   z.object({ name: z.literal("job_roundtrip"), props: z.object({ ...base, type: z.string(), ms: z.number().nonnegative() }) }),
 ]);
 export type AnalyticsEvent = z.infer<typeof AnalyticsEvent>;

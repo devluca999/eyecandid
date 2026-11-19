@@ -108,7 +108,7 @@ jobs:
         run: |
           npx convex run flags:set '{"key":"free_paused","enabled":true}'
           status=0
-          pnpm --filter @eyelore/web exec playwright test e2e/ux-crawl.spec.ts --grep @paused --project=desktop --reporter=line || status=$?
+          pnpm --filter @eyelore/web exec playwright test e2e/ux-crawl.spec.ts e2e/landing.spec.ts --grep @paused --project=desktop --reporter=line || status=$?
           npx convex run flags:set '{"key":"free_paused","enabled":false}'
           exit $status
         env: { CI: "1", E2E_PAUSED: "1" }

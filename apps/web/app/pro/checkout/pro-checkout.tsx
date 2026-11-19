@@ -8,6 +8,7 @@ import { api } from "@convex/_generated/api";
 import type { ProCheckoutResult } from "@convex/access";
 import { Lockup, PillButton, StatusDot } from "@eyelore/ui";
 import { env } from "@/lib/env";
+import { useTrack } from "@/lib/track";
 
 const TOKEN_KEY = "eyelore.proInvite";
 /** after sign-up / sign-in Clerk comes back here; the invite token waits in session storage */
@@ -94,6 +95,7 @@ function WithClerk({ token, email, canceled }: { token: string; email: string; c
   const { isAuthenticated } = useConvexAuth();
   const ensure = useMutation(api.users.ensure);
   const start = useAction(api.access.proCheckout);
+  const track = useTrack();
   const [busy, setBusy] = useState(false);
   const [said, setSaid] = useState<string | null>(null);
   const [mode, setMode] = useState<"new" | "existing">("new");
@@ -121,6 +123,7 @@ function WithClerk({ token, email, canceled }: { token: string; email: string; c
   }
 
   async function go() {
+    track("checkout_started", {}); // the click that opens checkout, not the page view
     setBusy(true);
     setSaid(null);
     try {

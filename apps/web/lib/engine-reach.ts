@@ -32,3 +32,17 @@ export function engineHooks() {
   const presence: Presence | null = worker === "none" ? { live: 0, wake: "none", wakeable: false } : worker === "live" ? { live: 1, wake: null, wakeable: false } : null;
   return { engine, forceUnsupported: engine === "unsupported", presence };
 }
+
+/**
+ * Does this visitor's free edit run on their own device? Mirrors the choice in drop.tsx: "eyelore.engine" = server |
+ * device forces it, else the `on_device` flag (on unless set false) and this browser's support decide. A server-side
+ * free pause (flag or daily cap) only applies to the server path, so it matters only when this is false.
+ * `null` while the flag or the support check has not answered yet: say nothing until it is known.
+ */
+export function editsOnDevice(o: { forced: string | null; onDeviceFlag: boolean | undefined; supported: boolean | null }): boolean | null {
+  if (o.forced === "server") return false;
+  if (o.forced === "device") return true;
+  if (o.forced === "unsupported") return false;
+  if (o.onDeviceFlag === false) return false;
+  return o.supported;
+}

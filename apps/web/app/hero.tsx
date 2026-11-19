@@ -125,6 +125,9 @@ export function Hero() {
               hint="up to 60 s · the more ums the better"
               height={172}
             />
+            {/* the free pause line (free-status.tsx) is portalled in here by landing-backend.tsx, only when there is something to say.
+                The slot is out of flow (landing.css), so an empty or filled slot moves nothing and the hero keeps its box. */}
+            <div className="ec-hero__pause" />
           </div>
           <TrySample />
           <span className="ec-meta">about a minute · ums out · captions in · your words stay yours</span>
