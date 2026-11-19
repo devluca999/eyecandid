@@ -6,14 +6,17 @@
  */
 import { env, ModelRegistry, pipeline } from "@huggingface/transformers";
 import type { AsrChunk, WasmVariant } from "./asr-words";
+import { ModelDownloadError, resilientFetch, type FailReason } from "./resilient-fetch";
 
-export type WasmAsrRequest = { audio: Float32Array; variant: WasmVariant };
+/** stallAt: the lab's injected stall (localStorage "eyelore.lab-stall" on the page; workers have no localStorage) */
+export type WasmAsrRequest = { audio: Float32Array; variant: WasmVariant; stallAt?: number | null };
 export type WasmAsrMessage =
   | { type: "cached"; cached: boolean }
   | { type: "progress"; loaded: number; total: number }
   | { type: "listening"; loadMs: number }
   | { type: "done"; chunks: AsrChunk[]; loadMs: number; asrMs: number; threads: number; isolated: boolean }
-  | { type: "error"; message: string };
+  | { type: "retry"; attempt: number; max: number; reason: FailReason }
+  | { type: "error"; message: string; reason?: FailReason };
 
 // typed by hand: the app compiles against the DOM lib, and adding the webworker lib beside it clashes
 const ctx = self as unknown as { postMessage(m: WasmAsrMessage): void; onmessage: ((e: MessageEvent<WasmAsrRequest>) => void) | null; crossOriginIsolated: boolean };
@@ -21,8 +24,16 @@ const post = (m: WasmAsrMessage) => ctx.postMessage(m);
 
 env.allowLocalModels = false; // models come from the Hub (and the browser's cache after the first visit), never /models on our origin
 
+const plainFetch = env.fetch;
+
 ctx.onmessage = async (e: MessageEvent<WasmAsrRequest>) => {
-  const { audio, variant } = e.data;
+  const { audio, variant, stallAt } = e.data;
+  // the same resilient download as the WebGPU path (resilient-fetch.ts): stalls retried, Range resume, nothing short cached
+  env.fetch = resilientFetch({
+    fetch: plainFetch as typeof fetch,
+    stallOnceAt: stallAt ?? null,
+    onRetry: (r) => post({ type: "retry", attempt: r.attempt, max: r.max, reason: r.reason }),
+  });
   try {
     const opts = { device: "wasm" as const, dtype: variant.dtype };
     const cached = await ModelRegistry.is_pipeline_cached("automatic-speech-recognition", variant.modelId, opts).catch(() => false);
@@ -44,6 +55,6 @@ ctx.onmessage = async (e: MessageEvent<WasmAsrRequest>) => {
     const threads = Number(env.backends.onnx?.wasm?.numThreads ?? 0);
     post({ type: "done", chunks: (out.chunks ?? []).map((c) => ({ text: c.text, timestamp: [c.timestamp[0], c.timestamp[1]] })), loadMs, asrMs, threads, isolated: ctx.crossOriginIsolated });
   } catch (err) {
-    post({ type: "error", message: err instanceof Error ? err.message : String(err) });
+    post({ type: "error", message: err instanceof Error ? err.message : String(err), reason: err instanceof ModelDownloadError ? err.reason : undefined });
   }
 };

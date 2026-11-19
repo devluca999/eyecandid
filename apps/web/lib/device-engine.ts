@@ -5,6 +5,7 @@ import { wasmVariant, WASM_VARIANTS, wordsFromChunks } from "./asr-words";
 import { engineHooks } from "./engine-reach";
 import { FrameSampler, frameTap, lumaPlane, mean, meanAbsDiff, measureAudio, SAMPLE_SIDE } from "./frame-sampler";
 import type { WasmAsrMessage, WasmAsrRequest } from "./wasm-whisper.worker";
+import { ModelDownloadError, resilientFetch, retryLine, type RetryEvent } from "./resilient-fetch";
 
 /**
  * The on-device engine (free tier, ADR 0012): Whisper for word timings and @remotion/web-renderer for the export, both
@@ -61,10 +62,30 @@ export async function transcribeOnDevice(file: File, durationMs: number, onStage
   const audio = await wh.resampleTo16Khz({ file });
   const cached = await wh.isWhisperModelCached({ model: DEVICE_MODEL }).catch(() => false);
   if (!cached) {
-    await wh.downloadWhisperModel({
-      model: DEVICE_MODEL,
-      onProgress: (p) => onStage(`getting the editor ready · ${Math.round(Math.min(p.loadedBytes, p.totalBytes) / 1e6)} of ${Math.round(p.totalBytes / 1e6)} MB · once per device`),
-    });
+    const net = await modelNet();
+    const t0 = performance.now();
+    // files already cached (a "try again", or a reload after the first file landed) count as done: the library only reports what it fetches
+    const before = await cachedModelBytes();
+    let gaveUp: unknown = null;
+    net.listen({ retry: (e) => onStage(retryLine(e)), giveUp: (e) => (gaveUp = e) });
+    try {
+      await wh.downloadWhisperModel({
+        model: DEVICE_MODEL,
+        onProgress: (p) => {
+          const done = Math.min(before + p.loadedBytes, p.totalBytes);
+          onStage(`getting the editor ready · ${Math.round(done / 1e6)} of ${Math.round(p.totalBytes / 1e6)} MB · once per device`);
+        },
+      });
+    } catch (e) {
+      // cache.put rejects with the browser's generic "network error"; the downloader's own reason is the true one
+      console.warn("[model] download failed", e);
+      throw gaveUp ?? e;
+    } finally {
+      net.listen({});
+    }
+    // only a complete, verified set counts: the library checks every file is in the cache before resolving
+    if (!(await wh.isWhisperModelCached({ model: DEVICE_MODEL }))) throw new Error("model not fully cached");
+    console.info(`[model] ${JSON.stringify({ model: DEVICE_MODEL, ms: Math.round(performance.now() - t0), resumedFromBytes: before, retries: net.retries() })}`);
   }
   onStage("listening · on this device");
   const t0 = performance.now();
@@ -76,6 +97,52 @@ export async function transcribeOnDevice(file: File, durationMs: number, onStage
   // each word's loudness against the take (emphasis punch-ins); the 16 kHz audio is already in memory
   const rms = wordRms(audio, 16000, words);
   return { language: "en", durationMs, words: words.map((w, i) => ({ ...w, rms: rms[i]! })) };
+}
+
+type NetListener = { retry?: (e: RetryEvent) => void; giveUp?: (e: ModelDownloadError) => void };
+let netPromise: Promise<{ listen: (l: NetListener) => void; retries: () => number }> | null = null;
+
+/**
+ * Every model file Transformers.js fetches on this page goes through resilientFetch (stall detection, retry, Range
+ * resume, nothing short stored; resilient-fetch.ts). @remotion/whisper-webgpu downloads through the same `env.fetch`,
+ * so its host, file list and cache keys stay its own. Installed once per page.
+ * Lab hook: localStorage "eyelore.lab-stall" = a byte offset makes the first read past it hang once (a dropped connection).
+ */
+function modelNet() {
+  netPromise ??= (async () => {
+    const { env } = await import("@huggingface/transformers");
+    let listener: NetListener = {};
+    let retries = 0;
+    const stall = Number(hookValue("eyelore.lab-stall"));
+    env.fetch = resilientFetch({
+      fetch: env.fetch as typeof fetch,
+      stallOnceAt: Number.isFinite(stall) && stall > 0 ? stall : null,
+      onRetry: (e) => {
+        retries++;
+        console.warn(`[model] ${JSON.stringify({ retry: e.attempt, of: e.max, reason: e.reason, gotMB: +(e.got / 1e6).toFixed(1), file: e.url.split("/").pop() })}`);
+        listener.retry?.(e);
+      },
+      onGiveUp: (e) => listener.giveUp?.(e),
+    });
+    return { listen: (l: NetListener) => void (listener = l), retries: () => retries };
+  })();
+  return netPromise;
+}
+
+/** Bytes of the WebGPU model already in the cache (whole files only: a short one is never stored). */
+async function cachedModelBytes(): Promise<number> {
+  try {
+    const { env } = await import("@huggingface/transformers");
+    const cache = await caches.open(env.cacheKey);
+    let n = 0;
+    for (const req of await cache.keys()) {
+      if (!req.url.startsWith("https://remotion.media/") || !req.url.includes(`whisper-${DEVICE_MODEL}_timestamped`)) continue;
+      n += Number((await cache.match(req))?.headers.get("content-length")) || 0;
+    }
+    return n;
+  } catch {
+    return 0;
+  }
 }
 
 /**
@@ -98,12 +165,17 @@ async function transcribeWasm(file: File, durationMs: number, onStage: (detail: 
         if (m.type === "progress") {
           const total = Math.max(m.total / 1e6, variant.mb);
           onStage(`getting the editor ready · ${Math.round(Math.min(m.loaded / 1e6, total))} of ${Math.round(total)} MB · once per device`);
-        } else if (m.type === "listening") onStage("listening · on this device");
+        } else if (m.type === "retry") onStage(retryLine(m));
+        else if (m.type === "listening") onStage("listening · on this device");
         else if (m.type === "done") resolve(m);
-        else if (m.type === "error") reject(new Error(m.message));
+        else if (m.type === "error") {
+          console.warn("[model] wasm worker failed", m.message);
+          reject(m.reason ? new ModelDownloadError(m.reason, variant.modelId) : new Error(m.message));
+        }
       };
       // the worker gets a copy; this one stays for the loudness pass below
-      const request: WasmAsrRequest = { audio: audio.slice(), variant };
+      const stall = Number(hookValue("eyelore.lab-stall"));
+      const request: WasmAsrRequest = { audio: audio.slice(), variant, stallAt: Number.isFinite(stall) && stall > 0 ? stall : null };
       worker.postMessage(request, [request.audio.buffer]);
     });
     const words = wordsFromChunks(done.chunks, audio.length / 16000);
