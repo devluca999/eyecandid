@@ -57,6 +57,28 @@ export default defineSchema({
     undone: v.optional(v.boolean()),
   }).index("by_project_version", ["projectId", "version"]),
 
+  /**
+   * Eval flywheel labels (docs/pricing-and-quality-plan.md item 8): one row per verdict a person's own edit gave on an
+   * autopilot decision (restore, strike, pin, caption_edit), shaped by `labelsFromChange` in packages/core. Written in the
+   * same mutation as the change. No media and no text: just a source-clip span and a kind. The owner is stored as userId
+   * and/or anonHash (SHA-256 prefix, never the raw anon id: ADR 0006). Deleted with the project; not swept by the media
+   * expiry (nothing here is media, and the edit doc it describes is kept the same way). docVersion is the version of the
+   * change that produced it, so undoing that change can drop its labels.
+   */
+  editLabels: defineTable({
+    projectId: v.id("projects"),
+    userId: v.optional(v.id("users")),
+    anonHash: v.optional(v.string()),
+    kind: v.union(v.literal("restore"), v.literal("strike"), v.literal("pin"), v.literal("caption_edit")),
+    atMs: v.number(),
+    spanMs: v.number(),
+    strikeKind: v.optional(v.union(v.literal("filler"), v.literal("silence"), v.literal("repeat"), v.literal("user"))),
+    docVersion: v.number(),
+    at: v.number(),
+  })
+    .index("by_project", ["projectId", "docVersion"])
+    .index("by_kind_at", ["kind", "at"]),
+
   media: defineTable({
     projectId: v.optional(v.id("projects")),
     kind: v.union(v.literal("source"), v.literal("proxy"), v.literal("generated"), v.literal("render"), v.literal("preview")),

@@ -128,7 +128,7 @@ export const undoFix = mutation({
     const recent = await ctx.db.query("editOps").withIndex("by_project_version", (q) => q.eq("projectId", a.projectId)).order("desc").take(50);
     const last = recent.find((r) => r.actor === QC_ACTOR && !r.undone);
     if (!last) return { ok: false as const, nothing: true };
-    const r = await commitChanges(ctx, a.projectId, [{ actor: "user", reason: `undo · ${last.reason}`.slice(0, 120), ops: invertOps(last.ops as EditOp[]) }]);
+    const r = await commitChanges(ctx, a.projectId, [{ actor: "user", reason: `undo · ${last.reason}`.slice(0, 120), ops: invertOps(last.ops as EditOp[]) }], undefined, { labels: false });
     if (r.ok) await ctx.db.patch(last._id, { undone: true });
     return r;
   },

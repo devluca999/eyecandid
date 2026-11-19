@@ -283,6 +283,10 @@ async function purge(ctx: MutationCtx, projectId: Id<"projects">): Promise<boole
   for (const o of ops) await ctx.db.delete(o._id);
   more ||= ops.length === PURGE_BATCH;
 
+  const labels = await ctx.db.query("editLabels").withIndex("by_project", (q) => q.eq("projectId", projectId)).take(PURGE_BATCH);
+  for (const l of labels) await ctx.db.delete(l._id);
+  more ||= labels.length === PURGE_BATCH;
+
   const docs = await ctx.db.query("editDocs").withIndex("by_project", (q) => q.eq("projectId", projectId)).take(PURGE_BATCH);
   for (const d of docs) await ctx.db.delete(d._id);
   more ||= docs.length === PURGE_BATCH;

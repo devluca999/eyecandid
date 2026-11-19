@@ -3,7 +3,7 @@ import { mutation, query } from "./_generated/server";
 import { Change, dialChanges, invertOps, isSpellingFix, VERSION_IDS, versionChanges, type DialValues, type VersionId } from "@eyelore/core";
 import { headDoc } from "./lib/docs";
 import type { EditOp } from "@eyelore/core";
-import { commitChanges } from "./lib/docs";
+import { commitChanges, dropLabelsAt } from "./lib/docs";
 import { ownedProject } from "./projects";
 
 /** A user edit: ops + one-line reason. Pins the touched paths so autopilots never re-decide them. */
@@ -40,8 +40,12 @@ export const undo = mutation({
     const last = recent.find((r) => r.actor === "user" && !r.undone && !r.reason.startsWith("undo · "));
     if (!last) return { ok: false as const, nothing: true };
     const change = { actor: "user", reason: `undo · ${last.reason}`.slice(0, 120), ops: invertOps(last.ops as EditOp[]) };
-    const r = await commitChanges(ctx, a.projectId, [change], a.baseVersion);
-    if (r.ok) await ctx.db.patch(last._id, { undone: true });
+    // undo writes no label of its own (a reversal is not a verdict on the autopilot) and drops the labels of the change it undoes
+    const r = await commitChanges(ctx, a.projectId, [change], a.baseVersion, { labels: false });
+    if (r.ok) {
+      await ctx.db.patch(last._id, { undone: true });
+      await dropLabelsAt(ctx, a.projectId, last.version);
+    }
     // undoing a dial move (or a picked version, which moves the dials) puts the dial back, so the cut follows it back too
     if (r.ok && change.ops.some((o) => o.path.startsWith("/style/dials"))) {
       const head = (await headDoc(ctx, a.projectId))!.doc;
