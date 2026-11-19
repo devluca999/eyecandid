@@ -143,6 +143,14 @@ def test_renders_the_plan_frame_exact(tmp_path):
     video_log, freezes = fast_render.picture_measure(log)
     m = qc.parse_detect(video_log, 70 / 30)
     assert m["black"] == [] and freezes == 0
+    # libass resolved both styles to the shipped Geist files, not a system fallback
+    sel = subprocess.run(
+        ["ffmpeg", "-hide_banner", "-v", "verbose", "-f", "lavfi", "-i", "color=black:s=1080x1920:d=0.5", "-vf", "subtitles=filename=captions.ass:fontsdir=fonts", "-f", "null", "-"],
+        cwd=tmp_path, capture_output=True, text=True,
+    ).stderr
+    picked = set(re.findall(r"fontselect: \(([^)]*)\) -> ([^,]+),", sel))
+    assert ("Geist, 700, 0", "Geist-Bold") in picked
+    assert ("Geist Medium, 400, 0", "Geist-Medium") in picked
 
 
 def test_picture_measure_splits_the_two_freeze_detectors():

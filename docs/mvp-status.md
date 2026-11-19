@@ -24,7 +24,7 @@ Status words: **done** (on `main`, with a test or a measured run), **PR** (open,
 | 3 | Free caps; daily budget flag with a pause message | done | `convex/lib/limits.ts`, `caps.test.ts`. The pause line (`FreeStatus`) is not mounted on the landing |
 | 3 | Expiry cron | done | `convex/expiry.ts`, `caps.test.ts` |
 | 3 | `/funnel` cost per free edit | PR #31 | an estimate from worker seconds; device edits cost 0 |
-| 3 | Accept: 60 s clip renders in < 15 s on the CPU worker | partial | the real handler on a 4-vCPU x86 CI runner: 62 s of 1080x1920 in 13.0 s with ffmpeg 8.0, and 15.8 s with ffmpeg 6.1 (the engine image's), QC included (`services/engine/scripts/bench_fast_render.py`). Not measured on the Modal worker. On device, landing → export is 14–21 s |
+| 3 | Accept: 60 s clip renders in < 15 s on the CPU worker | partial | the real handler on a 4-vCPU x86 CI runner: 62 s of 1080x1920 in 13.0 s with ffmpeg 8.0, and 15.8 s with ffmpeg 6.1 (the engine image's), QC included (`services/engine/scripts/bench_fast_render.py`, run from a checkout). Not measured on the Modal worker. On device, landing → export is 14–21 s |
 | 3 | Accept: budget flag off shows the pause message | done | `caps.test.ts` "free_paused flag refuses free edits with the pause message" |
 | 4 | Pricing cards; request-access form | done | `_landing/pricing.tsx`, `convex/access.ts`, `e2e/landing.spec.ts` |
 | 4 | Admin page: approve, decline, seats of 100 | done, owner | `admin/access`, `pro.test.ts`, `e2e/admin-access.spec.ts`; needs `EYELORE_ADMIN_TOKEN` in production |

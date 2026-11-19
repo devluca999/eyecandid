@@ -227,7 +227,9 @@ def render_picture(plan: dict, sources: dict[str, str], watermark: bool, work: P
     cores, not the container's share, and oversubscribes."""
     if threads is None:
         threads = int(os.environ.get("EYELORE_RENDER_THREADS", "0") or 0)
-    shutil.copytree(FONTS, work / "fonts", dirs_exist_ok=True)
+    (work / "fonts").mkdir(exist_ok=True)
+    for f in FONTS.glob("*.ttf"):
+        shutil.copy(f, work / "fonts" / f.name)
     ass = None
     if plan["captions"] or watermark:
         (work / "captions.ass").write_text(ass_script(plan, watermark), encoding="utf-8")

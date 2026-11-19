@@ -10,6 +10,11 @@ The pull-based worker. It calls the Convex worker API over HTTPS (outbound only)
 | `EYELORE_WORKER_TOKEN` | from `npx convex run workers:register '{"name":"…","provider":"…"}'` (shown once) |
 | `EYELORE_PROVIDER` | `cpu-stub` (tests) · `cpu` · `modal` · `colab` · `runpod` · `modal-gpu` (GPU pool: GPU job types only) |
 | `EYELORE_TRANSCRIBE_MODEL` | optional cap, e.g. `base` |
+| `EYELORE_FAST_PRESET` | optional: x264 preset of the fast free render (ADR 0018): `ultrafast` (default, CRF 23) · `superfast` (CRF 22) · `veryfast` (CRF 20) |
+| `EYELORE_RENDER_THREADS` | optional: cap ffmpeg's threads in the fast render (in a container ffmpeg counts the host's cores) |
+
+**Timing the fast free render** on a host, from a repo checkout (it builds a 62 s source from the landing loops):
+`.venv/bin/python scripts/bench_fast_render.py` (needs ffmpeg with libass and libx264).
 
 **Local:** `uv venv --python 3.12 && uv pip install -e '.[cpu]' && .venv/bin/eyelore-worker` (needs ffmpeg; render also
 needs Node and the repo's `services/render`).
