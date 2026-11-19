@@ -55,7 +55,7 @@ export type Transcript = { language: string; durationMs: number; words: { text: 
  * transcriber deviceSupport() chose; a forced "device" engine on a browser without support keeps the WebGPU path.
  */
 export async function transcribeOnDevice(file: File, durationMs: number, onStage: (detail: string) => void): Promise<Transcript> {
-  if ((await deviceSupport()).transcriber === "wasm") return transcribeWasm(file, durationMs, onStage);
+  if (engineHooks().engine === "wasm" || (await deviceSupport()).transcriber === "wasm") return transcribeWasm(file, durationMs, onStage);
   const wh = await import("@remotion/whisper-webgpu");
   onStage("reading the sound · on this device");
   const audio = await wh.resampleTo16Khz({ file });
@@ -72,8 +72,7 @@ export async function transcribeOnDevice(file: File, durationMs: number, onStage
   const words = r.words
     .map((x) => ({ text: x.text.trim(), startMs: Math.max(0, Math.round(x.startInSeconds * 1000)), endMs: Math.max(0, Math.round(x.endInSeconds * 1000)), conf: 1 }))
     .filter((w) => w.text && w.endMs >= w.startMs);
-  // what listened and how long it took (scripts/lab/device-flow.mjs prints it)
-  console.info(`[asr] ${JSON.stringify({ transcriber: "webgpu", model: DEVICE_MODEL, ms: Math.round(performance.now() - t0), text: words.map((w) => w.text).join(" ") })}`);
+  logAsr({ transcriber: "webgpu", model: DEVICE_MODEL, ms: Math.round(performance.now() - t0) }, words);
   // each word's loudness against the take (emphasis punch-ins); the 16 kHz audio is already in memory
   const rms = wordRms(audio, 16000, words);
   return { language: "en", durationMs, words: words.map((w, i) => ({ ...w, rms: rms[i]! })) };
@@ -85,7 +84,7 @@ export async function transcribeOnDevice(file: File, durationMs: number, onStage
  * after that.
  */
 async function transcribeWasm(file: File, durationMs: number, onStage: (detail: string) => void): Promise<Transcript> {
-  const name = wasmVariant(hookValue("eyelore.wasm-model"));
+  const name = wasmVariant(hookValue("eyelore.wasm-model"), durationMs);
   const variant = WASM_VARIANTS[name];
   const { resampleTo16Khz } = await import("@remotion/whisper-webgpu"); // OfflineAudioContext only; no WebGPU involved
   onStage("reading the sound · on this device");
@@ -108,12 +107,21 @@ async function transcribeWasm(file: File, durationMs: number, onStage: (detail: 
       worker.postMessage(request, [request.audio.buffer]);
     });
     const words = wordsFromChunks(done.chunks, audio.length / 16000);
-    console.info(`[asr] ${JSON.stringify({ transcriber: "wasm", model: name, threads: done.threads, isolated: done.isolated, loadMs: done.loadMs, ms: done.asrMs, text: words.map((w) => w.text).join(" ") })}`);
+    logAsr({ transcriber: "wasm", model: name, threads: done.threads, isolated: done.isolated, loadMs: done.loadMs, ms: done.asrMs }, words);
     const rms = wordRms(audio, 16000, words);
     return { language: "en", durationMs, words: words.map((w, i) => ({ ...w, rms: rms[i]! })) };
   } finally {
     worker.terminate();
   }
+}
+
+/**
+ * What listened and how long it took, like the [sound] and [qc] lines: numbers only. The words are added only in the
+ * lab (localStorage "eyelore.lab" = "1", set by scripts/lab/device-flow.mjs), so what someone said never reaches a log.
+ */
+function logAsr(m: Record<string, string | number | boolean>, words: { text: string }[]) {
+  const text = hookValue("eyelore.lab") === "1" ? { text: words.map((w) => w.text).join(" ") } : {};
+  console.info(`[asr] ${JSON.stringify({ ...m, words: words.length, ...text })}`);
 }
 
 function hookValue(key: string): string | null {

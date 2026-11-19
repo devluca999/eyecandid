@@ -2,7 +2,8 @@
 // From apps/web with `pnpm start` running:  node ../../scripts/lab/device-flow.mjs <clip.mp4> <out.mp4>
 // LAB_ENGINE=wasm forces the CPU (WebAssembly) transcriber even though this Chrome has WebGPU (localStorage
 // "eyelore.engine"); LAB_WASM_MODEL picks its Whisper build (e.g. tiny.en:q8, see apps/web/lib/asr-words.ts);
-// STOP_AT_READY=1 ends the run once the edit is ready (no export). Cold = a fresh LAB_PROFILE; cached = the same one again.
+// STOP_AT_READY=1 ends the run once the edit is ready (no export). "eyelore.lab" = "1" adds the words to the [asr] line;
+// LAB_NO_WEBGPU=1 hides navigator.gpu, as in a browser without WebGPU (proves the automatic fallback, no forcing). Cold = a fresh LAB_PROFILE; cached = the same one again.
 import { chromium } from "@playwright/test";
 const clip = process.argv[2];
 // LAB_PROFILE: a profile dir of your own when another run may hold the default one
@@ -19,7 +20,8 @@ page.on("console", (m) => {
 });
 page.on("pageerror", (e) => console.log("PAGEERROR", e.message.slice(0, 200)));
 var t0 = Date.now(); var s = () => ((Date.now() - t0) / 1000).toFixed(1) + "s";
-const hooks = { ...(process.env.LAB_ENGINE ? { "eyelore.engine": process.env.LAB_ENGINE } : {}), ...(process.env.LAB_WASM_MODEL ? { "eyelore.wasm-model": process.env.LAB_WASM_MODEL } : {}) };
+const hooks = { "eyelore.lab": "1", ...(process.env.LAB_ENGINE ? { "eyelore.engine": process.env.LAB_ENGINE } : {}), ...(process.env.LAB_WASM_MODEL ? { "eyelore.wasm-model": process.env.LAB_WASM_MODEL } : {}) };
+if (process.env.LAB_NO_WEBGPU) await page.addInitScript(() => { delete Navigator.prototype.gpu; });
 await page.addInitScript((h) => { for (const [k, v] of Object.entries(h)) localStorage.setItem(k, v); }, hooks);
 const BASE = process.env.BASE ?? "http://127.0.0.1:3000"; await page.goto(BASE + "/");
 await page.locator('[data-testid="file-input"][data-ready="1"]').waitFor({ state: "attached", timeout: 30000 });

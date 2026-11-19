@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_WASM_VARIANT, wasmVariant, wordsFromChunks } from "./asr-words";
+import { wasmVariant, wordsFromChunks } from "./asr-words";
 
 describe("wordsFromChunks (transformers.js word chunks → Transcript words)", () => {
   it("trims, converts to ms and keeps the model's timings", () => {
@@ -59,11 +59,17 @@ describe("wordsFromChunks (transformers.js word chunks → Transcript words)", (
   });
 });
 
-describe("wasmVariant (the measurement hook)", () => {
-  it("takes a known variant and ignores anything else", () => {
-    expect(wasmVariant("tiny.en:q8")).toBe("tiny.en:q8");
-    expect(wasmVariant("onnx-community/whatever")).toBe(DEFAULT_WASM_VARIANT);
-    expect(wasmVariant("toString")).toBe(DEFAULT_WASM_VARIANT);
-    expect(wasmVariant(null)).toBe(DEFAULT_WASM_VARIANT);
+describe("wasmVariant (which Whisper build listens on the CPU)", () => {
+  it("base.en for a clip in one 30 s window, tiny.en beyond it", () => {
+    expect(wasmVariant(null, 21_000)).toBe("base.en:q8");
+    expect(wasmVariant(null, 30_000)).toBe("base.en:q8");
+    expect(wasmVariant(null, 30_001)).toBe("tiny.en:q8");
+    expect(wasmVariant(null, 59_000)).toBe("tiny.en:q8");
+  });
+
+  it("the measurement hook wins when it names a known build, and is ignored otherwise", () => {
+    expect(wasmVariant("base.en:q4", 59_000)).toBe("base.en:q4");
+    expect(wasmVariant("onnx-community/whatever", 21_000)).toBe("base.en:q8");
+    expect(wasmVariant("toString", 59_000)).toBe("tiny.en:q8");
   });
 });

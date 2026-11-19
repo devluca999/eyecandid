@@ -44,21 +44,27 @@ type Dtype = "q8" | "q4" | "fp32";
 export type WasmVariant = { modelId: string; dtype: Dtype | Record<string, Dtype>; mb: number };
 
 /**
- * The Whisper builds the CPU path can use (onnx-community, word-timestamped exports; download sizes from the Hub's file
- * listing: encoder + merged decoder). Measured in Chrome with WASM forced on an M-series Mac; see ADR 0016.
+ * The Whisper builds the CPU path can use (onnx-community word-timestamped exports). `mb` is the whole first-visit
+ * download as transformers.js reported it (encoder, merged decoder, config and tokenizer). Measured in Chrome with WASM
+ * forced on an M1 Mac; see ADR 0016.
  */
 export const WASM_VARIANTS = {
-  "base.en:q8": { modelId: "onnx-community/whisper-base.en_timestamped", dtype: "q8", mb: 77 },
-  "base.en:q4": { modelId: "onnx-community/whisper-base.en_timestamped", dtype: "q4", mb: 142 },
-  "tiny.en:q8": { modelId: "onnx-community/whisper-tiny.en_timestamped", dtype: "q8", mb: 41 },
-  "tiny.en:q4": { modelId: "onnx-community/whisper-tiny.en_timestamped", dtype: "q4", mb: 96 },
+  "base.en:q8": { modelId: "onnx-community/whisper-base.en_timestamped", dtype: "q8", mb: 80 },
+  "base.en:q4": { modelId: "onnx-community/whisper-base.en_timestamped", dtype: "q4", mb: 145 },
+  "tiny.en:q8": { modelId: "onnx-community/whisper-tiny.en_timestamped", dtype: "q8", mb: 44 },
+  "tiny.en:q4": { modelId: "onnx-community/whisper-tiny.en_timestamped", dtype: "q4", mb: 99 },
 } as const satisfies Record<string, WasmVariant>;
 
 export type WasmVariantName = keyof typeof WASM_VARIANTS;
 
-export const DEFAULT_WASM_VARIANT: WasmVariantName = "base.en:q8";
+/**
+ * A clip that fits one 30 s Whisper window gets base.en (the closest to the WebGPU words); a longer one needs two or
+ * three windows, which took base.en 29-42 s on the CPU, so it gets tiny.en (about twice as fast, a few more slips).
+ */
+export const ONE_WINDOW_MS = 30_000;
 
-/** The measurement hook (localStorage "eyelore.wasm-model"): a known variant name, else the default. */
-export function wasmVariant(hook: string | null): WasmVariantName {
-  return hook !== null && Object.hasOwn(WASM_VARIANTS, hook) ? (hook as WasmVariantName) : DEFAULT_WASM_VARIANT;
+/** The build for this clip; the measurement hook (localStorage "eyelore.wasm-model") wins when it names a known one. */
+export function wasmVariant(hook: string | null, durationMs: number): WasmVariantName {
+  if (hook !== null && Object.hasOwn(WASM_VARIANTS, hook)) return hook as WasmVariantName;
+  return durationMs > ONE_WINDOW_MS ? "tiny.en:q8" : "base.en:q8";
 }
