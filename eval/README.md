@@ -80,4 +80,7 @@ Now stored. Every edit by a person (`edits.apply`) writes its labels in the same
 
 Read them with the token-gated query `labels.summary` (`{ token, days? }`, same `EYELORE_ADMIN_TOKEN` as /funnel; days defaults to 30). It returns counts by kind and by `kind:strikeKind`, reads at most 2000 newest rows per kind, and sets `truncated` (read the counts as "at least") when it hits that.
 
+For offline tuning, `labels:exportLabels` (internal, so only the Convex dashboard or CLI can call it) pages through rows: `limit` defaults to 200 and is clamped to 500; pass the returned `cursor` back until `done`.
+Example, against a dev deployment only: `npx convex run labels:exportLabels '{"kind":"restore","sinceMs":1760000000000,"limit":200}'`.
+
 Not done: tuning thresholds from labels, per person or globally, is still manual. Implicit pins (a user edit pins the paths it touches) are not labelled; only an explicit insert into `/pins` is.

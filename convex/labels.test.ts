@@ -2,7 +2,7 @@ import { convexTest } from "convex-test";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { emptyEditDoc } from "@eyelore/core";
 import schema from "./schema";
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { LABEL_CAP } from "./lib/labels";
 
@@ -142,5 +142,50 @@ describe("labels.summary", () => {
     });
     const s = await t.query(api.labels.summary, { token: TOKEN });
     expect(s).toMatchObject({ configured: true, days: 30, total: 4, truncated: false, byKind: { restore: 3, strike: 1, pin: 0, caption_edit: 0 }, byStrikeKind: { "restore:filler": 2, "restore:silence": 1 } });
+  });
+});
+
+describe("labels.exportLabels", () => {
+  async function seedMany(t: T, n: number) {
+    const p = await seed(t);
+    await t.run(async (ctx) => {
+      for (let i = 0; i < n; i++)
+        await ctx.db.insert("editLabels", { projectId: p, kind: i % 2 ? "strike" : "restore", atMs: i, spanMs: 1, docVersion: 1, at: 1000 + i, owner: "a:x" });
+    });
+  }
+
+  it("pages through every row exactly once and ends with done", async () => {
+    const t = convexTest(schema, modules);
+    await seedMany(t, 7);
+    const seen: number[] = [];
+    let cursor: string | null = null;
+    for (let i = 0; i < 10; i++) {
+      const r: { rows: { atMs: number }[]; cursor: string; done: boolean } = await t.query(internal.labels.exportLabels, { limit: 3, cursor });
+      expect(r.rows.length).toBeLessThanOrEqual(3);
+      seen.push(...r.rows.map((x) => x.atMs));
+      if (r.done) break;
+      cursor = r.cursor;
+    }
+    expect(seen.sort((x, y) => x - y)).toEqual([0, 1, 2, 3, 4, 5, 6]);
+  });
+
+  it("clamps limit to 500", async () => {
+    const t = convexTest(schema, modules);
+    await seedMany(t, 520);
+    const r = await t.query(internal.labels.exportLabels, { limit: 100000 });
+    expect(r.rows).toHaveLength(500);
+    expect(r.done).toBe(false);
+  });
+
+  it("filters by kind and by time, and rows carry no text", async () => {
+    const t = convexTest(schema, modules);
+    await seedMany(t, 6);
+    const strikes = await t.query(internal.labels.exportLabels, { kind: "strike" });
+    expect(strikes.rows.map((x) => x.atMs)).toEqual([1, 3, 5]);
+    const windowed = await t.query(internal.labels.exportLabels, { sinceMs: 1002, untilMs: 1004 });
+    expect(windowed.rows.map((x) => x.atMs).sort()).toEqual([2, 3, 4]);
+    const both = await t.query(internal.labels.exportLabels, { kind: "restore", sinceMs: 1002, untilMs: 1004 });
+    expect(both.rows.map((x) => x.atMs).sort()).toEqual([2, 4]);
+    expect(Object.keys(strikes.rows[0]!).sort()).toEqual(["at", "atMs", "docVersion", "id", "kind", "owner", "projectId", "spanMs"]);
   });
 });
