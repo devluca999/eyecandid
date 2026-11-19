@@ -35,6 +35,8 @@ describe("creditCost: one credit is one generated second", () => {
   it("estimates speech length for reserving a voice job", () => {
     expect(estimateSpeechSeconds("one two three four five")).toBe(2);
     expect(estimateSpeechSeconds("")).toBe(1);
+    // no spaces: counted by characters, so it cannot reserve far less than it will say
+    expect(estimateSpeechSeconds(Array.from({ length: 150 }, (_, i) => `word${i}`).join(","))).toBeGreaterThanOrEqual(60);
   });
 });
 

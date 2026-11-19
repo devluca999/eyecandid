@@ -2,7 +2,7 @@
 import { AbsoluteFill, Img, Sequence, useCurrentFrame, useVideoConfig } from "remotion";
 import { Audio, Video } from "@remotion/media";
 import { loadFont } from "@remotion/google-fonts/Geist";
-import { brollOverlays, coverBox, faceAt, framesOf, kenBurnsAt, punchAt, toTimeline, type BrollOverlay, type EditDoc, type Segment, type SoundPiece } from "@eyelore/core";
+import { brollOverlays, captionCss, coverBox, faceAt, framesOf, kenBurnsAt, punchAt, toTimeline, type BrollOverlay, type EditDoc, type Segment, type SoundPiece } from "@eyelore/core";
 
 const { fontFamily } = loadFont("normal", { weights: ["500", "700"], subsets: ["latin"] });
 
@@ -56,7 +56,7 @@ export function CutWeb({ doc, src, watermark, stills = {}, sound, gain = 1 }: Cu
           </Sequence>
         );
       })}
-      <Captions chunks={tl.captions} />
+      <Captions chunks={tl.captions} pos={captionCss(doc, doc.aspect)} />
       {watermark && (
         <div style={{ position: "absolute", right: "4%", bottom: "3%", color: "rgba(255,255,255,.85)", fontFamily, fontWeight: 500, fontSize: 34, textShadow: "0 1px 2px rgba(0,0,0,.4)" }}>
           eyecandid
@@ -104,7 +104,8 @@ function BrollStill({ o, src, fps }: { o: BrollOverlay; src: string; fps: number
   );
 }
 
-function Captions({ chunks }: { chunks: ReturnType<typeof toTimeline>["captions"] }) {
+/** `pos`: captionCss from core, the spot the export quality check measured (default 64%, or the doc's safe-band place). */
+function Captions({ chunks, pos }: { chunks: ReturnType<typeof toTimeline>["captions"]; pos: { top: string; transform?: string } }) {
   const frame = useCurrentFrame();
   const { fps, width } = useVideoConfig();
   const ms = (frame / fps) * 1000;
@@ -112,7 +113,7 @@ function Captions({ chunks }: { chunks: ReturnType<typeof toTimeline>["captions"
   if (!c) return null;
   const scale = width / 390;
   return (
-    <div style={{ position: "absolute", left: "6%", right: "6%", top: "64%", textAlign: "center" }}>
+    <div style={{ position: "absolute", left: "6%", right: "6%", ...pos, textAlign: "center" }}>
       <span style={{ fontFamily, fontWeight: 700, fontSize: 22 * scale, lineHeight: `${26 * scale}px`, color: "#fff", textShadow: "0 1px 2px rgba(0,0,0,.45), 0 2px 12px rgba(0,0,0,.35)" }}>
         {c.text}
       </span>

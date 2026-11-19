@@ -1,6 +1,7 @@
 "use client";
-import type { Aspect, EditDoc, FaceSample, ReframeKeyframe } from "@eyelore/core";
-import { dbToGain, encodeWav, integratedLoudness, loudnessGainDb, mixSound, smoothFaceTrack, TARGET_LUFS, toTimeline, truePeakDb, wordRms } from "@eyelore/core";
+import type { Aspect, EditDoc, FaceSample, MediaStats, QcResult, ReframeKeyframe } from "@eyelore/core";
+import { dbToGain, encodeWav, integratedLoudness, loudnessGainDb, mixSound, qcExport, smoothFaceTrack, sourceAt, TARGET_LUFS, toTimeline, truePeakDb, wordRms } from "@eyelore/core";
+import { FrameSampler, frameTap, lumaPlane, mean, meanAbsDiff, measureAudio, SAMPLE_SIDE } from "./frame-sampler";
 
 /**
  * The on-device engine (free tier, ADR 0012): Whisper on WebGPU for word timings and @remotion/web-renderer for the
@@ -103,27 +104,108 @@ export async function mixOnDevice(d: EditDoc, src: string): Promise<{ url: strin
   }
 }
 
-/** Render the current edit to an MP4 in the browser. Returns a Blob the page downloads; nothing is uploaded. */
-export async function renderOnDevice(doc: EditDoc, src: string, aspect: Aspect, watermark: boolean, onProgress: (p: number) => void, signal?: AbortSignal, stills: Record<string, string> = {}): Promise<{ blob: Blob; durationMs: number; sound: SoundReport }> {
+/** What the export quality check measured while rendering, and what it cost. */
+export type DeviceMeasure = { stats: MediaStats; timings: { renderMs: number; sampleMs: number; sampledFrames: number; frames: number; audioMs: number } };
+
+/**
+ * Render the current edit to an MP4 in the browser. Returns a Blob the page downloads; nothing is uploaded. While it
+ * renders, frames are sampled for the quality check (frame-sampler.ts); afterwards the file's own sound is measured.
+ * The sound is mixed here first (J/L cuts, fades, -14 LUFS; mixOnDevice) and handed to CutWeb as a WAV.
+ */
+export async function renderOnDevice(doc: EditDoc, src: string, aspect: Aspect, watermark: boolean, onProgress: (p: number) => void, signal?: AbortSignal, stills: Record<string, string> = {}): Promise<{ blob: Blob; durationMs: number; sound: SoundReport } & DeviceMeasure> {
   const [{ renderMediaOnWeb }, { CutWeb }] = await Promise.all([import("@remotion/web-renderer"), import("./cut-web")]);
   const d: EditDoc = { ...doc, aspect };
   const durationMs = toTimeline(d).durationMs;
   const [width, height] = SIZE[aspect];
   const mix = await mixOnDevice(d, src);
   console.info(`[sound] ${JSON.stringify(mix.report)}`);
+  const sampler = new FrameSampler();
+  const t0 = performance.now();
   const { getBlob } = await renderMediaOnWeb({
     composition: { id: "Cut", component: CutWeb as never, durationInFrames: Math.max(30, Math.round((durationMs / 1000) * 30)), fps: 30, width, height },
     inputProps: { doc: d, src, watermark, stills, ...(mix.url ? { sound: mix.url } : {}) },
     container: "mp4",
     videoCodec: "h264",
     onProgress: (p: { progress: number }) => onProgress(p.progress),
+    onFrame: frameTap(sampler, width, height),
     signal,
   } as never);
   try {
-    return { blob: await getBlob(), durationMs, sound: mix.report };
+    const blob = await getBlob();
+    const renderMs = performance.now() - t0;
+    // the file's length and sound come from the file itself (the audio track's decoded length)
+    const a0 = performance.now();
+    const audio = await measureAudio(blob);
+    const audioMs = performance.now() - a0;
+    const measured = audio?.durationMs ?? Math.round((sampler.frames * 1000) / 30);
+    const stats = sampler.stats(measured, audio?.levels);
+    return { blob, durationMs, sound: mix.report, stats, timings: { renderMs: Math.round(renderMs), sampleMs: Math.round(sampler.ms), sampledFrames: sampler.luma.length, frames: sampler.frames, audioMs: Math.round(audioMs) } };
   } finally {
     if (mix.url) URL.revokeObjectURL(mix.url);
   }
+}
+
+/**
+ * The quality check on a device export. When the file shows black, a freeze or clipping, the take is measured at the
+ * same moments (frames from the local clip, its sound) so the person's own footage isn't blamed on the render; only
+ * then, so a clean export pays nothing more. Returns the decision and the extra time it took.
+ */
+export async function checkDeviceExport(doc: EditDoc, src: string, stats: MediaStats): Promise<{ result: QcResult; sourceMs: number }> {
+  const first = qcExport(doc, stats);
+  const suspect = first.issues.filter((i) => i.code === "black_frames" || i.code === "frozen_frames" || i.code === "clipping");
+  if (!suspect.length) return { result: first, sourceMs: 0 };
+  const t0 = performance.now();
+  const filled: MediaStats = { ...stats };
+  const pictures = suspect.filter((i) => i.code !== "clipping");
+  if (pictures.length) {
+    const segs = toTimeline(doc).segments;
+    const step = stats.sampleEveryMs;
+    const want = new Set<number>();
+    for (const i of pictures) for (let k = Math.max(0, Math.floor(i.atMs / step) - 1); k < Math.min(stats.luma.length, Math.ceil((i.atMs + i.spanMs) / step)); k++) want.add(k);
+    // unmeasured moments read as bright and moving (NaN fails every "dark" or "still" test): the strict reading
+    const luma = Array<number>(stats.luma.length).fill(NaN);
+    const diff = Array<number>(stats.diff.length).fill(NaN);
+    const planes = await sampleTake(src, [...want].sort((x, y) => x - y).map((k) => ({ k, srcMs: sourceAt(segs, k * step)?.srcMs })));
+    for (const [k, plane] of planes) {
+      luma[k] = mean(plane);
+      const prev = planes.get(k - 1);
+      if (prev) diff[k] = meanAbsDiff(plane, prev);
+    }
+    Object.assign(filled, { sourceLuma: luma, sourceDiff: diff });
+  }
+  if (suspect.some((i) => i.code === "clipping") && filled.audio) {
+    const take = await measureAudio(await (await fetch(src)).blob());
+    if (take) filled.audio = { ...filled.audio, sourcePeakDb: take.levels.peakDb };
+  }
+  return { result: qcExport(doc, filled), sourceMs: Math.round(performance.now() - t0) };
+}
+
+/** Luma planes of the local take at the given source times, drawn at the sampler's size. */
+async function sampleTake(src: string, at: { k: number; srcMs?: number }[]): Promise<Map<number, Float32Array>> {
+  const out = new Map<number, Float32Array>();
+  const video = document.createElement("video");
+  video.muted = true;
+  video.playsInline = true;
+  video.preload = "auto";
+  video.src = src;
+  await new Promise<void>((res, rej) => {
+    video.onloadeddata = () => res();
+    video.onerror = () => rej(new Error("could not read the take"));
+  });
+  const scale = SAMPLE_SIDE / Math.max(video.videoWidth, video.videoHeight);
+  const canvas = new OffscreenCanvas(Math.max(1, Math.round(video.videoWidth * scale)), Math.max(1, Math.round(video.videoHeight * scale)));
+  const g = canvas.getContext("2d", { willReadFrequently: true })!;
+  for (const { k, srcMs } of at) {
+    if (srcMs === undefined) continue;
+    await new Promise<void>((res) => {
+      video.onseeked = () => res();
+      video.currentTime = srcMs / 1000;
+    });
+    g.drawImage(video, 0, 0, canvas.width, canvas.height);
+    out.set(k, lumaPlane(g.getImageData(0, 0, canvas.width, canvas.height).data));
+  }
+  video.removeAttribute("src");
+  return out;
 }
 
 /**

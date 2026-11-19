@@ -7,4 +7,5 @@ crons.interval("requeue expired job leases", { minutes: 1 }, internal.jobs.reque
 crons.interval("wake the engine for waiting jobs", { minutes: 1 }, internal.wake.check, {});
 // storage hygiene: raw uploads and proxies expire after 7 days (Free) / 30 (Pro), exports after 30 (convex/expiry.ts)
 crons.daily("expire old media", { hourUTC: 3, minuteUTC: 17 }, internal.expiry.sweep, {});
+crons.hourly("job failure rate", { minuteUTC: 7 }, internal.sentry.failureRate, {}); // sentry alert input, convex/sentry.ts
 export default crons;

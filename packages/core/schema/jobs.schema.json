@@ -566,7 +566,8 @@
         "type": "object",
         "properties": {
           "text": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 1500
           },
           "voiceId": {
             "type": "string"
@@ -1327,6 +1328,17 @@
                         "text"
                       ]
                     }
+                  },
+                  "place": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    }
                   }
                 }
               },
@@ -1542,6 +1554,174 @@
               "freezes",
               "silentAudio",
               "lufs"
+            ],
+            "additionalProperties": false
+          },
+          "measure": {
+            "type": "object",
+            "properties": {
+              "black": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "startMs": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "endMs": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "startMs",
+                    "endMs"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "frozen": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "startMs": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "endMs": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "startMs",
+                    "endMs"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "audio": {
+                "type": "object",
+                "properties": {
+                  "peakDb": {
+                    "type": "number"
+                  },
+                  "rmsDb": {
+                    "type": "number"
+                  },
+                  "clippedRatio": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  }
+                },
+                "required": [
+                  "peakDb",
+                  "rmsDb",
+                  "clippedRatio"
+                ],
+                "additionalProperties": false
+              },
+              "durationMs": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "sources": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "type": "object",
+                  "properties": {
+                    "black": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "startMs": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "endMs": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "startMs",
+                          "endMs"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "frozen": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "startMs": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "endMs": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "startMs",
+                          "endMs"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "audio": {
+                      "type": "object",
+                      "properties": {
+                        "peakDb": {
+                          "type": "number"
+                        },
+                        "rmsDb": {
+                          "type": "number"
+                        },
+                        "clippedRatio": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1
+                        }
+                      },
+                      "required": [
+                        "peakDb",
+                        "rmsDb",
+                        "clippedRatio"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "black",
+                    "frozen"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "black",
+              "frozen",
+              "durationMs"
             ],
             "additionalProperties": false
           }

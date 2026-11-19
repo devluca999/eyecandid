@@ -1,6 +1,6 @@
 # 0014 · Credits are generated seconds: reserve, settle, refund
 
-**Status.** Accepted as the contract, 2026-11-17. The pure model is built and tested (`packages/core/src/credits.ts`). The server still charges the Phase 4 placeholders (ADR 0009 addendum) until "Rollout" below is done. Two parts wait for the owner: the free tier's shape and the Stripe prices.
+**Status.** Accepted as the contract, 2026-11-17. The pure model is built and tested (`packages/core/src/credits.ts`). Rollout steps 1 and 2 are wired (`convex/lib/credits.ts`, `convex/credits.test.ts`), and the export count from step 3 (1 per anonymous session, then sign-in; 3 a month on Free) is enforced in `planExport`. Still open: swapping `PLANS` for the catalog (monthly amounts and pack sizes still come from `plans.ts`), the editor's cost line, and the two owner decisions below (the free tier's 10 one-time credits are not granted).
 
 **Context.** `docs/pricing-and-quality-plan.md` sets the pricing rule: editing costs cents, so it is not metered; generation costs about $0.02–0.03 a second, so it is. Today a GPU job costs a fixed number of placeholder credits by type (`GPU_CREDIT_COST`), taken at enqueue from one number (`entitlements.credits`) and returned if the job fails for good. That cannot express a 4 s clip costing less than a 10 s one, top-ups that last 12 months next to a monthly allowance that doesn't roll over, or a refund when the result is bad rather than missing.
 
@@ -21,6 +21,17 @@
 2. *Server.* `chargeGpuJob` calls `creditCost(type, { seconds })` with the length from the job input and `reserve`; the job-complete path calls `settle`; the final-failure path and a new `qc_failed` worker result call `release`. The webhook writes a `monthlyLot` on checkout and renewal (once a month, as now) and a `topupLot` for a pack.
 3. *Plans.* Swap `PLANS` for the catalog once the owner confirms it: `PlanId` gains `pro` and `founding`; exports are counted (1 per anonymous session, 3 a month on Free) instead of minutes; paid plans get fair use (10 h of raw footage a month).
 4. *Product.* The editor shows the cost before a generation starts ("5 s · 5 credits") and the balance after.
+
+**As built (rollout 1–2).**
+- **The plan's allowance is per paid billing period, not per calendar month** (this refines decision 3). A lot is granted only for a period Stripe says was paid and ends when that period ends: `p:<subscription>:first` on a paid checkout (a month from now stands in until the first `invoice.paid`, same lot id, corrects the end) and `p:<subscription>:<period start>` on each `invoice.paid` with `amount_paid > 0`. Only `billing_reason` `subscription_create` and `subscription_cycle` grant. The period and plan come from the invoice's own subscription line (not a proration line, which Stripe may list first). A subscription update is not a payment and grants nothing; a trial or a $0 invoice grants nothing. So one payment can never buy two periods, and cancelling at period end leaves exactly what was paid for.
+- **A mid-period plan change grants nothing** (the simpler of the two options): a proration invoice (`subscription_update`) is ignored, and the new plan's credits start with its next renewal. Upgrading does not top up the difference for the rest of the period.
+- An account paid before ADR 0014 had its first month put into `entitlements.credits` (with `creditsPeriod` set). Its first period is not granted again, but only for the subscription that was live then and only if that was this month or last; a returning subscriber on a new subscription is granted like anyone else.
+- Other lot ids are deterministic too, so a replayed grant never adds twice: `t:<checkout session>` (a pack, 12 months), `legacy:<entitlement>` (a balance from `entitlements.credits`, no expiry), `r:<charge>` (credits back from a lot that expired meanwhile, 30 days, only for our failures: a refund because the person deleted their edit lapses with its lot, like unused credits).
+- Voice is reserved from the text's characters (about 15 a second, never less than 2.5 words a second) and its text is capped at 1,500 characters in the job contract. If it still makes more than was reserved, the difference is taken at settle when the balance allows; otherwise it settles at the reservation and the charge row records `uncharged`.
+- `entitlements.credits` is folded into its `legacy:` lot by the first mutation that touches the balance (reads count it meanwhile), and `migrations:creditsToLots` folds every row. The field stays in the schema, always 0, until it is dropped.
+- The Pro gate runs before the cost, so a free account hears about Pro; a look costs 0 but is still refused without Pro. A per-second job whose length can't be told (no `durationMs`, no media duration) is refused with "couldn't tell how many seconds this makes · nothing was charged".
+- `invoice.paid` must be added to the Stripe webhook endpoint's events (owner).
+- The worker reports a rejected result with `POST /worker/fail { outcome: "qc_failed" }`: final, never retried, refunded (`refundReason: "qc_failed"`). Older workers are unaffected.
 
 ## Consequences
 

@@ -153,7 +153,16 @@ export default function Edit() {
     setSaved(null);
     track("export_clicked", { aspect: doc.aspect });
     // signup and the paywall at export arrive with keys (PLAN: Needs keys); until then exports are anonymous and watermarked
-    await startExport({ anonId, projectId, aspect: doc.aspect, requestId: `${Date.now()}-${exportSeq.current++}` });
+    try {
+      // no sign-in on mobile yet: past the free export, the server answers with a plain line instead of a sign-in prompt
+      await startExport({ anonId, projectId, aspect: doc.aspect, requestId: `${Date.now()}-${exportSeq.current++}`, canSignIn: false });
+    } catch (e) {
+      requested.current = false;
+      // a refusal carries its own line (e.g. the free export count, convex/lib/exportCount.ts); no sign-in on mobile yet
+      const data = e && typeof e === "object" && "data" in e ? (e as { data: unknown }).data : undefined;
+      const line = typeof data === "string" ? data : data && typeof data === "object" ? (data as { message?: unknown }).message : undefined;
+      setNotice(typeof line === "string" && line ? line : "couldn't export · try again");
+    }
   };
   useEffect(() => {
     if (!requested.current || !latest || latest.status !== "succeeded" || !latest.url || saved?.exportId === latest._id) return;

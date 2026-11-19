@@ -21,7 +21,7 @@ export function parseDsn(dsn: string | undefined): ParsedDsn | null {
   }
 }
 
-export function buildEnvelope(dsn: string, message: string, tags: Record<string, string>, env: string, now = Date.now()): string {
+export function buildEnvelope(dsn: string, message: string, tags: Record<string, string>, env: string, now = Date.now(), fingerprint?: string[]): string {
   const eventId = crypto.randomUUID().replace(/-/g, "");
   const event = {
     event_id: eventId,
@@ -32,13 +32,14 @@ export function buildEnvelope(dsn: string, message: string, tags: Record<string,
     logger: "convex",
     message: message.slice(0, 500),
     tags,
+    ...(fingerprint ? { fingerprint } : {}),
   };
   const header = { event_id: eventId, sent_at: new Date(now).toISOString(), dsn };
   return [JSON.stringify(header), JSON.stringify({ type: "event" }), JSON.stringify(event)].join("\n");
 }
 
 /** Report one error. Returns whether it was sent; never throws. */
-export async function reportError(message: string, tags: Record<string, string> = {}, fetcher: typeof fetch = fetch): Promise<boolean> {
+export async function reportError(message: string, tags: Record<string, string> = {}, fetcher: typeof fetch = fetch, fingerprint?: string[]): Promise<boolean> {
   const dsn = process.env.SENTRY_DSN;
   const parsed = parseDsn(dsn);
   if (!dsn || !parsed) return false;
@@ -46,7 +47,7 @@ export async function reportError(message: string, tags: Record<string, string> 
     const res = await fetcher(parsed.endpoint, {
       method: "POST",
       headers: { "content-type": "application/x-sentry-envelope", "x-sentry-auth": `Sentry sentry_version=7, sentry_key=${parsed.publicKey}, sentry_client=eyelore-convex/1` },
-      body: buildEnvelope(dsn, message, tags, process.env.EYELORE_ENV ?? "production"),
+      body: buildEnvelope(dsn, message, tags, process.env.EYELORE_ENV ?? "production", Date.now(), fingerprint),
     });
     return res.ok;
   } catch {

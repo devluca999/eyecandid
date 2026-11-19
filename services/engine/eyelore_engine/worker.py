@@ -24,7 +24,7 @@ from jsonschema import ValidationError
 
 from . import contract, telemetry
 from .client import ClaimedJob, ConvexWorkerClient, StaleLease
-from .handlers import NonRetryable, registry
+from .handlers import NonRetryable, QcFailed, registry
 from .providers import GpuProvider, claimable, from_env
 
 
@@ -96,6 +96,8 @@ def run_one(client: ConvexWorkerClient, provider: GpuProvider, worker_name: str,
         print(f"[eyelore] lost lease on {job.id}; dropping it", file=sys.stderr)
     except ValidationError as e:
         client.fail(job.id, f"contract violation: {e.message}", retryable=False)
+    except QcFailed as e:
+        client.fail(job.id, str(e), retryable=False, qc_failed=True)
     except NonRetryable as e:
         client.fail(job.id, str(e), retryable=False)
     except Exception as e:  # noqa: BLE001

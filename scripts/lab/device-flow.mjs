@@ -9,6 +9,8 @@ let reframed = false;
 page.on("console", (m) => {
   if (m.text().includes("[reframe]")) { reframed = true; console.log(s(), "CONSOLE", m.text().slice(0, 200)); }
   if (m.text().includes("[sound]")) console.log(s(), "CONSOLE", m.text().slice(0, 600)); // the export's mix and loudness
+  // the export quality check's measured cost and verdict (Editor.tsx deviceExporter)
+  if (m.text().startsWith("[qc]")) console.log(s(), "QC", m.text().slice(5, 600));
 });
 page.on("pageerror", (e) => console.log("PAGEERROR", e.message.slice(0, 200)));
 var t0 = Date.now(); var s = () => ((Date.now() - t0) / 1000).toFixed(1) + "s";
@@ -43,8 +45,18 @@ if (process.env.ENERGY) {
 const t2 = Date.now();
 await page.getByTestId("export").click();
 const dl = page.getByTestId("download");
-await dl.waitFor({ timeout: 300000 });
-console.log(s(), "export ready (render", ((Date.now() - t2) / 1000).toFixed(1) + "s; drop→export", ((Date.now() - t1) / 1000).toFixed(1) + "s)");
+// the quality check either delivers (download) or says why in the pill (export-check)
+const check = page.getByTestId("export-check");
+await dl.or(check).first().waitFor({ timeout: 300000 });
+console.log(s(), "export decided (render+check", ((Date.now() - t2) / 1000).toFixed(1) + "s; drop→export", ((Date.now() - t1) / 1000).toFixed(1) + "s)");
+const fixedLine = await page.getByTestId("qc-fixed").innerText().catch(() => "");
+if (fixedLine) console.log("qc fixed:", fixedLine);
+if (await check.isVisible().catch(() => false)) {
+  console.log("qc check:", await check.getAttribute("data-kind"), "·", await check.innerText());
+  if (!(await page.getByTestId("qc-anyway").isVisible().catch(() => false))) { await ctx.close(); process.exit(2); }
+  await page.getByTestId("qc-anyway").click();
+  await dl.waitFor({ timeout: 10000 });
+}
 const [download] = await Promise.all([page.waitForEvent("download"), dl.click()]);
 await download.saveAs(process.argv[3]); console.log("saved", process.argv[3]);
 await ctx.close();

@@ -1,6 +1,7 @@
 import { convexTest } from "convex-test";
 import { describe, expect, it, vi } from "vitest";
-import { addClipChange, applyChange, beadChanges, brollOverlays, emptyEditDoc, PRO_PLAN, type EditDoc } from "@eyelore/core";
+import { addClipChange, applyChange, balance, beadChanges, brollOverlays, emptyEditDoc, PRO_PLAN, type EditDoc } from "@eyelore/core";
+import { ledgerFor } from "./lib/credits";
 import schema from "./schema";
 import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
@@ -33,15 +34,16 @@ async function proUser(t: T, opts: { approved?: boolean; paid?: boolean; credits
     });
   }
   if (opts.credits !== undefined) {
+    // exactly this many: drop the checkout's monthly lot, hold the balance as a migrated (pre-ADR 0014) one
     await t.run(async (ctx) => {
+      for (const l of await ctx.db.query("creditLots").withIndex("by_user_lot", (q) => q.eq("userId", userId)).collect()) await ctx.db.delete(l._id);
       const ent = await ctx.db.query("entitlements").withIndex("by_user", (q) => q.eq("userId", userId)).unique();
       await ctx.db.patch(ent!._id, { credits: opts.credits });
     });
   }
   return userId;
 }
-const credits = (t: T, userId: Id<"users">) =>
-  t.run(async (ctx) => (await ctx.db.query("entitlements").withIndex("by_user", (q) => q.eq("userId", userId)).unique())?.credits ?? 0);
+const credits = (t: T, userId: Id<"users">) => t.run(async (ctx) => balance((await ledgerFor(ctx, userId, Date.now())).lots, Date.now()));
 
 const w = (text: string, s: number, e: number) => ({ text, startMs: s, endMs: e, conf: 0.9 });
 /** A ready edit with two beads: "this ring tracks my sleep." and "link below." */
@@ -193,14 +195,27 @@ describe("still jobs on the worker side", () => {
     expect((await head(t, projectId)).tracks.broll.map((x) => x.ref)).toEqual([mediaId]);
   });
 
-  it("respects a pinned b-roll track: the still is kept with the edit but not placed", async () => {
+  it("refuses a still for a pinned b-roll track up front, with a reason, and charges nothing", async () => {
+    const t = mk();
+    const userId = await proUser(t, { credits: 2 });
+    await worker(t, "modal-gpu");
+    const projectId = await project(t);
+    const v = (await head(t, projectId)).version;
+    await t.withIdentity(ALICE).mutation(api.edits.apply, { anonId: ANON, projectId, baseVersion: v, ops: [{ op: "set", path: "/tracks/broll", value: [] }], reason: "b-roll · none" });
+    await expect(ask(t, projectId)).rejects.toThrow("you pinned the b-roll here · unpin it to ask for a still");
+    expect(await stillJobs(t)).toHaveLength(0);
+    expect(await credits(t, userId)).toBe(2);
+    expect(await t.run((ctx) => ctx.db.query("creditCharges").collect())).toHaveLength(0);
+  });
+
+  it("a track pinned while the still is on its way: the still is kept with the edit but not placed", async () => {
     const t = mk();
     await proUser(t, { credits: 2 });
     const gpu = await worker(t, "modal-gpu");
     const projectId = await project(t);
+    await ask(t, projectId);
     const v = (await head(t, projectId)).version;
     await t.withIdentity(ALICE).mutation(api.edits.apply, { anonId: ANON, projectId, baseVersion: v, ops: [{ op: "set", path: "/tracks/broll", value: [] }], reason: "b-roll · none" });
-    await ask(t, projectId);
     await finishStill(t, gpu);
     expect((await head(t, projectId)).tracks.broll).toEqual([]);
     expect(await t.withIdentity(ALICE).query(api.broll.state, { anonId: ANON, projectId })).toMatchObject({ jobs: [{ status: "succeeded", placed: false }] });

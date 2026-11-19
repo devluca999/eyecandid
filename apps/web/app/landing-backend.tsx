@@ -16,7 +16,7 @@ import type { BackendProps } from "./uploader-shell";
  * landing_view event and the "your edits" list (portalled into its slot in the hero).
  */
 function Bridge({ register, report, root }: BackendProps & { root: React.RefObject<HTMLDivElement | null> }) {
-  const { busy, error } = useUploader();
+  const { busy, error, unsupported } = useUploader();
   const track = useMutation(api.events.track);
   const [slot, setSlot] = useState<Element | null>(null);
 
@@ -26,14 +26,14 @@ function Bridge({ register, report, root }: BackendProps & { root: React.RefObje
     void track({ anonId, event: { name: "landing_view", props: { platform: "web", variant: v, heroLine: HERO_LINES[v] } } });
   }, [track]);
 
-  useEffect(() => report({ busy, error }), [busy, error, report]);
+  useEffect(() => report({ busy, error, unsupported }), [busy, error, unsupported, report]);
 
   useEffect(() => {
     // the shell owns the page's one file input (data-testid="file-input"); this one is only fed through it
     const real = root.current?.querySelector<HTMLInputElement>('input[type="file"]');
     real?.setAttribute("data-testid", "file-input-backend");
     register((file) => {
-      if (!real) return report({ busy: false, error: "couldn’t start that upload · reload the page and drop it again" });
+      if (!real) return report({ busy: false, error: "couldn’t start that upload · reload the page and drop it again", unsupported: null });
       const dt = new DataTransfer();
       dt.items.add(file);
       real.files = dt.files;

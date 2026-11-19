@@ -5,23 +5,27 @@ import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
-import { brollAt, brollOverlays, brollPath, coverBox, faceAt, firstWords, kenBurnsAt, outputAt, punchAt, toTimeline, type Aspect, type Bead, type EditDoc, type EditOp } from "@eyelore/core";
+import { brollAt, brollOverlays, brollPath, coverBox, faceAt, firstWords, kenBurnsAt, outputAt, punchAt, toTimeline, type Aspect, type Bead, EditDoc, type EditOp, type VersionId } from "@eyelore/core";
 import { ContextMenu, ExportPill, Icon, Lens, Lockup, StatusDot, RATIOS, type MenuItem } from "@eyelore/ui";
 import { getAnonId } from "@/lib/anon";
-import { refusalMessage } from "@/lib/refusal";
-import { probeVideo } from "@/lib/upload";
+import { probeVideo, uploadFile } from "@/lib/upload";
 import { session } from "@/lib/session";
 import { useTrack } from "@/lib/track";
-import { renderOnDevice } from "@/lib/device-engine";
+import { checkDeviceExport, renderOnDevice } from "@/lib/device-engine";
 import { ReadyEmail } from "./ReadyEmail";
 import { usePlayer } from "./usePlayer";
 import { Thread, type Hover } from "./Thread";
 import { Captions } from "./Captions";
 import { useThumbs } from "./useThumbs";
 import { useExportGate } from "./ExportGate"; // [around-the-loop] signup + paywall + presence live in ExportGate.tsx
+import { refusalIssue, useExportCheck, type DeviceCheck } from "./useExportCheck"; // the export quality check (convex/qc.ts)
 import { DialStrip, dialLine, useDials, type DialKey } from "./Dials";
 import { Drawer } from "./Drawer";
 import { Board } from "./Board";
+import { VersionPicker } from "./Versions";
+import { pickerOffered, pickReason } from "@/lib/versions-picker";
+import { getClientHint } from "@/lib/client-hint";
+import { refusalMessage } from "@/lib/refusal";
 import { Help, Tour, TOUR, TOUR_KEY } from "./Help";
 
 const STAGE_WORD: Record<string, string> = {
@@ -91,7 +95,12 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
   const limits = useQuery(api.limits.status, anonId ? { anonId } : "skip");
   const apply = useMutation(api.edits.apply);
   const undo = useMutation(api.edits.undo);
+  const pickVersion = useMutation(api.edits.pickVersion);
+  const [versionsHidden, setVersionsHidden] = useState(false);
+  const [picking, setPicking] = useState(false);
   const remove = useMutation(api.projects.remove);
+  const uploadUrl = useMutation(api.projects.uploadUrl);
+  const addSource = useMutation(api.projects.addSource);
   const router = useRouter();
   const track = useTrack();
   const pending = useSyncExternalStore(session.subscribe, () => session.get(projectId), () => undefined);
@@ -232,6 +241,28 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
     [anonId, apply, serverDoc, projectId, track],
   );
 
+  const pick = useCallback(
+    async (version: VersionId) => {
+      if (!serverDoc || picking) return;
+      setPicking(true);
+      try {
+        const r = await pickVersion({ anonId, projectId, baseVersion: serverDoc.version, version });
+        if (!r.ok) setNotice("someone else just edited · try again");
+        else {
+          const kind = version === "genre" ? serverDoc.genre ?? undefined : undefined;
+          track("version_picked", { version, ...(kind ? { kind } : {}) });
+          // the change is in the history with its reason; say it where every other explanation shows
+          if (!("same" in r && r.same)) setNotice(pickReason(serverDoc, version));
+        }
+      } catch (e) {
+        setNotice(e instanceof Error ? e.message.replace(/^.*Uncaught Error: /, "").split("\n")[0]! : "couldn't pick that");
+      } finally {
+        setPicking(false);
+      }
+    },
+    [anonId, pickVersion, picking, projectId, serverDoc, track],
+  );
+
   const toggleWord = (b: Bead, wordId: string) => {
     const w = b.words.find((x) => x.id === wordId)!;
     void commit([{ op: "set", path: `/beads/@${b.id}/words/@${w.id}/struck`, value: !w.struck }], `${w.struck ? "restored" : "cut"} · '${w.text}'`, "word");
@@ -278,18 +309,39 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
   // on-device engine (ADR 0012): the clip lives in this browser; exports are authorized by the server, rendered here
   const isDevice = data?.project.engine === "device";
   const authorizeDeviceExport = useMutation(api.pipeline.authorizeDeviceExport);
-  const [devExport, setDevExport] = useState<{ phase: "idle" | "rendering" | "done" | "failed"; progress: number; url?: string; error?: string; watermark?: boolean }>({ phase: "idle", progress: 0 });
-  const deviceExporter = async (x: { aspect: Aspect; requestId: string; maxDurationMs?: 15000 | 30000 | 60000; mode: "best" | "free" }) => {
+  const deviceExportFailed = useMutation(api.pipeline.deviceExportFailed);
+  const [devExport, setDevExport] = useState<{ phase: "idle" | "rendering" | "done" | "failed"; progress: number; url?: string; error?: string; watermark?: boolean; stage?: string }>({ phase: "idle", progress: 0 });
+  // the quality check on a device export (useExportCheck.tsx): held for "export anyway", or blocked
+  const [devCheck, setDevCheck] = useState<DeviceCheck>(null);
+  const recordDeviceQc = useMutation(api.qc.recordDevice);
+  const deviceExporter = async (x: { aspect: Aspect; requestId: string; maxDurationMs?: 15000 | 30000 | 60000; mode: "best" | "free"; canSignIn: boolean }) => {
     const local = session.get(projectId)?.url;
     if (!local) throw new Error("this clip stays on the device you dropped it on · choose it again below to export");
     const auth = await authorizeDeviceExport({ anonId, projectId, ...x });
     setDevExport({ phase: "rendering", progress: 0 });
+    setDevCheck(null);
     try {
-      const { blob, durationMs } = await renderOnDevice(auth.doc as EditDoc, local, x.aspect, auth.watermark, (p) => setDevExport({ phase: "rendering", progress: p }), undefined, auth.stills);
-      setDevExport({ phase: "done", progress: 1, url: URL.createObjectURL(blob), watermark: auth.watermark });
+      const { blob, durationMs, stats, timings } = await renderOnDevice(auth.doc as EditDoc, local, x.aspect, auth.watermark, (p) => setDevExport({ phase: "rendering", progress: p }), undefined, auth.stills);
+      setDevExport({ phase: "rendering", progress: 1, stage: "checking on this device" });
+      const { result, sourceMs } = await checkDeviceExport(EditDoc.parse(auth.doc), local, stats);
+      // measured cost of the check, for the lab runs (scripts/lab/device-flow.mjs reads this line)
+      console.log("[qc]", JSON.stringify({ ...timings, sourceMs, status: result.verdict.blocking.length ? "blocked" : result.verdict.ok ? "ok" : "ask", issues: result.issues.map((i) => `${i.gate} ${i.code} · ${i.message}`) }));
+      const status = await recordDeviceQc({ anonId, exportId: auth.exportId, checked: true, issues: result.issues }).catch(() => null);
+      const url = URL.createObjectURL(blob);
+      if (result.headline && (status === "blocked" || status === "ask" || !result.verdict.ok)) {
+        const kind = result.verdict.blocking.length ? "blocked" : "held";
+        // a blocked file is never handed over; a held one waits for "export anyway"
+        if (kind === "blocked") URL.revokeObjectURL(url);
+        setDevExport({ phase: "idle", progress: 0, url: kind === "held" ? url : undefined, watermark: auth.watermark });
+        setDevCheck({ kind, issue: result.headline, exportId: auth.exportId as Id<"exports"> });
+        return;
+      }
+      setDevExport({ phase: "done", progress: 1, url, watermark: auth.watermark });
       track("export_done", { durationMs, watermark: auth.watermark });
     } catch (e) {
       setDevExport({ phase: "failed", progress: 0, error: e instanceof Error ? e.message : String(e) });
+      // nothing was delivered: the free export it was counted as comes back
+      void deviceExportFailed({ anonId, exportId: auth.exportId }).catch(() => {});
     }
   };
   const doExport = async (cutOverride?: string | null) => {
@@ -306,9 +358,40 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
     try {
       await gate.run(exportArgs, isDevice ? deviceExporter : undefined);
     } catch (e) {
-      setNotice(e instanceof Error ? e.message.replace(/^.*Uncaught Error: /, "").split("\n")[0]! : "couldn't export");
+      // the quality check refused it before rendering: its own line goes in the export pill
+      const refused = refusalIssue(e);
+      if (refused) qc.setRefusal(refused);
+      else setNotice(refusalMessage(e, e instanceof Error ? e.message.replace(/^.*Uncaught Error: /, "").split("\n")[0]! : "couldn't export"));
     }
     setExportReq((n) => n + 1);
+  };
+  const qc = useExportCheck({
+    anonId,
+    projectId,
+    latest: latestExport ? { _id: latestExport._id, qc: latestExport.qc, device: latestExport.device } : undefined,
+    device: devCheck,
+    clearDevice: () => setDevCheck(null),
+    acceptDevice: () => {
+      setDevCheck(null);
+      setDevExport((d) => ({ ...d, phase: "done", progress: 1 }));
+    },
+    segments: tl?.segments,
+    seekSrc: player.seekSrc,
+    again: () => void doExport(),
+  });
+  // a failed upload (server engine): the file is still held in this tab, so send it again from here
+  const retryUpload = async () => {
+    const p = session.get(projectId);
+    if (!p?.meta || p.engine === "device") return;
+    session.update(projectId, { error: undefined, uploadProgress: 0 });
+    try {
+      const clientHint = await getClientHint();
+      const storageId = await uploadFile(() => uploadUrl({ anonId, projectId, clientHint }), p.file, (x) => session.update(projectId, { uploadProgress: x }));
+      await addSource({ anonId, projectId, storageId: storageId as Id<"_storage">, contentType: p.file.type || "video/mp4", source: "upload", ...p.meta });
+      session.update(projectId, { uploadProgress: 1 });
+    } catch (e) {
+      session.update(projectId, { error: refusalMessage(e, "upload failed again · check your connection and try again") });
+    }
   };
   const doDelete = async () => {
     setDel("deleting");
@@ -450,6 +533,8 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
             ? null
             : `${STAGE_WORD[stage] ?? stage}${activeJob?.status === "running" ? ` · ${Math.round(activeJob.progress * 100)}%` : ""}`;
   const ready = stage === "ready" && !!doc && doc.beads.length > 0;
+  // first visit on the device engine: the model downloads (~206 MB) while the clip is already here, so it plays raw meanwhile
+  const preparing = isDevice && !!pending && stage !== "ready" && stage !== "failed";
 
   // deletable once the clip is registered (or its upload failed): deleting under a live upload would strand the file
   const canDelete = !!data && (!!sourceMedia || !!pending?.error || !pending);
@@ -614,7 +699,7 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
                   />
                 )}
                 {doc?.captions.enabled && mode !== "board" && !raw && <Captions chunk={chunk} outMs={outMs ?? 0} look={doc.captions.look} onRetype={retype} readOnly={mode === "theater"} />}
-                {!player.playing && src && stage === "ready" && mode === "edit" && (
+                {!player.playing && src && (stage === "ready" || preparing) && mode === "edit" && (
                   <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", pointerEvents: "none" }}>
                     <span className="el-glass" style={{ width: 52, height: 52, borderRadius: 999, display: "grid", placeItems: "center" }}>
                       <Icon name="play" />
@@ -683,12 +768,22 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
             <button className={"el-seg__opt" + (raw ? " is-on" : "")} role="radio" aria-checked={raw} onClick={() => { setRaw(true); track("edit_interaction", { kind: "raw" }); }}>raw take</button>
           </div>
         )}
+        {pickerOffered(stage, mode, serverDoc) && serverDoc && !versionsHidden && (
+          <VersionPicker doc={serverDoc} src={src} ratio={editRatio} busy={picking} onPick={(v) => void pick(v)} onHide={() => setVersionsHidden(true)} />
+        )}
         {mode !== "theater" && (
           <div className="el-explain" style={{ minHeight: 22 }} aria-live="polite" data-testid="explain">
             {notice ? (
               <span>{notice}</span>
             ) : stageLine ? (
-              <StatusDot status={stage === "failed" || pending?.error ? "attention" : "working"} label={stageLine} style={{ whiteSpace: "normal", textAlign: "left" }} />
+              <>
+                <StatusDot status={stage === "failed" || pending?.error ? "attention" : "working"} label={stageLine} style={{ whiteSpace: "normal", textAlign: "left" }} />
+                {pending?.error && pending.engine === "server" && pending.meta && (
+                  <button className="el-pill el-pill--quiet el-pill--sm" data-testid="retry-upload" onClick={() => void retryUpload()}>
+                    try again
+                  </button>
+                )}
+              </>
             ) : explain ? (
               <>
                 {explain.action}
@@ -724,6 +819,7 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
           <ChooseAgain projectId={projectId} durationMs={sourceMedia?.durationMs ?? clip?.durationMs} onNotice={setNotice} />
         )}
         {stage === "ready" && serverDoc && mode === "edit" && (
+          <div className="eyl-exportdock" data-testid="export-dock">
           <ExportPill
             value={view === "source" ? serverDoc.aspect : view}
             onChange={(r) => setAspect(r as Aspect)}
@@ -732,12 +828,15 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
             onExport={() => void doExport()}
             phase={isDevice ? (devExport.phase === "failed" ? "idle" : devExport.phase) : exporting ? "rendering" : latestExport?.status === "succeeded" ? "done" : "idle"}
             progress={isDevice ? (devExport.phase === "rendering" ? devExport.progress : undefined) : exporting ? latestExport!.progress : undefined}
-            stage={isDevice ? (devExport.phase === "rendering" ? "rendering on this device" : undefined) : exporting ? latestExport!.stage : undefined}
+            stage={isDevice ? (devExport.phase === "rendering" ? devExport.stage ?? "rendering on this device" : undefined) : exporting ? latestExport!.stage : undefined}
             downloadUrl={downloadUrl}
             filename={filename}
             onDownload={saveServerExport}
+            check={qc.check}
           />
+          </div>
         )}
+        {stage === "ready" && mode === "edit" && qc.fixedLine}
         {/* the Pro ask comes after value is felt: a free (watermarked) export just finished; never pushed */}
         {stage === "ready" && mode === "edit" && exportedFree && !limits?.pro && (
           <p className="text-meta text-ink-secondary" style={{ textAlign: "center" }} data-testid="pro-offer">

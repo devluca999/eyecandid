@@ -18,7 +18,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from ..qc import qc_file
+from ..qc import measure_file, needs_source, qc_file
 
 TRUE_PEAK_DB = -1.0
 LRA = 11
@@ -182,9 +182,21 @@ def run(inp: dict, ctx) -> dict:
     ctx.progress(0.92, "checking")
     qc = qc_file(str(out), sheet=False)
     lufs = _lufs(str(out))
+    # the export quality check (packages/core qc.ts, run by Convex): measure the file; only when it shows black, a
+    # freeze or clipping, measure the takes too, so a dark or still take isn't blamed on the render
+    measure = measure_file(str(out))
+    if needs_source(measure):
+        ctx.progress(0.95, "checking the takes")
+        measure["sources"] = {c["id"]: _strip(measure_file(media[c["mediaId"]])) for c in doc["clips"]}
     media_id = ctx.upload(str(out), "video/mp4", "render")
     return {
         "mediaId": media_id,
         "durationMs": int(float(qc.get("duration") or 0) * 1000),
         "qc": {"freezes": int(qc.get("freezes", 0)), "silentAudio": "near-silent audio" in qc["flags"] or "no audio track" in qc["flags"], "lufs": round(lufs, 1)},
+        "measure": measure,
     }
+
+
+def _strip(m: dict) -> dict:
+    """A take's measure as the contract's FileMeasure (no duration)."""
+    return {k: v for k, v in m.items() if k != "durationMs"}
