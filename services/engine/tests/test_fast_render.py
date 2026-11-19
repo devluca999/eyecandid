@@ -50,9 +50,11 @@ def test_picture_args_trim_each_shot_on_the_frame_grid_and_concat_in_order():
     assert f"[r0s1]trim=start={51.5 / 30:.6f}:end={81.5 / 30:.6f},setpts=PTS-STARTPTS," in graph
     # J/L leads are already in the plan's frame ranges: shot 0 ends at 40, shot 1 starts at 52 (a cut gap of 12)
     assert f"[r0s0]trim=start=0.000000:end={39.5 / 30:.6f}," in graph
-    # the punched shot crops a smaller box and scales it back to the frame
-    assert "crop=w=iw*0.869565:h=ih*0.869565:x=iw*(if(lt(n\\,39)\\,0.050000+0.00076923*(n-0)\\,0.080000))" in graph
-    assert graph.count("scale=1080:1920:flags=bicubic:out_range=tv") == 4
+    # the punched shot scales the source up to its box (1080/0.869565 = 1242 px wide) and crops the frame out of it,
+    # its corner following the path in whole output pixels
+    assert "scale=1242:2208:flags=bicubic:out_range=tv,crop=w=1080:h=1920:x=floor((if(lt(n\\,39)\\,0.050000+0.00076923*(n-0)\\,0.080000))*1242+0.5):" in graph
+    assert graph.count("scale=1080:1920:flags=bicubic:out_range=tv,setsar=1") == 3  # unpunched: no crop at all
+    assert graph.count("crop=") == 1
     assert "[v0][v1][v2][v3]concat=n=4:v=1:a=0" in graph
     # never shorter than Remotion's durationInFrames
     assert "tpad=stop_mode=clone" in graph and "trim=end_frame=150" in graph
@@ -126,15 +128,18 @@ needs_libass = pytest.mark.skipif(not fast_render.available(), reason="ffmpeg wi
 def test_renders_the_plan_frame_exact(tmp_path):
     src = str(FIX / "talk.mp4")
     plan = json.loads(json.dumps(PLAN))
-    plan["shots"] = [dict(s, srcFrame=min(s["srcFrame"], 20)) for s in plan["shots"][:2]]
-    plan["shots"][1]["srcFrame"] = 45
+    # talk.mp4 is a 640x360 take: a 9:16 crop of it (cropped first, then scaled), then a punch-in (scaled first)
+    plan["shots"] = [
+        {"mediaId": "m1", "srcFrame": 0, "frames": 40, "w": 0.316406, "h": 1, "path": [{"f": 0, "x": 0.3, "y": 0}, {"f": 39, "x": 0.35, "y": 0}]},
+        {"mediaId": "m1", "srcFrame": 45, "frames": 30, "w": 0.9, "h": 0.9, "path": [{"f": 0, "x": 0.05, "y": 0.05}]},
+    ]
     plan["frames"] = 70
     out, log = fast_render.render_picture(plan, {"m1": src}, True, tmp_path)
     probe = json.loads(subprocess.run(["ffprobe", "-v", "error", "-count_frames", "-show_streams", "-of", "json", out], capture_output=True, text=True, check=True).stdout)
     v = probe["streams"][0]
     assert (v["codec_name"], v["width"], v["height"], v["pix_fmt"]) == ("h264", 1080, 1920, "yuv420p")
     assert int(v["nb_read_frames"]) == 70
-    assert len(probe["streams"]) == 1  # picture only; the sound plan is muxed by render.normalize
+    assert len(probe["streams"]) == 1  # picture only; render.run muxes the finished sound in
     video_log, freezes = fast_render.picture_measure(log)
     m = qc.parse_detect(video_log, 70 / 30)
     assert m["black"] == [] and freezes == 0
@@ -153,3 +158,10 @@ def test_picture_measure_splits_the_two_freeze_detectors():
     m = qc.parse_detect(video_log, 5.0)
     assert m["black"] == [{"startMs": 1200, "endMs": 1500}]
     assert m["frozen"] == [{"startMs": 2000, "endMs": 4000}]
+
+
+def test_a_landscape_take_in_9_16_is_cropped_before_it_is_scaled():
+    plan = dict(PLAN, shots=[{"mediaId": "m1", "srcFrame": 0, "frames": 150, "w": 0.316406, "h": 1, "path": [{"f": 0, "x": 0.3, "y": 0}]}])
+    args = fast_render.picture_args(plan, {"m1": "wide.mp4"}, None, "cut.mp4")
+    graph = args[args.index("-filter_complex") + 1]
+    assert "crop=w=iw*0.316406:h=ih*1.000000:x=iw*(0.300000):y=ih*(0.000000),scale=1080:1920:flags=bicubic:out_range=tv" in graph

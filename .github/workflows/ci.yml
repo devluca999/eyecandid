@@ -65,7 +65,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
       - run: uv venv --python 3.12 && uv pip install -e '.[dev]'
-      # Ubuntu's ffmpeg (libass, libx264), as in the engine image: the fast render's real-render test runs instead of skipping
+      # the runner's Ubuntu ffmpeg (libass, libx264): the fast render's real-render test runs instead of skipping
       - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
       - run: .venv/bin/pytest -q
       - name: fast render benchmark (temporary, for the PR's numbers)
@@ -73,6 +73,17 @@ jobs:
           .venv/bin/python scripts/bench_fast_render.py /tmp/bench-src.mp4
           .venv/bin/python scripts/bench_fast_render.py /tmp/bench-src.mp4
           EYELORE_FAST_PRESET=ultrafast .venv/bin/python scripts/bench_fast_render.py /tmp/bench-src.mp4
+      - name: fast render on ffmpeg 6.1 (Ubuntu 24.04, the engine image's base; temporary)
+        working-directory: .
+        run: |
+          cp /tmp/bench-src.mp4 bench-src.mp4
+          docker run --rm -v "$PWD":/repo -w /repo/services/engine ubuntu:24.04 bash -c '
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update -qq && apt-get install -y -qq --no-install-recommends ffmpeg python3 python3-venv > /dev/null
+            ffmpeg -version | head -1
+            python3 -m venv /venv && /venv/bin/pip install -q -e ".[dev]"
+            /venv/bin/pytest -q tests/test_fast_render.py tests/test_sound.py tests/test_qc_measure.py
+            /venv/bin/python scripts/bench_fast_render.py /repo/bench-src.mp4'
 
   e2e:
     name: web e2e + visual (local convex + real cpu worker)

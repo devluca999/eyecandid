@@ -147,13 +147,16 @@ def runs(shots: list[dict]) -> list[list[int]]:
 # smaller file than the Remotion export (EYELORE_FAST_PRESET overrides the preset)
 PRESET = os.environ.get("EYELORE_FAST_PRESET", "superfast")
 
+# scale the source to its box (then crop) while the box has at most this many times the frame's pixels
+BOX_FIRST_MAX = 1.6
+
 # seek this many frames before a run's first frame, so the accurate seek never lands on the frame we need
 _PREROLL = 30
 
 
 def picture_args(plan: dict, sources: dict[str, str], ass: str | None, out: str, threads: int = 0) -> list[str]:
     """The ffmpeg command for the picture: one input per run, shots cropped and scaled to the frame, concatenated,
-    captions and watermark burned, H.264 (no sound; the sound plan is mixed and muxed by render.normalize)."""
+    captions and watermark burned, H.264 (no sound: render.run mixes the sound plan alongside and muxes it in)."""
     W, H, fps = plan["width"], plan["height"], plan["fps"]
     shots = plan["shots"]
     # info level: the detect filters below report there (the caller keeps stderr in a file)
@@ -170,8 +173,18 @@ def picture_args(plan: dict, sources: dict[str, str], ass: str | None, out: str,
             s = shots[i]
             a = (s["srcFrame"] - s0 - 0.5) / fps
             b = (s["srcFrame"] + s["frames"] - s0 - 0.5) / fps
-            crop = f"crop=w=iw*{s['w']:.6f}:h=ih*{s['h']:.6f}:x=iw*({_lerp_expr(s['path'], 'x')}):y=ih*({_lerp_expr(s['path'], 'y')})"
-            chains.append(f"[r{r}s{i}]trim=start={max(0.0, a):.6f}:end={b:.6f},setpts=PTS-STARTPTS,{crop},scale={W}:{H}:flags=bicubic:out_range=tv,setsar=1,format=yuv420p[v{i}]")
+            # scale the whole source to the box first, then crop the frame out of it on whole output pixels: the
+            # corner lands within half a pixel of where Cut puts it (cropping the source first rounds in source pixels).
+            # A box much bigger than the frame (a landscape take in 9:16) is cropped first instead, to scale less.
+            bw, bh = round(W / s["w"]), round(H / s["h"])
+            x, y = _lerp_expr(s["path"], "x"), _lerp_expr(s["path"], "y")
+            if (bw, bh) == (W, H):
+                fit = f"scale={W}:{H}:flags=bicubic:out_range=tv"
+            elif bw * bh <= BOX_FIRST_MAX * W * H:
+                fit = f"scale={bw}:{bh}:flags=bicubic:out_range=tv,crop=w={W}:h={H}:x=floor(({x})*{bw}+0.5):y=floor(({y})*{bh}+0.5):exact=1"
+            else:
+                fit = f"crop=w=iw*{s['w']:.6f}:h=ih*{s['h']:.6f}:x=iw*({x}):y=ih*({y}),scale={W}:{H}:flags=bicubic:out_range=tv"
+            chains.append(f"[r{r}s{i}]trim=start={max(0.0, a):.6f}:end={b:.6f},setpts=PTS-STARTPTS,{fit},setsar=1,format=yuv420p[v{i}]")
             labels.append(f"[v{i}]")
     total = plan["frames"]
     tail = f"{''.join(labels)}concat=n={len(labels)}:v=1:a=0,tpad=stop_mode=clone:stop_duration={2 * total / fps:.3f},trim=end_frame={total},setpts=N/({fps}*TB)"
