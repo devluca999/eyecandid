@@ -22,12 +22,10 @@ test("drop a raw clip → polished, captioned 9:16 export in under 3 minutes", a
 
   // the edit appears: beads with fillers struck through (not deleted)
   await expect(page.getByTestId("thread")).toBeVisible({ timeout: 120_000 });
-  // first run: a short tour points at the real controls; it never blocks, and it can be skipped
-  await expect(page.getByTestId("tour")).toBeVisible();
-  await shot(page, "edit-tour");
-  expect(await unnamedControls(page)).toEqual([]); // the ready editor, its busiest state: every control has a name
-  await page.getByTestId("tour-skip").click();
+  // no tour on the first edit: nothing sits over the first preview (mvp-spec, "The first minute")
   await expect(page.getByTestId("tour")).toHaveCount(0);
+  await shot(page, "edit-ready");
+  expect(await unnamedControls(page)).toEqual([]); // the ready editor: every control has a name
   const struck = page.getByTestId("struck-word");
   await expect(struck.first()).toBeVisible();
   const before = await struck.count();
@@ -78,7 +76,7 @@ async function editorFeatures(page: Page) {
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("shortcuts")).toHaveCount(0);
 
-  // the tour can be taken again from the sheet, stepped with the arrow keys, and Escape skips it
+  // the tour is taken from the sheet, stepped with the arrow keys, and Escape skips it
   await page.getByTestId("help").click();
   await page.getByRole("button", { name: "take the tour" }).click();
   const tour = page.getByTestId("tour");
