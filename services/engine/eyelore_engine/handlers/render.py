@@ -17,6 +17,7 @@ import re
 import subprocess
 import tempfile
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from ..qc import measure_file, needs_source, qc_file
@@ -39,7 +40,7 @@ def _render_dir() -> Path:
 
 
 def _lufs(path: str) -> float:
-    err = subprocess.run(["ffmpeg", "-hide_banner", "-nostats", "-i", path, "-af", "ebur128", "-f", "null", "-"], capture_output=True, text=True).stderr
+    err = subprocess.run(["ffmpeg", "-hide_banner", "-nostats", "-i", path, "-vn", "-af", "ebur128", "-f", "null", "-"], capture_output=True, text=True).stderr
     m = re.findall(r"I:\s+(-?[\d.]+) LUFS", err)
     return float(m[-1]) if m else -70.0
 
@@ -132,18 +133,34 @@ def normalize(video: str, audio: str, out: str, target: float, measured: dict | 
     if not measured:
         subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", video, "-map", "0:v:0", "-c", "copy", "-movflags", "+faststart", out], check=True)
         return {}
+    subprocess.run(
+        ["ffmpeg", "-v", "error", "-y", "-i", video, "-i", audio, "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy",
+         "-af", sound_af(measured, target), *AAC, "-movflags", "+faststart", out],
+        check=True,
+    )
+    return measured
+
+
+AAC = ["-ar", "48000", "-c:a", "aac", "-b:a", "160k"]
+
+
+def sound_af(measured: dict, target: float) -> str:
+    """The second pass: clean-up chain with its delay undone, then linear loudnorm from the first pass's numbers."""
     finite = all(re.fullmatch(r"-?\d+(\.\d+)?", str(measured.get(k, ""))) for k in ("input_i", "input_tp", "input_lra", "input_thresh", "target_offset"))
     # silence measures -inf: nothing to normalise, keep the clean-up only
     lat = cleanup_latency()
     # undo the clean-up's delay so the sound stays on the lips (trim its head, pad its tail back to length)
     sync = f"atrim=start_sample={lat},asetpts=PTS-STARTPTS,apad=pad_len={lat}" if lat else "anull"
     chain = f"aresample=48000,{CLEANUP},{sync}"
-    af = f"{chain},{loudnorm_pass2(measured, target)}" if finite else chain
-    subprocess.run(
-        ["ffmpeg", "-v", "error", "-y", "-i", video, "-i", audio, "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy",
-         "-af", af, "-ar", "48000", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", out],
-        check=True,
-    )
+    return f"{chain},{loudnorm_pass2(measured, target)}" if finite else chain
+
+
+def polish_sound(audio: str, target: float, out: str) -> dict:
+    """Both loudness passes over `audio` into an AAC file (what normalize does, without the picture), so it can run
+    while the picture encodes. {} and no file when there is no sound."""
+    measured = measure_loudness(audio, target)
+    if measured:
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", audio, "-af", sound_af(measured, target), *AAC, out], check=True)
     return measured
 
 
@@ -162,41 +179,46 @@ def run(inp: dict, ctx) -> dict:
         if pieces and not all(_has_audio(sources[p["mediaId"]]) for p in pieces):
             pieces = []  # a source without sound: let the renderer handle it as before
     if fast:
-        # the sound mix and its loudness measurement run while ffmpeg draws the picture
+        # the sound mix and both loudness passes run while ffmpeg draws the picture
         sound: dict = {}
 
         def _sound() -> None:
             try:
                 if pieces:
                     mix_sound(pieces, sources, str(work / "sound.wav"))
-                    sound["measured"] = measure_loudness(str(work / "sound.wav"), target)
-                    sound["path"] = str(work / "sound.wav")
+                    if polish_sound(str(work / "sound.wav"), target, str(work / "sound.m4a")):
+                        sound["path"] = str(work / "sound.m4a")
             except Exception as e:  # noqa: BLE001 — raised on the job's thread below
                 sound["error"] = e
 
         mixer = threading.Thread(target=_sound)
         mixer.start()
         ctx.progress(0.05, "cutting")
-        raw = Path(fast_render.render_picture(fast, sources, inp["watermark"], work, progress=lambda f: ctx.progress(0.05 + 0.75 * f, "rendering")))
+        pic, log = fast_render.render_picture(fast, sources, inp["watermark"], work, progress=lambda f: ctx.progress(0.05 + 0.75 * f, "rendering"))
+        raw = Path(pic)
+        # black and freezes were measured on the frames as they were encoded: the QC below reads only the sound
+        video_log, freezes = fast_render.picture_measure(log)
         mixer.join()
         if "error" in sound:
             raise sound["error"]
         ctx.progress(0.85, "balancing sound")
         out = work / "final.mp4"
-        if "path" in sound:
-            normalize(str(raw), sound["path"], str(out), target, sound["measured"])
-        else:
-            normalize(str(raw), str(raw), str(out), target, {})  # no sound plan: picture only (a silent source)
+        # picture and finished sound side by side, copied (no sound plan: a silent source, picture only)
+        ins = ["-i", str(raw), "-i", sound["path"], "-map", "0:v:0", "-map", "1:a:0"] if "path" in sound else ["-i", str(raw), "-map", "0:v:0"]
+        subprocess.run(["ffmpeg", "-v", "error", "-y", *ins, "-c", "copy", "-movflags", "+faststart", str(out)], check=True)
         media = {c["mediaId"]: sources.get(c["mediaId"]) or ctx.url(c["mediaId"]) for c in doc["clips"]}
     else:
         media = {c["mediaId"]: ctx.url(c["mediaId"]) for c in doc["clips"]}
+        video_log, freezes = None, None
         out = _remotion(inp, doc, media, pieces, sources, work, target, ctx)
     ctx.progress(0.92, "checking")
-    qc = qc_file(str(out), sheet=False)
-    lufs = _lufs(str(out))
-    # the export quality check (packages/core qc.ts, run by Convex): measure the file; only when it shows black, a
-    # freeze or clipping, measure the takes too, so a dark or still take isn't blamed on the render
-    measure = measure_file(str(out))
+    # three independent ffmpeg reads of the file, side by side
+    with ThreadPoolExecutor(3) as pool:
+        qc_f, lufs_f, measure_f = pool.submit(qc_file, str(out), sheet=False, freezes=freezes), pool.submit(_lufs, str(out)), pool.submit(measure_file, str(out), video_log)
+        qc, lufs = qc_f.result(), lufs_f.result()
+        # the export quality check (packages/core qc.ts, run by Convex): measure the file; only when it shows black, a
+        # freeze or clipping, measure the takes too, so a dark or still take isn't blamed on the render
+        measure = measure_f.result()
     if needs_source(measure):
         ctx.progress(0.95, "checking the takes")
         measure["sources"] = {c["id"]: _strip(measure_file(media[c["mediaId"]])) for c in doc["clips"]}

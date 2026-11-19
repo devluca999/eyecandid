@@ -65,7 +65,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
       - run: uv venv --python 3.12 && uv pip install -e '.[dev]'
+      # Ubuntu's ffmpeg (libass, libx264), as in the engine image: the fast render's real-render test runs instead of skipping
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
       - run: .venv/bin/pytest -q
+      - name: fast render benchmark (temporary, for the PR's numbers)
+        run: .venv/bin/python scripts/bench_fast_render.py
 
   e2e:
     name: web e2e + visual (local convex + real cpu worker)

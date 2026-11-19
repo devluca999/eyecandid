@@ -2,7 +2,7 @@
 
 **Status:** accepted · 2026-11-19
 
-**Context.** Free edits render on the visitor's device when the browser can (ADR 0012, 0016). Browsers that can't fall back to the CPU worker, where the Remotion render (headless Chrome screenshotting every frame) took about 65 s for 7 s of video. The MVP spec's Phase 3 target is a 60 s clip in under 15 s on the CPU worker. A free export draws only what ffmpeg can draw: the kept ranges with J/L picture offsets, a face-following crop with punch-ins, captions and a watermark. Pro adds generated b-roll stills, which stay with the composition.
+**Context.** Free edits render on the visitor's device when the browser can (ADR 0012, 0016). Browsers that can't (rarer since the WebAssembly transcriber, ADR 0016/0017) fall back to the CPU worker, where the Remotion render (headless Chrome screenshotting every frame) took about 65 s for 7 s of video. The MVP spec's Phase 3 target is a 60 s clip in under 15 s on the CPU worker. A free export draws only what ffmpeg can draw: the kept ranges with J/L picture offsets, a face-following crop with punch-ins, captions and a watermark. Pro adds generated b-roll stills, which stay with the composition.
 
 **Decision.**
 - `fastPlan(doc, aspect)` in `packages/core` turns the edit into a picture plan. The plan holds shots (source frame ranges on the 30 fps grid, each with a fixed-size crop box whose corner follows the reframe track; a punch-in step starts a new shot) and captions on output frames. It holds the caption anchor and the frame count too. It calls the same `toTimeline`, `framesOf`, `faceAt`, `coverBox` and `punchAt` that `Cut.tsx` calls. A test checks every output frame against `Cut`'s own `shotBox`: same source frame, box within half a pixel.

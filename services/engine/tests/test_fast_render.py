@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from eyelore_engine import contract
+from eyelore_engine import contract, qc
 from eyelore_engine.handlers import fast_render, render
 
 FIX = Path(__file__).parent / "fixtures"
@@ -56,8 +56,10 @@ def test_picture_args_trim_each_shot_on_the_frame_grid_and_concat_in_order():
     assert "[v0][v1][v2][v3]concat=n=4:v=1:a=0" in graph
     # never shorter than Remotion's durationInFrames
     assert "tpad=stop_mode=clone" in graph and "trim=end_frame=150" in graph
-    assert graph.endswith(",subtitles=filename=captions.ass:fontsdir=fonts[pic]")
-    assert args[args.index("-c:v") + 1] == "libx264" and "+faststart" in args and "-an" in args
+    assert ",subtitles=filename=captions.ass:fontsdir=fonts,split=2[pic][det];" in graph
+    # the QC's picture measurements ride along on the encoded frames: no second decode of the file
+    assert graph.endswith("[det]blackdetect@m=d=0.1:pic_th=0.98:pix_th=0.1,freezedetect@m=n=0.0005:d=0.2,freezedetect@q=n=0.003:d=1.5,nullsink")
+    assert args[args.index("-c:v") + 1] == "libx264" and "-an" in args
 
 
 def test_a_constant_path_is_a_constant_crop():
@@ -127,9 +129,27 @@ def test_renders_the_plan_frame_exact(tmp_path):
     plan["shots"] = [dict(s, srcFrame=min(s["srcFrame"], 20)) for s in plan["shots"][:2]]
     plan["shots"][1]["srcFrame"] = 45
     plan["frames"] = 70
-    out = fast_render.render_picture(plan, {"m1": src}, True, tmp_path)
+    out, log = fast_render.render_picture(plan, {"m1": src}, True, tmp_path)
     probe = json.loads(subprocess.run(["ffprobe", "-v", "error", "-count_frames", "-show_streams", "-of", "json", out], capture_output=True, text=True, check=True).stdout)
     v = probe["streams"][0]
     assert (v["codec_name"], v["width"], v["height"], v["pix_fmt"]) == ("h264", 1080, 1920, "yuv420p")
     assert int(v["nb_read_frames"]) == 70
     assert len(probe["streams"]) == 1  # picture only; the sound plan is muxed by render.normalize
+    video_log, freezes = fast_render.picture_measure(log)
+    m = qc.parse_detect(video_log, 70 / 30)
+    assert m["black"] == [] and freezes == 0
+
+
+def test_picture_measure_splits_the_two_freeze_detectors():
+    log = "\n".join([
+        "[blackdetect@m @ 0x1] black_start:1.2 black_end:1.5 black_duration:0.3",
+        "[freezedetect@m @ 0x2] lavfi.freezedetect.freeze_start: 2",
+        "[freezedetect@q @ 0x3] lavfi.freezedetect.freeze_start: 2",
+        "[freezedetect@m @ 0x2] lavfi.freezedetect.freeze_end: 4",
+        "[libx264 @ 0x4] frame I:2 Avg QP:20",
+    ])
+    video_log, freezes = fast_render.picture_measure(log)
+    assert freezes == 1
+    m = qc.parse_detect(video_log, 5.0)
+    assert m["black"] == [{"startMs": 1200, "endMs": 1500}]
+    assert m["frozen"] == [{"startMs": 2000, "endMs": 4000}]

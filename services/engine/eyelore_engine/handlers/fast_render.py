@@ -11,10 +11,13 @@ placed on the baseline CSS would give it, so position and line height match Cut.
 from __future__ import annotations
 
 import functools
+import os
 import re
 import shutil
 import subprocess
 from pathlib import Path
+
+from ..qc import DETECT_VF
 
 FONTS = Path(__file__).resolve().parent.parent / "fonts"
 
@@ -140,6 +143,10 @@ def runs(shots: list[dict]) -> list[list[int]]:
     return out
 
 
+# x264: superfast at CRF 22 takes about a third less CPU than veryfast at CRF 20, at the same SSIM to the source and a
+# smaller file than the Remotion export (EYELORE_FAST_PRESET overrides the preset)
+PRESET = os.environ.get("EYELORE_FAST_PRESET", "superfast")
+
 # seek this many frames before a run's first frame, so the accurate seek never lands on the frame we need
 _PREROLL = 30
 
@@ -149,14 +156,15 @@ def picture_args(plan: dict, sources: dict[str, str], ass: str | None, out: str,
     captions and watermark burned, H.264 (no sound; the sound plan is mixed and muxed by render.normalize)."""
     W, H, fps = plan["width"], plan["height"], plan["fps"]
     shots = plan["shots"]
-    args = ["ffmpeg", "-hide_banner", "-v", "error", "-y", "-nostdin"]
+    # info level: the detect filters below report there (the caller keeps stderr in a file)
+    args = ["ffmpeg", "-hide_banner", "-nostats", "-v", "info", "-y", "-nostdin"]
     chains: list[str] = []
     labels: list[str] = []
     for r, idx in enumerate(runs(shots)):
         first, last = shots[idx[0]], shots[idx[-1]]
         s0 = max(0, first["srcFrame"] - _PREROLL)
         end = last["srcFrame"] + last["frames"]
-        args += ["-ss", f"{s0 / fps:.6f}", "-t", f"{(end - s0 + _PREROLL) / fps:.6f}", "-i", sources[first["mediaId"]]]
+        args += [*(["-threads", str(threads)] if threads else []), "-ss", f"{s0 / fps:.6f}", "-t", f"{(end - s0 + _PREROLL) / fps:.6f}", "-i", sources[first["mediaId"]]]
         chains.append(f"[{r}:v]fps={fps},split={len(idx)}" + "".join(f"[r{r}s{i}]" for i in idx) if len(idx) > 1 else f"[{r}:v]fps={fps}[r{r}s{idx[0]}]")
         for i in idx:
             s = shots[i]
@@ -169,12 +177,15 @@ def picture_args(plan: dict, sources: dict[str, str], ass: str | None, out: str,
     tail = f"{''.join(labels)}concat=n={len(labels)}:v=1:a=0,tpad=stop_mode=clone:stop_duration={2 * total / fps:.3f},trim=end_frame={total},setpts=N/({fps}*TB)"
     if ass:
         tail += f",subtitles=filename={ass}:fontsdir=fonts"
-    chains.append(tail + "[pic]")
+    # the export quality check's picture measurements, taken on the frames as they are encoded instead of decoding the
+    # file again: qc.DETECT_VF (instance "m", for measure) and qc_file's freeze count (instance "q")
+    detect = DETECT_VF.replace("blackdetect=", "blackdetect@m=").replace("freezedetect=", "freezedetect@m=")
+    chains.append(tail + f",split=2[pic][det];[det]{detect},freezedetect@q=n=0.003:d=1.5,nullsink")
     args += ["-filter_complex", ";".join(chains), "-map", "[pic]", "-an", "-r", str(fps)]
-    args += ["-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p", "-color_range", "tv"]
+    args += ["-c:v", "libx264", "-preset", PRESET, "-crf", "22", "-pix_fmt", "yuv420p", "-color_range", "tv"]
     if threads:
         args += ["-threads", str(threads)]
-    args += ["-movflags", "+faststart", out]
+    args.append(out)  # faststart when the sound is muxed in
     return args
 
 
@@ -188,23 +199,38 @@ def available() -> bool:
     return bool(re.search(r"\ssubtitles\s", filters)) and "libx264" in encoders
 
 
-def render_picture(plan: dict, sources: dict[str, str], watermark: bool, work: Path, progress=None, threads: int = 0) -> str:
-    """Render the plan's picture into work/cut.mp4 and return its path."""
+def picture_measure(log: str) -> tuple[str, int]:
+    """From the render's stderr: the detect lines in measure_file's format (for qc.parse_detect) and qc_file's freeze
+    count."""
+    lines = [l for l in log.splitlines() if "detect@m @" in l]
+    return "\n".join(lines), sum(1 for l in log.splitlines() if "freezedetect@q @" in l and "freeze_start" in l)
+
+
+def render_picture(plan: dict, sources: dict[str, str], watermark: bool, work: Path, progress=None, threads: int | None = None) -> tuple[str, str]:
+    """Render the plan's picture into work/cut.mp4. Returns its path and the render's log (see picture_measure).
+    `threads` (default EYELORE_RENDER_THREADS, else ffmpeg's own choice): in a container ffmpeg counts the host's
+    cores, not the container's share, and oversubscribes."""
+    if threads is None:
+        threads = int(os.environ.get("EYELORE_RENDER_THREADS", "0") or 0)
     shutil.copytree(FONTS, work / "fonts", dirs_exist_ok=True)
     ass = None
     if plan["captions"] or watermark:
         (work / "captions.ass").write_text(ass_script(plan, watermark), encoding="utf-8")
         ass = "captions.ass"
     out = work / "cut.mp4"
+    sources = {k: str(Path(v).resolve()) if "://" not in v else v for k, v in sources.items()}  # ffmpeg runs in work/
     args = picture_args(plan, sources, ass, str(out), threads)
     args[1:1] = ["-progress", "pipe:1", "-stats_period", "0.5"]
-    proc = subprocess.Popen(args, cwd=work, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     total = max(1, plan["frames"])
-    for line in proc.stdout or []:
-        m = re.match(r"frame=(\d+)", line)
-        if m and progress:
-            progress(int(m.group(1)) / total)
-    err = proc.stderr.read() if proc.stderr else ""
-    if proc.wait() != 0:
+    with open(work / "render.log", "w+") as log:
+        proc = subprocess.Popen(args, cwd=work, stdout=subprocess.PIPE, stderr=log, text=True)
+        for line in proc.stdout or []:
+            m = re.match(r"frame=(\d+)", line)
+            if m and progress:
+                progress(int(m.group(1)) / total)
+        code = proc.wait()
+        log.seek(0)
+        err = log.read()
+    if code != 0:
         raise RuntimeError("ffmpeg fast render failed: " + err[-800:])
-    return str(out)
+    return str(out), err
