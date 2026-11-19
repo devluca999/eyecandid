@@ -125,6 +125,8 @@ test("refusal: a clip over the free 60 s cap gets the one-line reason", async ({
 test("refusal: a paused free day is said before any upload @paused", async ({ page }, info) => {
   test.skip(process.env.E2E_PAUSED !== "1", "needs the free_paused flag on (CI runs this alone, then turns it off)");
   test.skip(info.project.name !== "desktop", "the flag is global: one project");
+  // the pause only applies to server edits; a browser without WebGPU can now edit on-device on the CPU (ADR 0016)
+  await page.addInitScript(() => localStorage.setItem("eyelore.engine", "server"));
   await landingReady(page);
   await page.getByTestId("file-input").setInputFiles(TALK);
   await expect(page.getByText("free edits are paused for today · back tomorrow").first()).toBeVisible({ timeout: 30_000 });
