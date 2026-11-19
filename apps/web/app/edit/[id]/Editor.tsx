@@ -303,7 +303,8 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
   const exporting = latestExport && (latestExport.status === "queued" || latestExport.status === "leased" || latestExport.status === "running");
   const gate = useExportGate(projectId, anonId, data?.project.stage === "ready", mode === "edit"); // [around-the-loop]
   // on-device engine (ADR 0012): the clip lives in this browser; exports are authorized by the server, rendered here
-  const isDevice = data?.project.engine === "device";
+  // before the project loads, the tab that dropped the clip already knows its engine (no false "no engine" flash)
+  const isDevice = data ? data.project.engine === "device" : pending?.engine === "device";
   const authorizeDeviceExport = useMutation(api.pipeline.authorizeDeviceExport);
   const deviceExportFailed = useMutation(api.pipeline.deviceExportFailed);
   const [devExport, setDevExport] = useState<{ phase: "idle" | "rendering" | "done" | "failed"; progress: number; url?: string; error?: string; watermark?: boolean; stage?: string }>({ phase: "idle", progress: 0 });
@@ -504,7 +505,7 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
 
   // where we are, honestly
   const uploading = pending && pending.uploadProgress < 1 && !pending.error;
-  const cold = !isDevice && presence && presence.live === 0 && stage !== "ready" && stage !== "failed" && !uploading;
+  const cold = !!data && !isDevice && presence && presence.live === 0 && stage !== "ready" && stage !== "failed" && !uploading;
   const deviceLine = isDevice && stage !== "ready" && stage !== "failed"
     ? pending
       ? pending.deviceStage ?? data?.project.stageDetail ?? "editing on this device · your clip isn't uploaded"
