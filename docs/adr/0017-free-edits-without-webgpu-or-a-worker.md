@@ -1,6 +1,6 @@
 # 0017 · Free edits without WebGPU or a worker, and how we compete on cost
 
-**Status:** proposed · 2026-11-18 · needs Luca's decision on part 2 (a new service)
+**Status:** accepted without part 2 · 2026-11-19 · Luca declined the hosted service ("can't we use an open source or free thing"): no new vendor
 
 **Context.** Free edits run on the visitor's device (ADR 0012), but only where WebGPU works. Everywhere else (Firefox, older Safari, many phones) they fall back to a server worker that isn't running (the Modal workspace is at its cap). Those visitors see "no engine is running right now" and wait indefinitely. Two more problems were measured on 18 Nov 2026:
 - A first-time visitor downloads the 206 MB `base.en` model before anything happens: 21 s on fast Mac wifi, minutes on a phone on 4G. That costs the first minute.
@@ -34,7 +34,7 @@ So the free tier needs **no server compute at all, except possibly transcription
    - **Abuse:** the existing per-visitor rate limits, the daily budget flag and the 60 s cap already bound it. Add a monthly spend cap at the provider.
 3. **WebGPU Whisper** (today). Keep it as the offline/private path, and as the default if the owner prefers "never leaves the device" over accuracy and first-visit speed.
 
-Recommended default order: **hosted (2) → WebGPU (3) → WASM (1)**, if the owner approves 2. Without approval: **WebGPU → WASM**.
+Order: **WebGPU (3) → WASM (1)**. Part 2 is declined (19 Nov). Instead: make the WebGPU model download resilient (stall detection, retry, resume) and measure a quantized build of the same open-source Whisper to shrink the 206 MB first-visit download (branch fix/model-download).
 
 The worker path stays for Pro and GPU features only. The free tier then needs **no Modal at all**, so the Modal cap only matters for paid work.
 
@@ -51,3 +51,7 @@ Higgsfield sells **generation**: every second of output is GPU time on large vid
 - Every current browser gets a finished edit; "no engine is running" becomes a rare edge (no WebCodecs).
 - Part 2 adds a vendor to a fixed stack, so it needs the owner's explicit approval and a key. Until then, part 1 alone closes the "waits forever" gap at $0.
 - The free tier's compute bill no longer depends on Modal.
+
+
+## Owner decision, 19 Nov 2026
+Hosted speech-to-text is not adopted. Luca asked for a free or open-source route. We stay on open-source Whisper on the visitor's device (WebGPU, then WebAssembly) and fix the first-visit cost in the download itself (resilient download, quantized weights if they pass the cut-quality gate).
