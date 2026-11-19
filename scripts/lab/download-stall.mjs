@@ -98,6 +98,6 @@ console.log(s(), ready ? `EDIT READY · drop→ready ${((Date.now() - tDrop) / 1
 console.log("struck words:", await page.getByTestId("struck-word").count());
 const v = await page.evaluate(() => { const v = document.querySelector('[data-testid="footage"]'); return v ? { paused: v.paused, muted: v.muted } : null; });
 console.log("after ready, footage:", JSON.stringify(v));
-console.log("cache entries after:", await page.evaluate(async () => { const c = await caches.open("transformers-cache"); const out = []; for (const r of await c.keys()) out.push(r.url.split("/").slice(-2).join("/") + " " + (await c.match(r)).headers.get("content-length")); return out; }));
+console.log("cache entries after:", await page.evaluate(async () => { const c = await caches.open("transformers-cache"); const out = []; for (const r of await c.keys()) out.push(r.url.split("/").slice(-2).join("/") + " header " + (await c.match(r)).headers.get("content-length") + " · body " + (await (await c.match(r)).blob()).size); return out; }));
 if (process.env.LAB_KEEP) await page.waitForTimeout(Number(process.env.LAB_KEEP) * 1000);
 await ctx.close();
