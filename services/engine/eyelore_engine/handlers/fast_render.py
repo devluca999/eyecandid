@@ -143,9 +143,11 @@ def runs(shots: list[dict]) -> list[list[int]]:
     return out
 
 
-# x264: superfast at CRF 22 takes about a third less CPU than veryfast at CRF 20, at the same SSIM to the source and a
-# smaller file than the Remotion export (EYELORE_FAST_PRESET overrides the preset)
-PRESET = os.environ.get("EYELORE_FAST_PRESET", "superfast")
+# x264 preset → CRF. The encoder is most of the render's CPU. Measured on a 4-vCPU x86 runner, 62 s of 1080x1920:
+# ultrafast 12.8 s / 46 CPU-s, superfast 19.7 s / 70 CPU-s. Ultrafast at CRF 23 lands near the Remotion export's file
+# size, at SSIM 0.949 to the source against superfast's 0.955. EYELORE_FAST_PRESET picks another row.
+CRF = {"ultrafast": 23, "superfast": 22, "veryfast": 20}
+PRESET = os.environ.get("EYELORE_FAST_PRESET", "ultrafast")
 
 # scale the source to its box (then crop) while the box has at most this many times the frame's pixels
 BOX_FIRST_MAX = 1.6
@@ -195,7 +197,7 @@ def picture_args(plan: dict, sources: dict[str, str], ass: str | None, out: str,
     detect = DETECT_VF.replace("blackdetect=", "blackdetect@m=").replace("freezedetect=", "freezedetect@m=")
     chains.append(tail + f",split=2[pic][det];[det]{detect},freezedetect@q=n=0.003:d=1.5,nullsink")
     args += ["-filter_complex", ";".join(chains), "-map", "[pic]", "-an", "-r", str(fps)]
-    args += ["-c:v", "libx264", "-preset", PRESET, "-crf", "22", "-pix_fmt", "yuv420p", "-color_range", "tv"]
+    args += ["-c:v", "libx264", "-preset", PRESET, "-crf", str(CRF.get(PRESET, 22)), "-pix_fmt", "yuv420p", "-color_range", "tv"]
     if threads:
         args += ["-threads", str(threads)]
     args.append(out)  # faststart when the sound is muxed in

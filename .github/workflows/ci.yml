@@ -72,7 +72,7 @@ jobs:
         run: |
           .venv/bin/python scripts/bench_fast_render.py /tmp/bench-src.mp4
           .venv/bin/python scripts/bench_fast_render.py /tmp/bench-src.mp4
-          EYELORE_FAST_PRESET=ultrafast .venv/bin/python scripts/bench_fast_render.py /tmp/bench-src.mp4
+          EYELORE_FAST_PRESET=superfast .venv/bin/python scripts/bench_fast_render.py /tmp/bench-src.mp4
       - name: fast render on ffmpeg 6.1 (Ubuntu 24.04, the engine image's base; temporary)
         working-directory: .
         run: |
