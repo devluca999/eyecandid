@@ -3,7 +3,7 @@ import { internal } from "./_generated/api";
 import { internalMutation, mutation } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
-import { applyChange, beadChanges, cutdownChange, decideExport, decideExportCount, EditDoc, JOB_SPECS, reframeChange, retakeChanges, toTimeline } from "@eyelore/core";
+import { applyChange, beadChanges, canRenderFast, cutdownChange, decideExport, decideExportCount, EditDoc, fastPlan, JOB_SPECS, reframeChange, retakeChanges, toTimeline } from "@eyelore/core";
 import type { Aspect, JobOutput, PlanId } from "@eyelore/core";
 import { commitChanges, headDoc } from "./lib/docs";
 import { enqueueJob } from "./jobs";
@@ -202,7 +202,15 @@ export const startExport = mutation({
     const jobId = await enqueueJob(ctx, {
       type: "render",
       // the sound plan (J/L cuts, a fade at every cut) so the worker mixes it sample-accurately; the worker falls back without it
-      input: { doc, aspect: a.aspect, watermark: plan.watermark, maxDurationMs: maxMs, sound: toTimeline(doc).sound.map(({ mediaId, fromMs, toMs, atMs, fadeInMs, fadeOutMs }) => ({ mediaId, fromMs, toMs, atMs, fadeInMs, fadeOutMs })) },
+      input: {
+        doc,
+        aspect: a.aspect,
+        watermark: plan.watermark,
+        maxDurationMs: maxMs,
+        sound: toTimeline(doc).sound.map(({ mediaId, fromMs, toMs, atMs, fadeInMs, fadeOutMs }) => ({ mediaId, fromMs, toMs, atMs, fadeInMs, fadeOutMs })),
+        // a free export with nothing generated on screen renders with plain ffmpeg from this plan (ADR 0017); Remotion otherwise
+        ...(canRenderFast(doc, decision.plan) ? { engine: "fast" as const, fast: fastPlan(doc, a.aspect as Aspect) } : {}),
+      },
       idempotencyKey: `render:${a.projectId}:${head.doc.version}:${a.aspect}:${maxMs}:${a.requestId}`,
       projectId: a.projectId,
       ownerUserId: project.ownerUserId,

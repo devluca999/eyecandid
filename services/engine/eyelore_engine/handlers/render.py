@@ -16,9 +16,11 @@ import os
 import re
 import subprocess
 import tempfile
+import threading
 from pathlib import Path
 
 from ..qc import measure_file, needs_source, qc_file
+from . import fast_render
 
 TRUE_PEAK_DB = -1.0
 LRA = 11
@@ -114,13 +116,22 @@ def mix_sound(pieces: list[dict], sources: dict[str, str], out: str) -> None:
     subprocess.run([*args, "-filter_complex", graph, "-map", "[snd]", "-c:a", "pcm_f32le", out], check=True)
 
 
-def normalize(video: str, audio: str, out: str, target: float) -> dict:
-    """Two-pass loudnorm of `audio` (through the clean-up chain), muxed with `video`'s picture."""
+def measure_loudness(audio: str, target: float) -> dict:
+    """loudnorm's first pass over `audio` through the clean-up chain ({} when it has no sound)."""
     if not _has_audio(audio):
-        subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", video, "-c", "copy", "-movflags", "+faststart", out], check=True)
         return {}
     err = subprocess.run(["ffmpeg", "-hide_banner", "-nostats", "-i", audio, "-af", f"aresample=48000,{CLEANUP},loudnorm=I={target}:TP={TRUE_PEAK_DB}:LRA={LRA}:print_format=json", "-f", "null", "-"], capture_output=True, text=True).stderr
-    measured = parse_loudnorm(err)
+    return parse_loudnorm(err)
+
+
+def normalize(video: str, audio: str, out: str, target: float, measured: dict | None = None) -> dict:
+    """Two-pass loudnorm of `audio` (through the clean-up chain), muxed with `video`'s picture. `measured`: the first
+    pass, when it was already run (the fast render measures while the picture encodes)."""
+    if measured is None:
+        measured = measure_loudness(audio, target)
+    if not measured:
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", video, "-map", "0:v:0", "-c", "copy", "-movflags", "+faststart", out], check=True)
+        return {}
     finite = all(re.fullmatch(r"-?\d+(\.\d+)?", str(measured.get(k, ""))) for k in ("input_i", "input_tp", "input_lra", "input_thresh", "target_offset"))
     # silence measures -inf: nothing to normalise, keep the clean-up only
     lat = cleanup_latency()
@@ -138,18 +149,73 @@ def normalize(video: str, audio: str, out: str, target: float) -> dict:
 
 def run(inp: dict, ctx) -> dict:
     doc = inp["doc"]
-    media = {c["mediaId"]: ctx.url(c["mediaId"]) for c in doc["clips"]}
+    work = Path(tempfile.mkdtemp(prefix="eyelore-render-"))
+    target = float(inp.get("loudnessLufs", -14))
+    pieces = inp.get("sound") or []
+    fast = inp.get("fast") if inp.get("engine") == "fast" else None
+    if fast and not fast_render.available():
+        fast = None  # an ffmpeg without libass/libx264: the Cut composition renders it instead
+    sources: dict[str, str] = {}
+    if pieces or fast:
+        ids = [p["mediaId"] for p in pieces] + [s["mediaId"] for s in (fast or {}).get("shots", [])]
+        sources = {mid: ctx.download(mid) for mid in dict.fromkeys(ids)}
+        if pieces and not all(_has_audio(sources[p["mediaId"]]) for p in pieces):
+            pieces = []  # a source without sound: let the renderer handle it as before
+    if fast:
+        # the sound mix and its loudness measurement run while ffmpeg draws the picture
+        sound: dict = {}
+
+        def _sound() -> None:
+            try:
+                if pieces:
+                    mix_sound(pieces, sources, str(work / "sound.wav"))
+                    sound["measured"] = measure_loudness(str(work / "sound.wav"), target)
+                    sound["path"] = str(work / "sound.wav")
+            except Exception as e:  # noqa: BLE001 — raised on the job's thread below
+                sound["error"] = e
+
+        mixer = threading.Thread(target=_sound)
+        mixer.start()
+        ctx.progress(0.05, "cutting")
+        raw = Path(fast_render.render_picture(fast, sources, inp["watermark"], work, progress=lambda f: ctx.progress(0.05 + 0.75 * f, "rendering")))
+        mixer.join()
+        if "error" in sound:
+            raise sound["error"]
+        ctx.progress(0.85, "balancing sound")
+        out = work / "final.mp4"
+        if "path" in sound:
+            normalize(str(raw), sound["path"], str(out), target, sound["measured"])
+        else:
+            normalize(str(raw), str(raw), str(out), target, {})  # no sound plan: picture only (a silent source)
+        media = {c["mediaId"]: sources.get(c["mediaId"]) or ctx.url(c["mediaId"]) for c in doc["clips"]}
+    else:
+        media = {c["mediaId"]: ctx.url(c["mediaId"]) for c in doc["clips"]}
+        out = _remotion(inp, doc, media, pieces, sources, work, target, ctx)
+    ctx.progress(0.92, "checking")
+    qc = qc_file(str(out), sheet=False)
+    lufs = _lufs(str(out))
+    # the export quality check (packages/core qc.ts, run by Convex): measure the file; only when it shows black, a
+    # freeze or clipping, measure the takes too, so a dark or still take isn't blamed on the render
+    measure = measure_file(str(out))
+    if needs_source(measure):
+        ctx.progress(0.95, "checking the takes")
+        measure["sources"] = {c["id"]: _strip(measure_file(media[c["mediaId"]])) for c in doc["clips"]}
+    media_id = ctx.upload(str(out), "video/mp4", "render")
+    return {
+        "mediaId": media_id,
+        "durationMs": int(float(qc.get("duration") or 0) * 1000),
+        "qc": {"freezes": int(qc.get("freezes", 0)), "silentAudio": "near-silent audio" in qc["flags"] or "no audio track" in qc["flags"], "lufs": round(lufs, 1)},
+        "measure": measure,
+    }
+
+
+def _remotion(inp: dict, doc: dict, media: dict, pieces: list, sources: dict, work: Path, target: float, ctx) -> Path:
+    """The Cut composition (services/render) draws the picture; ffmpeg mixes the sound plan and sets the loudness."""
+    media = dict(media)
     # generated b-roll stills over beads (ADR 0013): the Cut composition shows them with a slow push
     for item in doc.get("tracks", {}).get("broll", []):
         if item.get("ref") and item["ref"] not in media:
             media[item["ref"]] = ctx.url(item["ref"])
-    work = Path(tempfile.mkdtemp(prefix="eyelore-render-"))
-    pieces = inp.get("sound") or []
-    sources: dict[str, str] = {}
-    if pieces:
-        sources = {mid: ctx.download(mid) for mid in dict.fromkeys(p["mediaId"] for p in pieces)}
-        if not all(_has_audio(p) for p in sources.values()):
-            pieces = []  # a source without sound: let the renderer handle it as before
     props = work / "props.json"
     props.write_text(json.dumps({"doc": doc, "media": media, "watermark": inp["watermark"], "audio": not pieces}))
     raw = work / "cut.mp4"
@@ -177,24 +243,8 @@ def run(inp: dict, ctx) -> dict:
         audio = str(work / "sound.wav")
         mix_sound(pieces, sources, audio)
     out = work / "final.mp4"
-    target = float(inp.get("loudnessLufs", -14))
     normalize(str(raw), audio, str(out), target)
-    ctx.progress(0.92, "checking")
-    qc = qc_file(str(out), sheet=False)
-    lufs = _lufs(str(out))
-    # the export quality check (packages/core qc.ts, run by Convex): measure the file; only when it shows black, a
-    # freeze or clipping, measure the takes too, so a dark or still take isn't blamed on the render
-    measure = measure_file(str(out))
-    if needs_source(measure):
-        ctx.progress(0.95, "checking the takes")
-        measure["sources"] = {c["id"]: _strip(measure_file(media[c["mediaId"]])) for c in doc["clips"]}
-    media_id = ctx.upload(str(out), "video/mp4", "render")
-    return {
-        "mediaId": media_id,
-        "durationMs": int(float(qc.get("duration") or 0) * 1000),
-        "qc": {"freezes": int(qc.get("freezes", 0)), "silentAudio": "near-silent audio" in qc["flags"] or "no audio track" in qc["flags"], "lufs": round(lufs, 1)},
-        "measure": measure,
-    }
+    return out
 
 
 def _strip(m: dict) -> dict:

@@ -22,3 +22,4 @@ export * from "./qc";
 export * from "./qcGate";
 export * from "./credits";
 export * from "./versions";
+export * from "./fastRender";
