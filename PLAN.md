@@ -238,6 +238,7 @@ Where work runs (decided 2026-11-16): one worker codebase behind `GpuProvider`. 
 - [~] Timeline drawer (⌥T or the handle), five tracks in `TRACK_ORDER` on real data; b-roll and music honestly empty
 - [~] "?" shortcut sheet and a 4-step skippable first-run tour
 - [ ] Punch-ins in the mobile preview (the export has them)
+- [~] Free edits without WebGPU (ADR 0016): Whisper on the CPU in WebAssembly, in a worker, when the browser has WebCodecs but no WebGPU: base.en q8 (80 MB) for clips of 30 s or less, tiny.en q8 (44 MB) for longer ones. Measured in Chrome on a loaded M1: a 21 s clip is ready in 8.3 s cached (18.5 s first visit); 55–59 s clips take 17–33 s. Firefox, Safari and phones are not measured yet
 **2.3 Mobile** — branch `phase-2/mobile` (native screens, no webview)
 - [x] Home: record or import, no signup; recent edits (`projects.mine`)
 - [x] Capture with a teleprompter: script one line per row, one continuous recording, the current line under the lens, tap for the next; a line said twice keeps the last take (`retakeChanges`, restorable). Not exercised on a device yet: simulators have no camera

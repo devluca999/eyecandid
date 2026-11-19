@@ -23,8 +23,8 @@ function hook(key: string): string | null {
 }
 
 /**
- * Test hooks, like "eyelore.engine" (server | device): "eyelore.engine" = "unsupported" pretends this browser cannot
- * edit on-device; "eyelore.worker" = "none" | "live" pretends no worker / a live worker, whatever the backend says.
+ * Test hooks, like "eyelore.engine" (server | device | wasm, wasm = on-device with the CPU transcriber even where
+ * WebGPU exists): "eyelore.engine" = "unsupported" pretends this browser cannot edit on-device; "eyelore.worker" = "none" | "live" pretends no worker / a live worker, whatever the backend says.
  */
 export function engineHooks() {
   const engine = hook("eyelore.engine");
@@ -35,13 +35,13 @@ export function engineHooks() {
 
 /**
  * Does this visitor's free edit run on their own device? Mirrors the choice in drop.tsx: "eyelore.engine" = server |
- * device forces it, else the `on_device` flag (on unless set false) and this browser's support decide. A server-side
+ * device | wasm forces it, else the `on_device` flag (on unless set false) and this browser's support decide. A server-side
  * free pause (flag or daily cap) only applies to the server path, so it matters only when this is false.
  * `null` while the flag or the support check has not answered yet: say nothing until it is known.
  */
 export function editsOnDevice(o: { forced: string | null; onDeviceFlag: boolean | undefined; supported: boolean | null }): boolean | null {
   if (o.forced === "server") return false;
-  if (o.forced === "device") return true;
+  if (o.forced === "device" || o.forced === "wasm") return true;
   if (o.forced === "unsupported") return false;
   if (o.onDeviceFlag === false) return false;
   return o.supported;
