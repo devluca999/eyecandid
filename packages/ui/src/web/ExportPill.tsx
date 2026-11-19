@@ -3,16 +3,31 @@ import type { CSSProperties, MouseEvent } from "react";
 import { Icon } from "./Icon";
 import { StatusDot } from "./StatusDot";
 
+/**
+ * The export quality check's word in the pill: one plain line (the issue's own reason) and the ways out, in place of
+ * the controls. `held`: the file is ready but waits for "export anyway"; `blocked`: it isn't delivered.
+ */
+export type ExportCheck = { kind: "held" | "blocked"; text: string; actions: { label: string; onClick: () => void; testId?: string }[] };
+
 /** design/components/export/ExportPill: ratio, cutdowns and export. Pair with <Lens progress> for the edge ring. */
 export function ExportPill({
-  ratios = ["9:16", "4:5", "16:9"], value, onChange, cutdowns = ["15", "30", "60"], cut, onCut, onExport, phase = "idle", progress, downloadUrl, filename = "eyecandid.mp4", onDownload, stage, style,
+  ratios = ["9:16", "4:5", "16:9"], value, onChange, cutdowns = ["15", "30", "60"], cut, onCut, onExport, phase = "idle", progress, downloadUrl, filename = "eyecandid.mp4", onDownload, stage, check, style,
 }: {
   ratios?: string[]; value: string; onChange: (r: string) => void; cutdowns?: string[]; cut: string | null; onCut: (c: string | null) => void;
-  onExport: () => void; phase?: "idle" | "rendering" | "done" | "failed"; progress?: number; downloadUrl?: string | null; filename?: string; onDownload?: (e: MouseEvent<HTMLAnchorElement>) => void; stage?: string; style?: CSSProperties;
+  onExport: () => void; phase?: "idle" | "rendering" | "done" | "failed"; progress?: number; downloadUrl?: string | null; filename?: string; onDownload?: (e: MouseEvent<HTMLAnchorElement>) => void; stage?: string; check?: ExportCheck | null; style?: CSSProperties;
 }) {
   return (
     <div className="el-glass el-export" style={style} data-testid="export-pill">
-      {phase === "done" && downloadUrl ? (
+      {check ? (
+        <span className="el-export__msg" style={{ whiteSpace: "normal" }} data-testid="export-check" data-kind={check.kind}>
+          <StatusDot status="attention" label={check.text} />
+          {check.actions.map((a) => (
+            <button key={a.label} className="el-pill el-pill--quiet el-pill--sm" style={{ padding: "0 6px" }} onClick={a.onClick} data-testid={a.testId}>
+              {a.label}
+            </button>
+          ))}
+        </span>
+      ) : phase === "done" && downloadUrl ? (
         <span className="el-export__msg">
           <StatusDot status="ready" label="ready" />
           <span className="el-meta">·</span>

@@ -5,19 +5,20 @@ import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
-import { brollAt, brollOverlays, brollPath, coverBox, faceAt, firstWords, kenBurnsAt, outputAt, punchAt, toTimeline, type Aspect, type Bead, type EditDoc, type EditOp, type VersionId } from "@eyelore/core";
+import { brollAt, brollOverlays, brollPath, coverBox, faceAt, firstWords, kenBurnsAt, outputAt, punchAt, toTimeline, type Aspect, type Bead, EditDoc, type EditOp, type VersionId } from "@eyelore/core";
 import { ContextMenu, ExportPill, Icon, Lens, Lockup, StatusDot, RATIOS, type MenuItem } from "@eyelore/ui";
 import { getAnonId } from "@/lib/anon";
 import { probeVideo, uploadFile } from "@/lib/upload";
 import { session } from "@/lib/session";
 import { useTrack } from "@/lib/track";
-import { renderOnDevice } from "@/lib/device-engine";
+import { checkDeviceExport, renderOnDevice } from "@/lib/device-engine";
 import { ReadyEmail } from "./ReadyEmail";
 import { usePlayer } from "./usePlayer";
 import { Thread, type Hover } from "./Thread";
 import { Captions } from "./Captions";
 import { useThumbs } from "./useThumbs";
 import { useExportGate } from "./ExportGate"; // [around-the-loop] signup + paywall + presence live in ExportGate.tsx
+import { refusalIssue, useExportCheck, type DeviceCheck } from "./useExportCheck"; // the export quality check (convex/qc.ts)
 import { DialStrip, dialLine, useDials, type DialKey } from "./Dials";
 import { Drawer } from "./Drawer";
 import { Board } from "./Board";
@@ -309,15 +310,33 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
   const isDevice = data?.project.engine === "device";
   const authorizeDeviceExport = useMutation(api.pipeline.authorizeDeviceExport);
   const deviceExportFailed = useMutation(api.pipeline.deviceExportFailed);
-  const [devExport, setDevExport] = useState<{ phase: "idle" | "rendering" | "done" | "failed"; progress: number; url?: string; error?: string; watermark?: boolean }>({ phase: "idle", progress: 0 });
+  const [devExport, setDevExport] = useState<{ phase: "idle" | "rendering" | "done" | "failed"; progress: number; url?: string; error?: string; watermark?: boolean; stage?: string }>({ phase: "idle", progress: 0 });
+  // the quality check on a device export (useExportCheck.tsx): held for "export anyway", or blocked
+  const [devCheck, setDevCheck] = useState<DeviceCheck>(null);
+  const recordDeviceQc = useMutation(api.qc.recordDevice);
   const deviceExporter = async (x: { aspect: Aspect; requestId: string; maxDurationMs?: 15000 | 30000 | 60000; mode: "best" | "free"; canSignIn: boolean }) => {
     const local = session.get(projectId)?.url;
     if (!local) throw new Error("this clip stays on the device you dropped it on · choose it again below to export");
     const auth = await authorizeDeviceExport({ anonId, projectId, ...x });
     setDevExport({ phase: "rendering", progress: 0 });
+    setDevCheck(null);
     try {
-      const { blob, durationMs } = await renderOnDevice(auth.doc as EditDoc, local, x.aspect, auth.watermark, (p) => setDevExport({ phase: "rendering", progress: p }), undefined, auth.stills);
-      setDevExport({ phase: "done", progress: 1, url: URL.createObjectURL(blob), watermark: auth.watermark });
+      const { blob, durationMs, stats, timings } = await renderOnDevice(auth.doc as EditDoc, local, x.aspect, auth.watermark, (p) => setDevExport({ phase: "rendering", progress: p }), undefined, auth.stills);
+      setDevExport({ phase: "rendering", progress: 1, stage: "checking on this device" });
+      const { result, sourceMs } = await checkDeviceExport(EditDoc.parse(auth.doc), local, stats);
+      // measured cost of the check, for the lab runs (scripts/lab/device-flow.mjs reads this line)
+      console.log("[qc]", JSON.stringify({ ...timings, sourceMs, status: result.verdict.blocking.length ? "blocked" : result.verdict.ok ? "ok" : "ask", issues: result.issues.map((i) => `${i.gate} ${i.code} · ${i.message}`) }));
+      const status = await recordDeviceQc({ anonId, exportId: auth.exportId, checked: true, issues: result.issues }).catch(() => null);
+      const url = URL.createObjectURL(blob);
+      if (result.headline && (status === "blocked" || status === "ask" || !result.verdict.ok)) {
+        const kind = result.verdict.blocking.length ? "blocked" : "held";
+        // a blocked file is never handed over; a held one waits for "export anyway"
+        if (kind === "blocked") URL.revokeObjectURL(url);
+        setDevExport({ phase: "idle", progress: 0, url: kind === "held" ? url : undefined, watermark: auth.watermark });
+        setDevCheck({ kind, issue: result.headline, exportId: auth.exportId as Id<"exports"> });
+        return;
+      }
+      setDevExport({ phase: "done", progress: 1, url, watermark: auth.watermark });
       track("export_done", { durationMs, watermark: auth.watermark });
     } catch (e) {
       setDevExport({ phase: "failed", progress: 0, error: e instanceof Error ? e.message : String(e) });
@@ -339,11 +358,27 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
     try {
       await gate.run(exportArgs, isDevice ? deviceExporter : undefined);
     } catch (e) {
-      // a refusal carries its own line (free exports used up, the pause); anything else shows what we know
-      setNotice(refusalMessage(e, e instanceof Error ? e.message.replace(/^.*Uncaught Error: /, "").split("\n")[0]! : "couldn't export"));
+      // the quality check refused it before rendering: its own line goes in the export pill
+      const refused = refusalIssue(e);
+      if (refused) qc.setRefusal(refused);
+      else setNotice(refusalMessage(e, e instanceof Error ? e.message.replace(/^.*Uncaught Error: /, "").split("\n")[0]! : "couldn't export"));
     }
     setExportReq((n) => n + 1);
   };
+  const qc = useExportCheck({
+    anonId,
+    projectId,
+    latest: latestExport ? { _id: latestExport._id, qc: latestExport.qc, device: latestExport.device } : undefined,
+    device: devCheck,
+    clearDevice: () => setDevCheck(null),
+    acceptDevice: () => {
+      setDevCheck(null);
+      setDevExport((d) => ({ ...d, phase: "done", progress: 1 }));
+    },
+    segments: tl?.segments,
+    seekSrc: player.seekSrc,
+    again: () => void doExport(),
+  });
   // a failed upload (server engine): the file is still held in this tab, so send it again from here
   const retryUpload = async () => {
     const p = session.get(projectId);
@@ -793,13 +828,15 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
             onExport={() => void doExport()}
             phase={isDevice ? (devExport.phase === "failed" ? "idle" : devExport.phase) : exporting ? "rendering" : latestExport?.status === "succeeded" ? "done" : "idle"}
             progress={isDevice ? (devExport.phase === "rendering" ? devExport.progress : undefined) : exporting ? latestExport!.progress : undefined}
-            stage={isDevice ? (devExport.phase === "rendering" ? "rendering on this device" : undefined) : exporting ? latestExport!.stage : undefined}
+            stage={isDevice ? (devExport.phase === "rendering" ? devExport.stage ?? "rendering on this device" : undefined) : exporting ? latestExport!.stage : undefined}
             downloadUrl={downloadUrl}
             filename={filename}
             onDownload={saveServerExport}
+            check={qc.check}
           />
           </div>
         )}
+        {stage === "ready" && mode === "edit" && qc.fixedLine}
         {/* the Pro ask comes after value is felt: a free (watermarked) export just finished; never pushed */}
         {stage === "ready" && mode === "edit" && exportedFree && !limits?.pro && (
           <p className="text-meta text-ink-secondary" style={{ textAlign: "center" }} data-testid="pro-offer">

@@ -15,7 +15,11 @@ const BOB = { subject: "user_bob", email: "bob@example.com" };
 type T = ReturnType<typeof convexTest>;
 const mk = () => convexTest(schema, modules);
 
-/** A project whose edit is one bead of `durationMs` (enough for the export rules; no pipeline needed). */
+/**
+ * A project whose edit is `durationMs` of beads, 10 s each (enough for the export rules; no pipeline needed). Not one
+ * long bead: a cutdown strikes whole beads, so one bead past the cap would leave nothing, which the export quality
+ * check refuses (convex/qc.ts).
+ */
 async function seed(t: T, owner: { anonId: string; as?: typeof ALICE }, durationMs = 30_000) {
   const caller = owner.as ? t.withIdentity(owner.as) : t;
   const projectId = await caller.mutation(api.projects.create, { anonId: owner.anonId });
@@ -23,7 +27,7 @@ async function seed(t: T, owner: { anonId: string; as?: typeof ALICE }, duration
     const row = await ctx.db.query("editDocs").withIndex("by_project", (q) => q.eq("projectId", projectId)).unique();
     const doc = emptyEditDoc(projectId);
     doc.clips = [{ id: "c1", mediaId: "m1", source: "upload", w: 640, h: 360, durationMs, fps: 30 }];
-    doc.beads = [{ id: "b1", clipId: "c1", inMs: 0, outMs: durationMs, words: [], cuts: [], struck: false }] as typeof doc.beads;
+    doc.beads = Array.from({ length: Math.ceil(durationMs / 10_000) }, (_, i) => ({ id: `b${i + 1}`, clipId: "c1", inMs: i * 10_000, outMs: Math.min(durationMs, (i + 1) * 10_000), words: [], cuts: [], struck: false })) as typeof doc.beads;
     await ctx.db.patch(row!._id, { doc });
     await ctx.db.patch(projectId, { stage: "ready" });
   });

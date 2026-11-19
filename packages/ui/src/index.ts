@@ -8,5 +8,5 @@ export { PillButton } from "./web/PillButton";
 export { Lockup } from "./web/Lockup";
 export { DropZone } from "./web/DropZone";
 export { ContextMenu, RatioGlyph, RATIOS, type MenuItem } from "./web/ContextMenu";
-export { ExportPill } from "./web/ExportPill";
+export { ExportPill, type ExportCheck } from "./web/ExportPill";
 export { Dial } from "./web/Dial";

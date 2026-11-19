@@ -90,6 +90,23 @@ export default defineSchema({
     /** who the minutes are charged to: the signed-in caller, else the SHA-256 of their anon id */
     chargedUserId: v.optional(v.id("users")),
     chargedAnonHash: v.optional(v.string()),
+    /**
+     * The export quality check (convex/qc.ts, packages/core qc.ts): `ok` delivered; `ask` held until the person says
+     * "export anyway" (`accepted`); `blocked` never delivered. `checked: false` when no measurements came back.
+     * `issues` are QcIssue objects; `minutes` is what an on-device export counted up front (given back if blocked).
+     */
+    qc: v.optional(
+      v.object({
+        status: v.union(v.literal("pending"), v.literal("ok"), v.literal("ask"), v.literal("blocked")),
+        checked: v.optional(v.boolean()),
+        issues: v.optional(v.array(v.any())),
+        accepted: v.optional(v.boolean()),
+        minutes: v.optional(v.number()),
+        /** the reasons of the safe fixes made to the edit before this export (autopilot:qc changes) */
+        fixed: v.optional(v.array(v.string())),
+        at: v.optional(v.number()),
+      }),
+    ),
     /** the client's request id: a replayed export request returns this row instead of counting again */
     requestId: v.optional(v.string()),
     /** the `exportCounts` key this export was counted against; cleared when a failed render gives it back */

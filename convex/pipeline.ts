@@ -2,9 +2,9 @@ import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import { internalMutation, mutation } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
-import type { Id } from "./_generated/dataModel";
-import { applyChange, beadChanges, cutdownChange, decideExport, decideExportCount, JOB_SPECS, reframeChange, retakeChanges, toTimeline } from "@eyelore/core";
-import type { Aspect, EditDoc, JobOutput, PlanId } from "@eyelore/core";
+import type { Doc, Id } from "./_generated/dataModel";
+import { applyChange, beadChanges, cutdownChange, decideExport, decideExportCount, EditDoc, JOB_SPECS, reframeChange, retakeChanges, toTimeline } from "@eyelore/core";
+import type { Aspect, JobOutput, PlanId } from "@eyelore/core";
 import { commitChanges, headDoc } from "./lib/docs";
 import { enqueueJob } from "./jobs";
 import { ownedProject } from "./projects";
@@ -13,7 +13,8 @@ import { flagOn } from "./lib/flags";
 import { freeState, MSG, refuse } from "./lib/limits";
 import { addUsage, anonHashOf, usageFor } from "./lib/entitle";
 import { onStillDone, stillUrls } from "./broll";
-import { bumpExportCount, exportCountFor, giveBackExport, signInAvailable } from "./lib/exportCount";
+import { fixBeforeExport, gateRender, refuseBlockedDoc } from "./qc";
+import { bumpExportCount, exportCountFor, giveBackDeviceCount, giveBackExport, signInAvailable } from "./lib/exportCount";
 
 /**
  * The core-loop pipeline, advanced each time a project job finishes:
@@ -42,6 +43,8 @@ export const onJobDone = internalMutation({
       return;
     }
     if (job.status === "succeeded" && job.type === "render") {
+      // the quality check decides from the file's measurements (convex/qc.ts): blocked or held exports aren't counted
+      if (!(await gateRender(ctx, job))) return;
       // count the minutes once, then tell the owner if they are away (ADR 0009)
       await ctx.scheduler.runAfter(0, internal.entitlements.recordExportDone, { jobId });
       await ctx.scheduler.runAfter(0, internal.notify.onExportDone, { jobId });
@@ -150,6 +153,8 @@ async function checkExportCount(ctx: MutationCtx, who: { userId?: Id<"users">; a
 async function planExport(ctx: MutationCtx, a: ExportArgs, replay: boolean) {
   const project = await ownedProject(ctx, a.projectId, a.anonId);
   const who = await caller(ctx, a.anonId);
+  // the quality check's safe fixes land in the edit first (explained, undoable); then the head is read fresh
+  const fixed = await fixBeforeExport(ctx, a.projectId, a.aspect as Aspect);
   const head = await headDoc(ctx, a.projectId);
   if (!head) throw new Error("nothing to export");
   let doc: EditDoc = { ...head.doc, aspect: a.aspect as Aspect };
@@ -172,10 +177,11 @@ async function planExport(ctx: MutationCtx, a: ExportArgs, replay: boolean) {
   const cut = cutdownChange(doc, maxMs);
   if (cut) doc = applyChange(doc, cut)!.doc; // a variant: the main edit is untouched
   JOB_SPECS.render.input.parse({ doc, aspect: a.aspect, watermark: plan.watermark, maxDurationMs: maxMs });
+  refuseBlockedDoc(EditDoc.parse(doc)); // nothing broken is rendered or counted
   const chargedAnonHash = who.userId || !a.anonId ? undefined : await anonHashOf(a.anonId);
   // counted last, once everything else has said yes, in the same transaction as the export row
   if (countKey) await bumpExportCount(ctx, countKey, 1);
-  return { project, who, head, doc, plan, maxMs, decision, chargedAnonHash, countKey };
+  return { project, who, head, doc, plan, maxMs, decision, chargedAnonHash, countKey, fixed };
 }
 
 /** The export a replayed request already made (same project, same client request id). */
@@ -192,7 +198,7 @@ export const startExport = mutation({
     await ownedProject(ctx, a.projectId, a.anonId);
     const prior = await priorExport(ctx, a);
     if (prior?.jobId) return prior.jobId;
-    const { project, who, head, doc, plan, maxMs, decision, chargedAnonHash, countKey } = await planExport(ctx, a, false);
+    const { project, who, head, doc, plan, maxMs, decision, chargedAnonHash, countKey, fixed } = await planExport(ctx, a, false);
     const jobId = await enqueueJob(ctx, {
       type: "render",
       input: { doc, aspect: a.aspect, watermark: plan.watermark, maxDurationMs: maxMs },
@@ -201,7 +207,7 @@ export const startExport = mutation({
       ownerUserId: project.ownerUserId,
       ownerAnonId: project.ownerAnonId,
     });
-    await ctx.db.insert("exports", { projectId: a.projectId, jobId, aspect: a.aspect, maxDurationMs: a.maxDurationMs, watermark: plan.watermark, docVersion: head.doc.version, createdAt: Date.now(), plan: decision.plan, chargedUserId: who.userId, chargedAnonHash, requestId: a.requestId, countKey });
+    await ctx.db.insert("exports", { projectId: a.projectId, jobId, aspect: a.aspect, maxDurationMs: a.maxDurationMs, watermark: plan.watermark, docVersion: head.doc.version, createdAt: Date.now(), plan: decision.plan, chargedUserId: who.userId, chargedAnonHash, requestId: a.requestId, countKey, qc: { status: "pending", fixed } });
     return jobId;
   },
 });
@@ -212,8 +218,7 @@ export const startExport = mutation({
  */
 /** How long after authorization an on-device render may report failing and get its free export back. */
 export const DEVICE_RENDER_WINDOW_MS = 10 * 60_000;
-/** Free exports given back for a failed on-device render: per anonymous session ever, per Free account per month. */
-export const DEVICE_GIVE_BACKS = 1;
+export { DEVICE_GIVE_BACKS } from "./lib/exportCount";
 
 export const deviceExportFailed = mutation({
   args: { anonId: v.string(), exportId: v.id("exports") },
@@ -226,15 +231,10 @@ export const deviceExportFailed = mutation({
     // the failure is always recorded; the count comes back at most once per counter (an anonymous session ever, a
     // Free account per month: the counter key already carries the month), so authorize → "failed" can't loop
     await ctx.db.patch(exp._id, { failedAt: Date.now() });
-    const cap = `g:${exp.countKey}`;
-    const used = await ctx.db.query("exportCounts").withIndex("by_key", (q) => q.eq("key", cap)).unique();
-    if ((used?.count ?? 0) >= DEVICE_GIVE_BACKS) return false;
-    await bumpExportCount(ctx, cap, 1);
-    await bumpExportCount(ctx, exp.countKey, -1);
-    await ctx.db.patch(exp._id, { countKey: undefined, givenBack: true });
-    return true;
+    return await giveBackDeviceCount(ctx, exp);
   },
 });
+
 
 /**
  * On-device export (ADR 0012): the same server-side plan (watermark, cap, paywall) as a worker render, recorded and
@@ -259,9 +259,10 @@ export const authorizeDeviceExport = mutation({
         if (key) await bumpExportCount(ctx, key, 1);
         await ctx.db.patch(prior._id, { countKey: key, givenBack: false });
       }
-      return { exportId: prior._id, doc: snap, watermark: prior.watermark, maxMs: prior.planMaxMs, stills: await stillUrls(ctx, a.projectId, snap) };
+      return { exportId: prior._id, doc: snap, watermark: prior.watermark, maxMs: prior.planMaxMs, stills: await stillUrls(ctx, a.projectId, snap), fixed: [] as string[] };
     }
-    const { who, head, doc, plan, maxMs, decision, chargedAnonHash, countKey } = await planExport(ctx, a, false);
+    const { who, head, doc, plan, maxMs, decision, chargedAnonHash, countKey, fixed } = await planExport(ctx, a, false);
+    const minutes = toTimeline(doc).durationMs / 60_000;
     const exportId = await ctx.db.insert("exports", {
       projectId: a.projectId,
       device: true,
@@ -274,13 +275,15 @@ export const authorizeDeviceExport = mutation({
       chargedUserId: who.userId,
       chargedAnonHash,
       usageCounted: true,
+      // the browser reports its quality check (qc.recordDevice); a blocked export gives these minutes back
+      qc: { status: "pending", minutes, fixed },
       requestId: a.requestId,
       countKey,
       planDoc: doc,
       planMaxMs: maxMs,
     });
-    await addUsage(ctx, { userId: who.userId, anonHash: chargedAnonHash }, toTimeline(doc).durationMs / 60_000);
+    await addUsage(ctx, { userId: who.userId, anonHash: chargedAnonHash }, minutes);
     // generated b-roll stills in the doc, as signed URLs for the browser renderer (none on the free path)
-    return { exportId, doc, watermark: plan.watermark, maxMs, stills: await stillUrls(ctx, a.projectId, doc) };
+    return { exportId, doc, watermark: plan.watermark, maxMs, stills: await stillUrls(ctx, a.projectId, doc), fixed };
   },
 });

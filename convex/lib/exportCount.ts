@@ -1,7 +1,7 @@
 import { ANON_FREE_EXPORTS, FREE_EXPORTS_PER_MONTH, periodKey } from "@eyelore/core";
 import type { PlanId } from "@eyelore/core";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
-import type { Id } from "../_generated/dataModel";
+import type { Doc, Id } from "../_generated/dataModel";
 import { flagOn } from "./flags";
 import { anonHashOf } from "./entitle";
 
@@ -39,5 +39,23 @@ export async function giveBackExport(ctx: MutationCtx, jobId: Id<"jobs">) {
   if (!exp?.countKey) return false;
   await bumpExportCount(ctx, exp.countKey, -1);
   await ctx.db.patch(exp._id, { countKey: undefined });
+  return true;
+}
+
+/** Free exports given back for a failed or blocked on-device render: per anonymous session ever, per Free account per month. */
+export const DEVICE_GIVE_BACKS = 1;
+
+/**
+ * Give an undelivered on-device export's free count back, capped (DEVICE_GIVE_BACKS per counter) because the browser
+ * reports it. Used for a failed render and for one the quality check blocked (convex/qc.ts recordDevice).
+ */
+export async function giveBackDeviceCount(ctx: MutationCtx, exp: Doc<"exports">): Promise<boolean> {
+  if (!exp.device || !exp.countKey) return false;
+  const cap = `g:${exp.countKey}`;
+  const used = await ctx.db.query("exportCounts").withIndex("by_key", (q) => q.eq("key", cap)).unique();
+  if ((used?.count ?? 0) >= DEVICE_GIVE_BACKS) return false;
+  await bumpExportCount(ctx, cap, 1);
+  await bumpExportCount(ctx, exp.countKey, -1);
+  await ctx.db.patch(exp._id, { countKey: undefined, givenBack: true });
   return true;
 }

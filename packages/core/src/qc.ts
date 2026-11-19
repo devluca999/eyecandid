@@ -1,3 +1,4 @@
+import { captionBox, captionLineCount, outputFaceCy, safeArea } from "./captions";
 import type { EditDoc } from "./editModel";
 import { isPinned } from "./ops";
 import { toTimeline } from "./timeline";
@@ -17,6 +18,7 @@ export type QcCode =
   | "flash_segment"
   | "caption_overflow"
   | "caption_overlap"
+  | "caption_band"
   | "wrong_length"
   | "black_frames"
   | "frozen_frames"
@@ -131,6 +133,21 @@ export function qcDoc(doc: EditDoc, opts: { captionMaxChars?: number } = {}): Qc
     const next = captions[i + 1];
     if (next && next.startMs < c.endMs) issues.push({ code: "caption_overlap", atMs: next.startMs, spanMs: c.endMs - next.startMs, ours: true, gate: "block", message: `two captions overlap at ${tc(next.startMs)}` });
   });
+
+  // where the renderers draw the captions (captionBox): inside the platform's safe area and off the face. A caption
+  // that can't fit two lines is noted above already, so it is measured as two lines here.
+  const safe = safeArea(doc.aspect);
+  const face = outputFaceCy(doc, doc.aspect);
+  for (const c of captions) {
+    const box = captionBox(doc, doc.aspect, Math.min(2, captionLineCount(c.text)));
+    const outside = box.top < safe.top - 0.001 || box.bottom > safe.bottom + 0.001;
+    const onFace = face !== undefined && face >= box.top && face <= box.bottom;
+    if (!outside && !onFace) continue;
+    // a spot the person chose is theirs to keep
+    const mine = isPinned(doc.pins, `/captions/place/${doc.aspect}`);
+    issues.push({ code: "caption_band", atMs: c.startMs, spanMs: c.endMs - c.startMs, ours: !mine, gate: mine ? "ask" : "block", message: onFace ? `the captions at ${tc(c.startMs)} cover the face` : `the captions at ${tc(c.startMs)} sit outside the safe area` });
+    break; // one placement for the whole edit, so one line says it
+  }
   return issues;
 }
 
