@@ -10,6 +10,7 @@ import { ContextMenu, ExportPill, Icon, Lens, Lockup, StatusDot, RATIOS, type Me
 import { getAnonId } from "@/lib/anon";
 import { probeVideo, uploadFile } from "@/lib/upload";
 import { session } from "@/lib/session";
+import { useShareFile } from "@/lib/share-file";
 import { useTrack } from "@/lib/track";
 import { checkDeviceExport, renderOnDevice } from "@/lib/device-engine";
 import { ReadyEmail } from "./ReadyEmail";
@@ -425,6 +426,7 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
           })
           .catch(() => window.open(href, "_blank", "noopener"));
       };
+  const shareExport = useShareFile(downloadUrl, filename, () => track("share", { target: "web_share" }));
   const doneSent = useRef<string | null>(null);
   useEffect(() => {
     if (!isDevice && latestExport?.status === "succeeded" && doneSent.current !== latestExport._id) {
@@ -832,6 +834,7 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
             downloadUrl={downloadUrl}
             filename={filename}
             onDownload={saveServerExport}
+            onShare={shareExport}
             check={qc.check}
           />
           </div>

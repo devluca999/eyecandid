@@ -15,9 +15,12 @@ type Uploader = { pick: () => void; trySample: (() => void) | null; busy: boolea
 const Ctx = createContext<Uploader>({ pick: () => {}, trySample: null, busy: false, error: null, unsupported: null });
 export const useUploader = () => useContext(Ctx);
 
+/** How the clip arrived; carried through the queue so drop_started counts the landing's drops and samples as such. */
+export type DropSource = "drop" | "picker" | "sample";
+
 export type BackendProps = {
   /** Called once the real uploader is mounted; it hands over its file entry point and receives its state. */
-  register: (forward: (file: File) => void) => void;
+  register: (forward: (file: File, source: DropSource) => void) => void;
   report: (state: { busy: boolean; error: string | null; unsupported: string | null }) => void;
 };
 
@@ -31,8 +34,8 @@ export function LandingUploader({ children }: { children: ReactNode }) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const started = useRef(false);
-  const forward = useRef<((f: File) => void) | null>(null);
-  const pending = useRef<File | null>(null);
+  const forward = useRef<((f: File, source: DropSource) => void) | null>(null);
+  const pending = useRef<{ file: File; source: DropSource } | null>(null);
 
   const load = useCallback(() => {
     if (started.current) return;
@@ -48,22 +51,22 @@ export function LandingUploader({ children }: { children: ReactNode }) {
   }, []);
 
   const enqueue = useCallback(
-    (file: File) => {
+    (file: File, source: DropSource) => {
       setLoadError(null);
-      if (forward.current) return forward.current(file);
-      pending.current = file;
+      if (forward.current) return forward.current(file, source);
+      pending.current = { file, source };
       setQueued(true);
       load();
     },
     [load],
   );
 
-  const register = useCallback((fn: (file: File) => void) => {
+  const register = useCallback((fn: (file: File, source: DropSource) => void) => {
     forward.current = fn;
-    const f = pending.current;
+    const p = pending.current;
     pending.current = null;
-    if (f) {
-      fn(f);
+    if (p) {
+      fn(p.file, p.source);
       requestAnimationFrame(() => setQueued(false));
     }
   }, []);
@@ -82,7 +85,7 @@ export function LandingUploader({ children }: { children: ReactNode }) {
       if (forward.current || !hasFiles(e)) return;
       e.preventDefault();
       const f = e.dataTransfer?.files?.[0];
-      if (f) enqueue(f);
+      if (f) enqueue(f, "drop");
     };
     window.addEventListener("dragover", over);
     window.addEventListener("drop", drop);
@@ -125,7 +128,7 @@ export function LandingUploader({ children }: { children: ReactNode }) {
       const res = await fetch(env.sampleClipUrl);
       if (!res.ok) throw new Error(String(res.status));
       const blob = await res.blob();
-      enqueue(new File([blob], "sample.mp4", { type: blob.type || "video/mp4" }));
+      enqueue(new File([blob], "sample.mp4", { type: blob.type || "video/mp4" }), "sample");
     } catch {
       setQueued(false);
       setLoadError("couldn't load the sample · try your own clip");
@@ -145,7 +148,7 @@ export function LandingUploader({ children }: { children: ReactNode }) {
         onChange={(e) => {
           const f = e.target.files?.[0];
           e.target.value = "";
-          if (f) enqueue(f);
+          if (f) enqueue(f, "picker");
         }}
       />
       {Backend && <Backend register={register} report={report} />}

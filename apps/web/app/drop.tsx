@@ -205,7 +205,11 @@ export function UploaderProvider({ children }: { children: ReactNode }) {
         onChange={(e) => {
           const f = e.target.files?.[0];
           e.target.value = "";
-          if (f) void start(f, "picker");
+          // the landing feeds this input for drops and the sample too, and says which (landing-backend.tsx)
+          const given = e.target.dataset.source;
+          delete e.target.dataset.source;
+          const source = given === "drop" || given === "sample" ? given : "picker";
+          if (f) void start(f, source);
         }}
       />
     </Ctx.Provider>

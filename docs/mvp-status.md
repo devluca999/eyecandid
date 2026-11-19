@@ -19,7 +19,7 @@ Status words: **done** (on `main`, with a test or a measured run), **PR** (open,
 | 2 | Before/after wipe | partial | an edit / raw switch, not a drag wipe; autoplay only in theater mode |
 | 2 | Leave your email → ready email | done, owner | `ReadyEmail.tsx`, `readyEmail.test.ts`; sending needs SendPulse keys; fires on tab hide only; hidden on device edits |
 | 2 | Clerk sign-in at the 2nd export, anonymous project claimed | partial, owner | claim built (`convex/account.ts`, `around.test.ts`); there is no export counter, so sign-in is asked at the 1st export; needs Clerk keys |
-| 2 | Accept: p50 ≤ 30 s to preview, ≤ 90 s to export, on production, cold worker; every funnel step recorded | not built, owner | no p50 spec and no production run. Events missing: sample start, leave-email, access request, checkout, web `share` |
+| 2 | Accept: p50 ≤ 30 s to preview, ≤ 90 s to export, on production, cold worker; every funnel step recorded | not built, owner | no p50 spec and no production run. Every event is emitted: the landing now reports drops and the sample as such (was "picker"); web `share` through the system share sheet where the browser can share files |
 | 3 | ffmpeg fast render for Free | replaced, not built | free renders in the browser. The worker fallback (browsers without WebGPU) is still the slow Remotion render |
 | 3 | Free caps; daily budget flag with a pause message | done | `convex/lib/limits.ts`, `caps.test.ts`. The pause line (`FreeStatus`) is not mounted on the landing |
 | 3 | Expiry cron | done | `convex/expiry.ts`, `caps.test.ts` |

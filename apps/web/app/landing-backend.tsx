@@ -34,8 +34,10 @@ function Bridge({ register, report, root }: BackendProps & { root: React.RefObje
     // the shell owns the page's one file input (data-testid="file-input"); this one is only fed through it
     const real = root.current?.querySelector<HTMLInputElement>('input[type="file"]');
     real?.setAttribute("data-testid", "file-input-backend");
-    register((file) => {
+    register((file, source) => {
       if (!real) return report({ busy: false, error: "couldn’t start that upload · reload the page and drop it again", unsupported: null });
+      // drop.tsx reads this on change, so a queued drop or the sample isn't counted as a pick
+      real.dataset.source = source;
       const dt = new DataTransfer();
       dt.items.add(file);
       real.files = dt.files;

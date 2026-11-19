@@ -11,10 +11,10 @@ export type ExportCheck = { kind: "held" | "blocked"; text: string; actions: { l
 
 /** design/components/export/ExportPill: ratio, cutdowns and export. Pair with <Lens progress> for the edge ring. */
 export function ExportPill({
-  ratios = ["9:16", "4:5", "16:9"], value, onChange, cutdowns = ["15", "30", "60"], cut, onCut, onExport, phase = "idle", progress, downloadUrl, filename = "eyecandid.mp4", onDownload, stage, check, style,
+  ratios = ["9:16", "4:5", "16:9"], value, onChange, cutdowns = ["15", "30", "60"], cut, onCut, onExport, phase = "idle", progress, downloadUrl, filename = "eyecandid.mp4", onDownload, onShare, stage, check, style,
 }: {
   ratios?: string[]; value: string; onChange: (r: string) => void; cutdowns?: string[]; cut: string | null; onCut: (c: string | null) => void;
-  onExport: () => void; phase?: "idle" | "rendering" | "done" | "failed"; progress?: number; downloadUrl?: string | null; filename?: string; onDownload?: (e: MouseEvent<HTMLAnchorElement>) => void; stage?: string; check?: ExportCheck | null; style?: CSSProperties;
+  onExport: () => void; phase?: "idle" | "rendering" | "done" | "failed"; progress?: number; downloadUrl?: string | null; filename?: string; onDownload?: (e: MouseEvent<HTMLAnchorElement>) => void; /** shown only when the browser can share the file */ onShare?: () => void; stage?: string; check?: ExportCheck | null; style?: CSSProperties;
 }) {
   return (
     <div className="el-glass el-export" style={style} data-testid="export-pill">
@@ -34,6 +34,11 @@ export function ExportPill({
           <a className="el-pill el-pill--quiet el-pill--sm" style={{ padding: "0 6px", color: "var(--ink)" }} href={downloadUrl} download={filename} onClick={onDownload} data-testid="download">
             download
           </a>
+          {onShare && (
+            <button className="el-pill el-pill--quiet el-pill--sm" style={{ padding: "0 6px" }} onClick={onShare} data-testid="share">
+              share
+            </button>
+          )}
           <button className="el-pill el-pill--quiet el-pill--sm" style={{ padding: "0 6px" }} onClick={onExport} aria-label="export again">again</button>
         </span>
       ) : (
