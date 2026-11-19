@@ -71,18 +71,11 @@ const ASPECT_RATIO: Record<Aspect, number> = { "9:16": 9 / 16, "4:5": 4 / 5, "1:
 const MODES = ["theater", "edit", "board"] as const;
 type Mode = (typeof MODES)[number];
 
-const readStore = (k: string) => {
-  try {
-    return window.localStorage.getItem(k);
-  } catch {
-    return null;
-  }
-};
 const writeStore = (k: string, v: string) => {
   try {
     window.localStorage.setItem(k, v);
   } catch {
-    /* private mode: the tour just shows again next time */
+    /* private mode: nothing to remember */
   }
 };
 const interactive = (t: HTMLElement) => !!t.closest("button, a, input, textarea, select, [role=slider], [role=button], [contenteditable=true]");
@@ -197,11 +190,9 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
     }
   }, [data?.project.stage, pending?.droppedAt, track]);
 
-  // first-run tour: once the edit is ready, unless you've finished or skipped it before
+  // the tour never starts by itself: the first minute is the edit playing, nothing over it (mvp-spec, "The first
+  // minute"). It is one tap away in the shortcuts sheet ("take the tour").
   const stage = data?.project.stage ?? "empty";
-  useEffect(() => {
-    if (stage === "ready" && readStore(TOUR_KEY) !== "done") setTour((t) => t ?? 0);
-  }, [stage]);
   const endTour = useCallback(() => {
     setTour(null);
     writeStore(TOUR_KEY, "done");
