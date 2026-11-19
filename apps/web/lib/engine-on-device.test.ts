@@ -6,6 +6,7 @@ describe("editsOnDevice (the free pause line shows only when this is false)", ()
     expect(editsOnDevice({ forced: "server", onDeviceFlag: true, supported: true })).toBe(false);
     expect(editsOnDevice({ forced: "unsupported", onDeviceFlag: true, supported: true })).toBe(false);
     expect(editsOnDevice({ forced: "device", onDeviceFlag: false, supported: false })).toBe(true);
+    expect(editsOnDevice({ forced: "wasm", onDeviceFlag: false, supported: false })).toBe(true);
   });
   it("otherwise the flag and browser support decide, and unknown stays unknown", () => {
     expect(editsOnDevice({ forced: null, onDeviceFlag: false, supported: true })).toBe(false);

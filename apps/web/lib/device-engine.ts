@@ -1,19 +1,33 @@
 "use client";
 import type { Aspect, EditDoc, FaceSample, MediaStats, QcResult, ReframeKeyframe } from "@eyelore/core";
 import { dbToGain, encodeWav, integratedLoudness, loudnessGainDb, mixSound, qcExport, smoothFaceTrack, sourceAt, TARGET_LUFS, toTimeline, truePeakDb, wordRms } from "@eyelore/core";
+import { wasmVariant, WASM_VARIANTS, wordsFromChunks } from "./asr-words";
+import { engineHooks } from "./engine-reach";
 import { FrameSampler, frameTap, lumaPlane, mean, meanAbsDiff, measureAudio, SAMPLE_SIDE } from "./frame-sampler";
+import type { WasmAsrMessage, WasmAsrRequest } from "./wasm-whisper.worker";
 
 /**
- * The on-device engine (free tier, ADR 0012): Whisper on WebGPU for word timings and @remotion/web-renderer for the
- * export, both in the visitor's browser. The clip is never uploaded. Convex still owns the project and edit model:
- * the transcript is sent there and autocut runs server-side from the same code the worker path uses.
+ * The on-device engine (free tier, ADR 0012): Whisper for word timings and @remotion/web-renderer for the export, both
+ * in the visitor's browser. The clip is never uploaded. Convex still owns the project and edit model: the transcript
+ * is sent there and autocut runs server-side from the same code the worker path uses.
+ *
+ * Whisper runs on WebGPU where the browser has it. Elsewhere (Firefox, older Safari, many phones) it runs on the CPU
+ * in WebAssembly (ADR 0016): slower, same device, same Transcript. The render needs WebCodecs either way; without it
+ * there is no on-device edit.
  */
 export const DEVICE_MODEL = "base.en" as const;
 
-type Support = { ok: boolean; why?: string };
+/** Which Whisper does the listening: WebGPU (the fast path) or the CPU fallback in WebAssembly. */
+export type Transcriber = "webgpu" | "wasm";
+type Support = { ok: boolean; why?: string; transcriber?: Transcriber };
 let supportPromise: Promise<Support> | null = null;
 
-/** Can this browser edit locally? Cached for the page's lifetime. */
+/** WebAssembly in a module worker, plus the audio decoder the 16 kHz resample uses (that part runs on the page). */
+function canUseWasmWhisper(): boolean {
+  return typeof WebAssembly === "object" && typeof Worker === "function" && typeof OfflineAudioContext === "function";
+}
+
+/** Can this browser edit locally, and which transcriber will listen? Cached for the page's lifetime. */
 export function deviceSupport(): Promise<Support> {
   supportPromise ??= (async () => {
     try {
@@ -21,11 +35,12 @@ export function deviceSupport(): Promise<Support> {
         import("@remotion/whisper-webgpu"),
         import("@remotion/web-renderer"),
       ]);
-      const w = await canUseWhisperWebGpu();
-      if (!w.supported) return { ok: false, why: `whisper: ${w.reason ?? "unsupported"}` };
+      // "eyelore.engine" = "wasm" skips WebGPU even where it exists (tests and measurement; engine-reach.ts)
+      const w = engineHooks().engine === "wasm" ? { supported: false, reason: "wasm forced" } : await canUseWhisperWebGpu();
+      if (!w.supported && !canUseWasmWhisper()) return { ok: false, why: `whisper: ${w.reason ?? "unsupported"}; no wasm` };
       const r = await canRenderMediaOnWeb({ width: 1080, height: 1920, container: "mp4", videoCodec: "h264" });
       if (!r.canRender) return { ok: false, why: `render: ${r.issues.map((i) => i.type).join(", ")}` };
-      return { ok: true };
+      return { ok: true, transcriber: w.supported ? "webgpu" : "wasm" };
     } catch (e) {
       return { ok: false, why: String(e).slice(0, 120) };
     }
@@ -35,8 +50,12 @@ export function deviceSupport(): Promise<Support> {
 
 export type Transcript = { language: string; durationMs: number; words: { text: string; startMs: number; endMs: number; conf: number; rms?: number }[] };
 
-/** Audio → 16 kHz → Whisper (downloads the model once per device; it's cached after). Reports honest progress. */
+/**
+ * Audio → 16 kHz → Whisper (downloads the model once per device; it's cached after). Reports honest progress. Uses the
+ * transcriber deviceSupport() chose; a forced "device" engine on a browser without support keeps the WebGPU path.
+ */
 export async function transcribeOnDevice(file: File, durationMs: number, onStage: (detail: string) => void): Promise<Transcript> {
+  if ((await deviceSupport()).transcriber === "wasm") return transcribeWasm(file, durationMs, onStage);
   const wh = await import("@remotion/whisper-webgpu");
   onStage("reading the sound · on this device");
   const audio = await wh.resampleTo16Khz({ file });
@@ -48,13 +67,61 @@ export async function transcribeOnDevice(file: File, durationMs: number, onStage
     });
   }
   onStage("listening · on this device");
+  const t0 = performance.now();
   const r = await wh.transcribe({ channelWaveform: audio, model: DEVICE_MODEL });
   const words = r.words
     .map((x) => ({ text: x.text.trim(), startMs: Math.max(0, Math.round(x.startInSeconds * 1000)), endMs: Math.max(0, Math.round(x.endInSeconds * 1000)), conf: 1 }))
     .filter((w) => w.text && w.endMs >= w.startMs);
+  // what listened and how long it took (scripts/lab/device-flow.mjs prints it)
+  console.info(`[asr] ${JSON.stringify({ transcriber: "webgpu", model: DEVICE_MODEL, ms: Math.round(performance.now() - t0), text: words.map((w) => w.text).join(" ") })}`);
   // each word's loudness against the take (emphasis punch-ins); the 16 kHz audio is already in memory
   const rms = wordRms(audio, 16000, words);
   return { language: "en", durationMs, words: words.map((w, i) => ({ ...w, rms: rms[i]! })) };
+}
+
+/**
+ * The CPU fallback (ADR 0016): the same 16 kHz audio, Whisper in WebAssembly inside a worker so the page stays
+ * responsive, the same Transcript out. The model comes from the Hugging Face Hub once per device, the browser's cache
+ * after that.
+ */
+async function transcribeWasm(file: File, durationMs: number, onStage: (detail: string) => void): Promise<Transcript> {
+  const name = wasmVariant(hookValue("eyelore.wasm-model"));
+  const variant = WASM_VARIANTS[name];
+  const { resampleTo16Khz } = await import("@remotion/whisper-webgpu"); // OfflineAudioContext only; no WebGPU involved
+  onStage("reading the sound · on this device");
+  const audio = await resampleTo16Khz({ file });
+  const worker = new Worker(new URL("./wasm-whisper.worker.ts", import.meta.url), { type: "module" });
+  try {
+    const done = await new Promise<Extract<WasmAsrMessage, { type: "done" }>>((resolve, reject) => {
+      worker.onerror = (e) => reject(new Error(e.message || "the listening worker didn't start"));
+      worker.onmessage = (e: MessageEvent<WasmAsrMessage>) => {
+        const m = e.data;
+        if (m.type === "progress") {
+          const total = Math.max(m.total / 1e6, variant.mb);
+          onStage(`getting the editor ready · ${Math.round(Math.min(m.loaded / 1e6, total))} of ${Math.round(total)} MB · once per device`);
+        } else if (m.type === "listening") onStage("listening · on this device");
+        else if (m.type === "done") resolve(m);
+        else if (m.type === "error") reject(new Error(m.message));
+      };
+      // the worker gets a copy; this one stays for the loudness pass below
+      const request: WasmAsrRequest = { audio: audio.slice(), variant };
+      worker.postMessage(request, [request.audio.buffer]);
+    });
+    const words = wordsFromChunks(done.chunks, audio.length / 16000);
+    console.info(`[asr] ${JSON.stringify({ transcriber: "wasm", model: name, threads: done.threads, isolated: done.isolated, loadMs: done.loadMs, ms: done.asrMs, text: words.map((w) => w.text).join(" ") })}`);
+    const rms = wordRms(audio, 16000, words);
+    return { language: "en", durationMs, words: words.map((w, i) => ({ ...w, rms: rms[i]! })) };
+  } finally {
+    worker.terminate();
+  }
+}
+
+function hookValue(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null; // storage blocked: no override
+  }
 }
 
 const SIZE: Record<Aspect, [number, number]> = { "9:16": [1080, 1920], "4:5": [1080, 1350], "1:1": [1080, 1080], "16:9": [1920, 1080] };
