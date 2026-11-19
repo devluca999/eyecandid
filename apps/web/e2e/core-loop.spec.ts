@@ -53,6 +53,14 @@ test("drop a raw clip → polished, captioned 9:16 export in under 3 minutes", a
   await expect(page).toHaveURL(/\/edit\//);
   // the free export's one next step: Pro, offered once, never pushed
   await expect(page.getByTestId("pro-offer")).toContainText("request pro access");
+  await expect(page.getByTestId("pro-offer")).toContainText("no watermark, clips up to 5 min?");
+  // quiet dismiss; and once is once: a reload does not bring it back
+  await page.getByTestId("pro-offer-dismiss").click();
+  await expect(page.getByTestId("pro-offer")).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByTestId("download")).toBeVisible({ timeout: 60_000 });
+  await page.waitForTimeout(1500);
+  await expect(page.getByTestId("pro-offer")).toHaveCount(0);
 
   const secs = (Date.now() - t0) / 1000;
   console.log(`core loop: ${secs.toFixed(1)}s (restored '${word}')`);
@@ -67,6 +75,8 @@ async function editorFeatures(page: Page) {
   const duration = async () => Number(await stage.getAttribute("data-duration-ms"));
   await page.getByTestId("thread").hover({ position: { x: 2, y: 2 } });
   await shot(page, "edit");
+
+  await wipeChecks(page);
 
   // "?" opens the shortcut sheet; escape closes it
   await page.keyboard.press("?");
@@ -190,4 +200,53 @@ async function shot(page: Page, name: string) {
   if (!process.env.SHOTS) return;
   await page.waitForTimeout(700); // morphs and theme transitions settle
   await page.screenshot({ path: `${process.env.SHOTS}/${name}.png` });
+}
+
+/** The before/after wipe: a slider over the Lens; raw take on its left, the edit on its right, both playing in sync. */
+async function wipeChecks(page: Page) {
+  const handle = page.getByTestId("wipe-handle");
+  await expect(handle).toHaveAccessibleName("before and after");
+  await expect(handle).toHaveAttribute("role", "slider");
+  await expect(handle).toHaveAttribute("data-wipe", "0.00"); // the edit first; the raw take is one drag away
+  await handle.focus();
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("ArrowRight");
+  await expect(handle).toHaveAttribute("data-wipe", "0.25");
+  await expect(handle).toHaveAttribute("aria-valuenow", "25");
+  await page.keyboard.press("ArrowLeft");
+  await expect(handle).toHaveAttribute("data-wipe", "0.20");
+  await page.keyboard.press("End");
+  await page.keyboard.press("Home");
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("Shift+ArrowRight");
+  await page.keyboard.press("Shift+ArrowRight");
+  await expect(handle).toHaveAttribute("data-wipe", "0.45");
+  // both sides render, and the raw side is its own muted video of the same take
+  const edit = page.getByTestId("footage");
+  const raw = page.getByTestId("wipe-raw-video");
+  await expect(edit).toBeVisible();
+  await expect(raw).toBeVisible();
+  await expect(raw).toHaveJSProperty("muted", true);
+  await expect.poll(() => raw.evaluate((v: HTMLVideoElement) => v.readyState), { timeout: 20_000 }).toBeGreaterThanOrEqual(2);
+  // a drag moves it (touch and mouse both go through pointer events)
+  const lens = (await page.getByTestId("lens").boundingBox())!;
+  const hb = (await handle.boundingBox())!;
+  await page.mouse.move(hb.x + hb.width / 2, hb.y + hb.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(lens.x + lens.width * 0.75, lens.y + lens.height / 2, { steps: 6 });
+  await page.mouse.up();
+  const x = Number(await handle.getAttribute("data-wipe"));
+  expect(x).toBeGreaterThan(0.7);
+  expect(x).toBeLessThan(0.8);
+  await page.screenshot({ path: "test-results/wipe.png" }).catch(() => {});
+  // the full raw take is still one control away
+  await page.getByTestId("before-after").getByRole("radio", { name: "raw take" }).click();
+  await expect(handle).toHaveCount(0);
+  await page.getByTestId("before-after").getByRole("radio", { name: "edit" }).click();
+  await expect(handle).toBeVisible();
+  await handle.focus();
+  await page.keyboard.press("Home");
 }
