@@ -65,12 +65,12 @@ Modes: **theater** (circle, night, plays) · **edit** (true aspect, thread, dial
 | State | Server engine | Device engine |
 |---|---|---|
 | Uploading | "uploading · N%" | — (never uploaded) |
-| First visit model download | — | "getting the editor ready · N of 206 MB · once per device" (fixed: read "209 of 206") |
+| First visit model download | — | "getting the editor ready · N of 206 MB · once per device" (fixed: read "209 of 206"); the raw take plays muted meanwhile. A stall (no byte for 15 s) or a dropped connection: "slow connection · retrying (2 of 3)" (or "you're offline" / "the download host is busy"), then it resumes from the byte it got to (lib/resilient-fetch.ts) |
 | Working | "listening / trimming fillers and pauses / finding your face · N%" | "reading the sound / listening / trimming the ums · on this device" |
 | Cold (no worker) | "no engine is running right now · your clip starts when one comes online" (or "waking up", or "isn't answering") | — |
 | Ready | autoplay off; summary "N fillers trimmed · N pauses cut · hover to see why"; first-run tour | same (7 s drop → ready with the model cached; 38 s on first visit) |
-| Failed | the stage detail, attention dot | "couldn't edit on this device · <why>" |
-| Reloaded / new tab | plays from the uploaded source | edit doc is there, clip isn't: was a placeholder figure in the Lens and "drop it again here" with no drop target; now "choose it again" | 
+| Failed | the stage detail, attention dot | one plain line, e.g. "the editor download kept stalling · check your connection and try again", and **try again**, which runs the SAME edit again (no new project; a download resumes from what this tab already has). Never the browser's error text (was "failed to execute 'put' on 'cache'…") |
+| Reloaded / new tab | plays from the uploaded source | edit doc is there, clip isn't: a plain frame (was the Lens's placeholder figure) and "choose it again" (same length ±1 s); for an edit that never got ready, choosing it finishes that same edit | 
 | Another browser | not found (anon ownership) | not found |
 | Leaving mid-edit | ready-email form after 15 s or on tab hide — only while `ready_email` is on (fixed: it promised an email that is never sent) | not offered (the tab must stay open) |
 
