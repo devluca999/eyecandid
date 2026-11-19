@@ -85,14 +85,15 @@ export function UploaderProvider({ children }: { children: ReactNode }) {
         return;
       }
       // free tier on the visitor's device when it can (ADR 0012): no upload, no worker, the clip stays here
-      // tests pin the engine (localStorage "eyelore.engine" = "server" | "device"); everyone else gets the best this device can do
+      // tests pin the engine (localStorage "eyelore.engine" = "server" | "device" | "wasm", wasm = the CPU transcriber even
+      // where WebGPU exists); everyone else gets the best this device can do (deviceSupport picks WebGPU, else wasm)
       let forced: string | null = null;
       try {
         forced = localStorage.getItem("eyelore.engine");
       } catch {
         // storage blocked: no override
       }
-      const onDevice = forced === "server" ? false : forced === "device" ? true : flags?.on_device !== false && (await deviceSupport()).ok;
+      const onDevice = forced === "server" ? false : forced === "device" || forced === "wasm" ? true : flags?.on_device !== false && (await deviceSupport()).ok;
       // a clip we would refuse is refused here, before an edit exists or a byte is uploaded (the server checks again)
       const refused = await convex.query(api.projects.preflight, { anonId, durationMs: meta.durationMs, bytes: file.size, onDevice }).catch(() => null);
       if (refused) {
