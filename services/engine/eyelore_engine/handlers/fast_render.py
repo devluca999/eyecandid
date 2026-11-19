@@ -144,8 +144,8 @@ def runs(shots: list[dict]) -> list[list[int]]:
 
 
 # x264 preset → CRF. The encoder is most of the render's CPU. Measured on a 4-vCPU x86 runner, 62 s of 1080x1920:
-# ultrafast 12.8 s / 46 CPU-s, superfast 19.7 s / 70 CPU-s. Ultrafast at CRF 23 lands near the Remotion export's file
-# size, at SSIM 0.949 to the source against superfast's 0.955. EYELORE_FAST_PRESET picks another row.
+# ultrafast about 13 s / 48 CPU-s, superfast about 20 s / 76 CPU-s. Ultrafast at CRF 23 lands near the Remotion
+# export's file size, at SSIM 0.949 to the source against superfast's 0.955. EYELORE_FAST_PRESET picks another row.
 CRF = {"ultrafast": 23, "superfast": 22, "veryfast": 20}
 PRESET = os.environ.get("EYELORE_FAST_PRESET", "ultrafast")
 
