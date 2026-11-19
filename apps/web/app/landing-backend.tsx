@@ -7,18 +7,20 @@ import { HERO_LINES, heroVariant } from "@eyelore/core/flags";
 import { getAnonId } from "@/lib/anon";
 import { UploaderProvider, useUploader } from "./drop";
 import { FullProviders } from "./providers-full";
+import { FreeStatus } from "./free-status";
 import { Recent } from "./recent";
 import type { BackendProps } from "./uploader-shell";
 
 /**
  * Everything on the landing that needs Clerk or Convex, loaded lazily (see uploader-shell.tsx). It renders beside the
  * page, not around it, so loading it never remounts the landing: the real uploader (drop.tsx, unchanged), the
- * landing_view event and the "your edits" list (portalled into its slot in the hero).
+ * landing_view event, the "your edits" list and the free pause line (each portalled into its slot in the hero).
  */
 function Bridge({ register, report, root }: BackendProps & { root: React.RefObject<HTMLDivElement | null> }) {
   const { busy, error, unsupported } = useUploader();
   const track = useMutation(api.events.track);
   const [slot, setSlot] = useState<Element | null>(null);
+  const [pauseSlot, setPauseSlot] = useState<Element | null>(null);
 
   useEffect(() => {
     const anonId = getAnonId();
@@ -40,9 +42,15 @@ function Bridge({ register, report, root }: BackendProps & { root: React.RefObje
       real.dispatchEvent(new Event("change", { bubbles: true }));
     });
     setSlot(document.querySelector(".ec-hero__recent"));
+    setPauseSlot(document.querySelector(".ec-hero__pause"));
   }, [register, report, root]);
 
-  return slot ? createPortal(<Recent />, slot) : null;
+  return (
+    <>
+      {slot ? createPortal(<Recent />, slot) : null}
+      {pauseSlot ? createPortal(<FreeStatus />, pauseSlot) : null}
+    </>
+  );
 }
 
 export default function LandingBackend(props: BackendProps) {

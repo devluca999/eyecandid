@@ -6,9 +6,12 @@ import { api } from "@convex/_generated/api";
 import { Icon, PillButton, StatusDot } from "@eyelore/ui";
 import { getAnonId } from "@/lib/anon";
 import { getConvexClient } from "@/lib/convex-client";
+import { getClientHint } from "@/lib/client-hint";
+import { useTrack } from "@/lib/track";
 
 function Form() {
   const request = useMutation(api.access.request);
+  const track = useTrack();
   const [state, setState] = useState<"idle" | "sending" | "sent">("idle");
   const [error, setError] = useState<string | null>(null);
   const submit = async (e: FormEvent<HTMLFormElement>) => {
@@ -17,7 +20,9 @@ function Form() {
     setState("sending");
     setError(null);
     try {
-      await request({ anonId: getAnonId(), email: String(f.get("email") ?? ""), note: String(f.get("note") ?? ""), link: String(f.get("link") ?? "") });
+      // the signed hint lets the server limit per visitor as well as per session (same as the drop well)
+      await request({ anonId: getAnonId(), email: String(f.get("email") ?? ""), note: String(f.get("note") ?? ""), link: String(f.get("link") ?? ""), clientHint: await getClientHint() });
+      track("access_requested", {}); // after the request is stored; never the address
       setState("sent");
     } catch (err) {
       setState("idle");

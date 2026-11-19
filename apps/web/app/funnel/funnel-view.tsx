@@ -215,6 +215,15 @@ function Report({ data }: { data: Configured }) {
         </p>
       </section>
 
+      <section aria-labelledby="funnel-counted" className="flex flex-col gap-12">
+        <h2 id="funnel-counted" className="text-ink" style={{ font: "var(--font-ui)" }}>other events · totals, not steps</h2>
+        <dl className="grid grid-cols-[auto_1fr] items-baseline gap-x-24 gap-y-4 sm:grid-cols-[repeat(3,auto)] sm:justify-start">
+          {data.counted.map((c) => (
+            <Pair key={c.name} label={c.name.replaceAll("_", " ")} value={int.format(c.events) + (c.truncated ? "+" : "")} />
+          ))}
+        </dl>
+      </section>
+
       <section aria-labelledby="funnel-wow" className="flex flex-col gap-12">
         <h2 id="funnel-wow" className="text-ink" style={{ font: "var(--font-ui)" }}>time to first preview</h2>
         {data.timeToWow.samples === 0 ? (

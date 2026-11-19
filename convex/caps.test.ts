@@ -150,6 +150,19 @@ describe("rate limits", () => {
     await expect(t.mutation(api.access.request, { anonId: ANON2, email: "a9@example.com", note: "", link: "" })).rejects.toThrow(/already asked/);
   });
 
+  it("access.request takes the signed client hint: limited per visitor across sessions, a forged hint is not", async () => {
+    process.env.EYELORE_HINT_SECRET = "test-secret";
+    const t = convexTest(schema, modules);
+    const hint = (await mintClientHint("203.0.113.20", "test-secret"))!;
+    const perHint = RATE_LIMITS.access[1];
+    const ask = (i: number, clientHint?: string) => ({ anonId: "anon_" + i.toString(16).padStart(32, "0"), email: `h${i}@example.com`, note: "", link: "", clientHint });
+    for (let i = 0; i < perHint; i++) await t.mutation(api.access.request, ask(i, hint));
+    await expect(t.mutation(api.access.request, ask(900, hint))).rejects.toThrow(MSG.slowDown);
+    // no hint, or a forged one, counts for nothing against the visitor
+    await t.mutation(api.access.request, ask(901));
+    await t.mutation(api.access.request, ask(902, hint.slice(0, 33) + "0".repeat(16)));
+  });
+
   it("limits per signed client hint across sessions, and ignores a forged or unsigned hint", async () => {
     process.env.EYELORE_HINT_SECRET = "test-secret";
     const t = convexTest(schema, modules);
