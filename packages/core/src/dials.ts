@@ -1,5 +1,6 @@
 import type { Bead, Cut, EditDoc, Effect, Moment } from "./editModel";
 import { pauseAround } from "./autocut";
+import { emphasisSpan, emphasisWords, quoteWord } from "./emphasis";
 import { applyChange, isPinned, type Change, type EditOp } from "./ops";
 
 /**
@@ -13,7 +14,8 @@ import { applyChange, isPinned, type Change, type EditOp } from "./ops";
  *   fresh edit is already where the dial says it is. A pause is measured between kept words, as autocut does: a
  *   struck filler doesn't split it in two, and dial cuts keep autocut's breath (140ms tail, 80ms lead).
  * - energy: punch-ins (a 1.04–1.12 push-in on the face) on your hook and best line, then the call to action,
- *   then every other bead. At 0.5 and below the cut is as shot.
+ *   then every other bead. Plus a short, smaller push on the words you leaned on (emphasis, from each word's `rms`),
+ *   at most one every 8 s just above 0.5 and every 4 s at full energy. At 0.5 and below the cut is as shot.
  * - b-roll density: stored in style only. There is no b-roll until Weave (Phase 3), so it decides nothing.
  */
 export type DialValues = { pace: number; brollDensity: number; energy: number };
@@ -23,6 +25,8 @@ export const DIALS_ACTOR = "autopilot:dials" as const;
 export const AUTOCUT_PAUSE_MS = 450;
 /** effect ids the energy dial owns */
 export const PUNCH_PREFIX = "pi_";
+/** emphasis punch-ins (a word, not a bead); still owned by the energy dial */
+export const EMPHASIS_PREFIX = "pi_e_";
 
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
 const secs = (ms: number) => (ms / 1000).toFixed(1);
@@ -38,6 +42,13 @@ export function punchScale(energy: number): number | null {
   const e = clamp01(energy);
   if (e <= 0.5) return null;
   return Math.round((1.04 + ((e - 0.5) / 0.5) * 0.08) * 100) / 100;
+}
+
+/** Extra push on an emphasised word, over whatever its bead has: 1.03 just above 0.5 → 1.08 at full energy. */
+export function emphasisScale(energy: number): number | null {
+  const e = clamp01(energy);
+  if (e <= 0.5) return null;
+  return Math.round((1.03 + ((e - 0.5) / 0.5) * 0.05) * 100) / 100;
 }
 
 /** The b-roll dial's honest line until Weave exists. */
@@ -161,6 +172,13 @@ function wantedPunches(doc: EditDoc, energy: number): Punch[] {
       out.push({ id: PUNCH_PREFIX + b.id, why: "energy", effect: { id: PUNCH_PREFIX + b.id, kind: "punch_in", anchor: { wordId: b.words[0]!.id }, params: { scale } } });
     });
   }
+  const wscale = emphasisScale(energy);
+  if (wscale !== null) {
+    for (const { word } of emphasisWords(doc, energy)) {
+      const id = EMPHASIS_PREFIX + word.id;
+      out.push({ id, why: `punched in on '${quoteWord(word.text)}' · you leaned on it`, effect: { id, kind: "punch_in", anchor: { wordId: word.id }, params: { scale: wscale, span: "word" } } });
+    }
+  }
   return out;
 }
 
@@ -178,10 +196,11 @@ function energyChanges(doc: EditDoc, energy: number): Change[] {
     const cur = have.find((f) => f.id === p.id);
     const path = `/effects/@${p.id}`;
     if (touchesPin(doc.pins, path)) continue;
+    const word = p.id.startsWith(EMPHASIS_PREFIX);
     if (!cur) {
-      changes.push({ actor: DIALS_ACTOR, reason: `punch-in · ${p.why}`, ops: [{ op: "insert", path: "/effects/-", value: p.effect }] });
-    } else if (cur.params.scale !== p.effect.params.scale || JSON.stringify(cur.anchor) !== JSON.stringify(p.effect.anchor)) {
-      changes.push({ actor: DIALS_ACTOR, reason: `punch-in · ${p.why} · ${String(p.effect.params.scale)}×`, ops: [{ op: "set", path, value: p.effect } satisfies EditOp] });
+      changes.push({ actor: DIALS_ACTOR, reason: word ? p.why : `punch-in · ${p.why}`, ops: [{ op: "insert", path: "/effects/-", value: p.effect }] });
+    } else if (JSON.stringify(cur.params) !== JSON.stringify(p.effect.params) || JSON.stringify(cur.anchor) !== JSON.stringify(p.effect.anchor)) {
+      changes.push({ actor: DIALS_ACTOR, reason: word ? `${p.why} · ${String(p.effect.params.scale)}×` : `punch-in · ${p.why} · ${String(p.effect.params.scale)}×`, ops: [{ op: "set", path, value: p.effect } satisfies EditOp] });
     }
   }
   return changes;
@@ -189,14 +208,18 @@ function energyChanges(doc: EditDoc, energy: number): Change[] {
 
 /** Everything the dials ask for that the doc doesn't already have. */
 export function dialChanges(doc: EditDoc, dials: DialValues): Change[] {
-  return [...paceChanges(doc, dials.pace), ...energyChanges(doc, dials.energy)];
+  const pace = paceChanges(doc, dials.pace);
+  // energy decides on the cut as pace leaves it: emphasis spacing is measured on the output timeline
+  let paced = doc;
+  for (const c of pace) paced = applyChange(paced, c)?.doc ?? paced;
+  return [...pace, ...energyChanges(paced, dials.energy)];
 }
 
-/** Punch-in scale for a bead (1 = as shot): the strongest punch-in anchored to it. */
+/** Punch-in scale for a bead (1 = as shot): the strongest punch-in anchored to it (word-span emphasis aside). */
 export function punchForBead(doc: EditDoc, bead: Bead): number {
   let s = 1;
   for (const f of doc.effects) {
-    if (f.kind !== "punch_in") continue;
+    if (f.kind !== "punch_in" || f.params.span === "word") continue;
     const a = f.anchor as { moment?: Moment; wordId?: string; ms?: number };
     const hit =
       (a.moment !== undefined && bead.moment === a.moment) ||
@@ -211,7 +234,19 @@ export function punchForBead(doc: EditDoc, bead: Bead): number {
 /** Punch-in scale at a source position of a clip — what the preview and the renderer both apply. */
 export function punchAt(doc: EditDoc, clipId: string, srcMs: number): number {
   const bead = doc.beads.find((b) => b.clipId === clipId && !b.struck && srcMs >= b.inMs && srcMs < b.outMs);
-  return bead ? punchForBead(doc, bead) : 1;
+  if (!bead) return 1;
+  // an emphasis punch-in pushes further on its word and holds a beat (emphasisSpan), on top of the bead's own
+  let word = 1;
+  for (const f of doc.effects) {
+    if (f.kind !== "punch_in" || f.params.span !== "word") continue;
+    const id = (f.anchor as { wordId?: string }).wordId;
+    const w = id === undefined ? undefined : bead.words.find((x) => x.id === id);
+    const v = Number(f.params.scale);
+    if (!w || !Number.isFinite(v)) continue;
+    const span = emphasisSpan(bead, w);
+    if (srcMs >= span.fromMs && srcMs < span.toMs && v > word) word = v;
+  }
+  return Math.min(1.5, punchForBead(doc, bead) * word);
 }
 
 /**

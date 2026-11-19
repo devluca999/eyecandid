@@ -33,6 +33,7 @@ export function beadChanges(doc: EditDoc, clipId: string, transcript: Transcript
     startMs: w.startMs,
     endMs: w.endMs,
     conf: w.conf,
+    ...(w.rms !== undefined ? { rms: w.rms } : {}),
     struck: false,
   }));
   const beads: Bead[] = cut.beads.map((b, i) => ({

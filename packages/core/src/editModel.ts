@@ -22,6 +22,8 @@ export const Word = z.object({
   struck: z.boolean().default(false),
   /** kind of strike so the UI can explain it */
   strikeKind: z.enum(["filler", "silence", "repeat", "user"]).optional(),
+  /** loudness relative to the take's median word (1 = ordinary); drives emphasis punch-ins. Absent on older transcripts. */
+  rms: z.number().nonnegative().optional(),
 });
 export type Word = z.infer<typeof Word>;
 

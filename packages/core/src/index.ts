@@ -16,6 +16,8 @@ export * from "./autocut";
 export * from "./clientHint";
 export * from "./broll";
 export * from "./cost";
+export * from "./emphasis";
+export * from "./loudness";
 export * from "./qc";
 export * from "./qcGate";
 export * from "./credits";

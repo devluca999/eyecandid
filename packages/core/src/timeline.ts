@@ -9,16 +9,43 @@ export type Segment = { clipId: string; mediaId: string; fromMs: number; toMs: n
 export type CaptionWord = { id?: string; text: string; startMs: number; endMs: number };
 export type CaptionChunk = { startMs: number; endMs: number; text: string; words: CaptionWord[] };
 
+/** how far the sound and the picture of a cut are split (J or L cut) */
+export const JL_LEAD_MS = 80;
+/** the click-free window at every sound join: the outgoing piece fades out over its last half, the incoming fades in over its first */
+export const AUDIO_FADE_MS = 30;
+
+/** a piece of the picture or the sound track: source range [fromMs, toMs) of a clip, starting at output time `atMs` */
+export type Placed = Segment & { atMs: number };
+/** a piece of sound, with its fades (ms) at each end; fades sit inside the kept range, so no cut audio is ever heard */
+export type SoundPiece = Placed & { fadeInMs: number; fadeOutMs: number };
+/**
+ * A cut where picture and sound change at different moments. J: the sound of the next phrase starts `leadMs` before
+ * its picture (used where the next piece starts a sentence). L: the picture changes `leadMs` before the sound.
+ */
+export type Join = { atMs: number; kind: "J" | "L"; leadMs: number };
+export type Timeline = {
+  /** kept ranges, back to back on the output timeline; the sound plays exactly these (captions follow them) */
+  segments: Segment[];
+  /** the picture: the same ranges, with each cut moved by its J/L lead; tiles [0, durationMs) */
+  picture: Placed[];
+  /** the sound: the same ranges as `segments`, with fades at every cut */
+  sound: SoundPiece[];
+  joins: Join[];
+  captions: CaptionChunk[];
+  durationMs: number;
+};
+
 /**
  * Edit model → playable timeline. Struck beads and struck words are skipped (never deleted from the doc).
  * Output times are on the *output* timeline. Pure and deterministic: the same doc renders the same cut.
  */
-export function toTimeline(doc: EditDoc): { segments: Segment[]; captions: CaptionChunk[]; durationMs: number } {
+export function toTimeline(doc: EditDoc): Timeline {
   const clips = new Map(doc.clips.map((c) => [c.id, c]));
   const overrides = new Map(doc.captions.overrides.map((o) => [o.wordId, o.text]));
   const segments: Segment[] = [];
   const words: CaptionWord[] = [];
   const cutsAt: number[] = []; // output times where the edit jumps: a caption never spans one
+  const lastWord: (string | undefined)[] = []; // last kept word of each segment (a sentence end leads a J cut)
   let outMs = 0;
 
   for (const bead of doc.beads) {
@@ -52,17 +79,75 @@ export function toTimeline(doc: EditDoc): { segments: Segment[]; captions: Capti
 
     for (const [from, to] of ranges) {
       if (to - from < 40) continue; // sub-frame slivers
+      let lastKept: string | undefined;
       for (const w of bead.words) {
         if (w.struck || w.startMs < from || w.endMs > to) continue;
         words.push({ id: w.id, text: overrides.get(w.id) ?? w.text, startMs: outMs + (w.startMs - from), endMs: outMs + (w.endMs - from) });
+        lastKept = w.text;
       }
+      lastWord.push(lastKept);
       const last = segments.at(-1);
       if (last && (last.clipId !== clip.id || last.toMs !== from)) cutsAt.push(outMs);
       segments.push({ clipId: clip.id, mediaId: clip.mediaId, fromMs: from, toMs: to, beadId: bead.id });
       outMs += to - from;
     }
   }
-  return { segments, captions: doc.captions.enabled ? chunk(words, { cutsAt }) : [], durationMs: outMs };
+  const { picture, sound, joins } = splitSound(segments, lastWord, (id) => clips.get(id)?.durationMs ?? 0);
+  return { segments, picture, sound, joins, captions: doc.captions.enabled ? chunk(words, { cutsAt }) : [], durationMs: outMs };
+}
+
+const SENTENCE_END = /[.?!]["'”)\]]*$/;
+
+/**
+ * J and L cuts. The sound plays the kept ranges exactly; only the picture's cut moves. Where the next piece starts a
+ * sentence (a new bead, or the previous kept word ends one) the sound leads: the old picture holds for `JL_LEAD_MS`
+ * while the new phrase is already heard (J). Otherwise the picture leads into the next piece and the sound follows (L).
+ * The lead is clamped so the picture never shows frames past the clip, never repeats frames the edit shows anyway (it
+ * stays inside the removed gap on a forward jump), and never takes more than a third of either piece. Total duration
+ * and every word's timing are unchanged. Contiguous pieces (no jump) are not a cut and get neither a lead nor fades.
+ */
+function splitSound(segments: Segment[], lastWord: (string | undefined)[], clipMs: (clipId: string) => number) {
+  const picture: Placed[] = [];
+  const sound: SoundPiece[] = [];
+  const joins: Join[] = [];
+  const shift: number[] = segments.map(() => 0); // where the picture cut before piece i moves (+ later, - earlier)
+  const fade = (len: number) => Math.min(AUDIO_FADE_MS / 2, Math.floor(len / 4));
+  let at = 0;
+  segments.forEach((s, i) => {
+    const prev = segments[i - 1];
+    const len = s.toMs - s.fromMs;
+    const cut = !!prev && (prev.clipId !== s.clipId || prev.toMs !== s.fromMs);
+    sound.push({ ...s, atMs: at, fadeInMs: !prev || cut ? fade(len) : 0, fadeOutMs: 0 });
+    if (prev && cut) {
+      sound[i - 1]!.fadeOutMs = fade(prev.toMs - prev.fromMs);
+      const gap = prev.clipId === s.clipId && s.fromMs >= prev.toMs ? s.fromMs - prev.toMs : Infinity;
+      const room = Math.min(JL_LEAD_MS, Math.floor((prev.toMs - prev.fromMs) / 3), Math.floor(len / 3), gap);
+      const sentence = prev.beadId !== s.beadId || SENTENCE_END.test(lastWord[i - 1] ?? "");
+      // J: the old picture runs on past prev.toMs; L: the new picture starts before s.fromMs
+      const lead = Math.floor(sentence ? Math.min(room, clipMs(prev.clipId) - prev.toMs) : Math.min(room, s.fromMs));
+      if (lead >= 10) {
+        shift[i] = sentence ? lead : -lead;
+        joins.push({ atMs: at, kind: sentence ? "J" : "L", leadMs: lead });
+      }
+    }
+    at += len;
+  });
+  if (sound.length) sound[sound.length - 1]!.fadeOutMs = fade(sound.at(-1)!.toMs - sound.at(-1)!.fromMs);
+  at = 0;
+  segments.forEach((s, i) => {
+    const a = shift[i]!;
+    const b = shift[i + 1] ?? 0;
+    picture.push({ ...s, fromMs: s.fromMs + a, toMs: s.toMs + b, atMs: at + a });
+    at += s.toMs - s.fromMs;
+  });
+  return { picture, sound, joins };
+}
+
+/** First frame, frame count and source offset (frames) of a placed piece, from cumulative output ms so neighbours never drift apart. */
+export function framesOf(p: { atMs: number; fromMs: number; toMs: number }, fps: number): { from: number; frames: number; trimBefore: number } {
+  const from = Math.round((p.atMs / 1000) * fps);
+  const to = Math.round(((p.atMs + p.toMs - p.fromMs) / 1000) * fps);
+  return { from, frames: to - from, trimBefore: Math.round((p.fromMs / 1000) * fps) };
 }
 
 /** a pause this long is a natural caption break */

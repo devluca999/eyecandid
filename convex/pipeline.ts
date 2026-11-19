@@ -201,7 +201,8 @@ export const startExport = mutation({
     const { project, who, head, doc, plan, maxMs, decision, chargedAnonHash, countKey, fixed } = await planExport(ctx, a, false);
     const jobId = await enqueueJob(ctx, {
       type: "render",
-      input: { doc, aspect: a.aspect, watermark: plan.watermark, maxDurationMs: maxMs },
+      // the sound plan (J/L cuts, a fade at every cut) so the worker mixes it sample-accurately; the worker falls back without it
+      input: { doc, aspect: a.aspect, watermark: plan.watermark, maxDurationMs: maxMs, sound: toTimeline(doc).sound.map(({ mediaId, fromMs, toMs, atMs, fadeInMs, fadeOutMs }) => ({ mediaId, fromMs, toMs, atMs, fadeInMs, fadeOutMs })) },
       idempotencyKey: `render:${a.projectId}:${head.doc.version}:${a.aspect}:${maxMs}:${a.requestId}`,
       projectId: a.projectId,
       ownerUserId: project.ownerUserId,

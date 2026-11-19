@@ -1,30 +1,44 @@
-import { AbsoluteFill, Img, OffthreadVideo, Sequence, interpolate, useCurrentFrame, useVideoConfig } from "remotion";
-import type { BrollOverlay, EditDoc } from "@eyelore/core";
-import { brollOverlays, captionCss, kenBurnsAt, toTimeline, coverBox, faceAt, punchAt, type Segment } from "@eyelore/core";
+import { AbsoluteFill, Audio, Img, OffthreadVideo, Sequence, useCurrentFrame, useVideoConfig } from "remotion";
+import type { BrollOverlay, EditDoc, SoundPiece } from "@eyelore/core";
+import { brollOverlays, captionCss, framesOf, kenBurnsAt, toTimeline, coverBox, faceAt, punchAt, type Segment } from "@eyelore/core";
 
-export type CutProps = { doc: EditDoc; media: Record<string, string>; watermark: boolean };
+/**
+ * `audio: false` renders the picture only: the worker then mixes the sound itself from the same plan
+ * (toTimeline().sound) with sample-accurate fades and loudness (handlers/render.py). Default true.
+ */
+export type CutProps = { doc: EditDoc; media: Record<string, string>; watermark: boolean; audio?: boolean };
 
 /**
  * Renders the edit model. Captions are the speaker's words exactly (22/26 bold white, soft shadow, scaled).
  * Generated b-roll stills sit over their beads, under the captions (ADR 0013).
  */
-export function Cut({ doc, media, watermark }: CutProps) {
+export function Cut({ doc, media, watermark, audio = true }: CutProps) {
   const { fps } = useVideoConfig();
   const tl = toTimeline(doc);
   const broll = brollOverlays(doc, tl.segments);
-  let at = 0;
   return (
     <AbsoluteFill style={{ backgroundColor: "#0F0F10", overflow: "hidden" }}>
-      {tl.segments.map((s, i) => {
-        const frames = Math.max(1, Math.round(((s.toMs - s.fromMs) / 1000) * fps));
-        const start = at;
-        at += frames;
+      {/* picture and sound are separate tracks: at a J cut the next phrase is heard before it's seen, at an L cut the other way round */}
+      {tl.picture.map((p, i) => {
+        const f = framesOf(p, fps);
+        if (f.frames <= 0) return null;
         return (
-          <Sequence key={i} from={start} durationInFrames={frames}>
-            <Shot seg={s} doc={doc} src={media[s.mediaId]} frames={frames} />
+          <Sequence key={`v${i}`} from={f.from} durationInFrames={f.frames}>
+            <Shot seg={p} doc={doc} src={media[p.mediaId]} />
           </Sequence>
         );
       })}
+      {audio &&
+        tl.sound.map((p, i) => {
+          const f = framesOf(p, fps);
+          const src = media[p.mediaId];
+          if (f.frames <= 0 || !src) return null;
+          return (
+            <Sequence key={`a${i}`} from={f.from} durationInFrames={f.frames}>
+              <Audio src={src} trimBefore={f.trimBefore} volume={(fr) => soundVolume(p, fr, f.frames)} />
+            </Sequence>
+          );
+        })}
       <BrollLayer overlays={broll} urls={media} />
       <Captions chunks={tl.captions} pos={captionCss(doc, doc.aspect)} />
       {watermark && (
@@ -36,7 +50,19 @@ export function Cut({ doc, media, watermark }: CutProps) {
   );
 }
 
-function Shot({ seg, doc, src, frames }: { seg: Segment; doc: EditDoc; src?: string; frames: number }) {
+/**
+ * The renderer's own sound (when the worker doesn't remix it): silent on the first and last frame of a faded piece, so
+ * each join meets at zero. Remotion applies volume per frame, so this is the frame-accurate version of the plan's
+ * fades; the worker's ffmpeg mix and the device's PCM mix do them sample-accurately.
+ */
+export function soundVolume(p: SoundPiece, frame: number, frames: number): number {
+  if (frames < 4) return 1;
+  if (p.fadeInMs > 0 && frame === 0) return 0;
+  if (p.fadeOutMs > 0 && frame === frames - 1) return 0;
+  return 1;
+}
+
+function Shot({ seg, doc, src }: { seg: Segment; doc: EditDoc; src?: string }) {
   const frame = useCurrentFrame();
   const { fps, width: W, height: H } = useVideoConfig();
   const clip = doc.clips.find((c) => c.id === seg.clipId);
@@ -47,8 +73,7 @@ function Shot({ seg, doc, src, frames }: { seg: Segment; doc: EditDoc; src?: str
     <OffthreadVideo
       src={src}
       startFrom={Math.round((seg.fromMs / 1000) * fps)}
-      // two-frame fades at every cut so joins never click
-      volume={(f) => (frames < 6 ? 1 : interpolate(f, [0, 2, frames - 2, frames], [0, 1, 1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }))}
+      muted
       style={{ position: "absolute", left: box.left, top: box.top, width: box.width, height: box.height, maxWidth: "none" }}
     />
   );

@@ -10,7 +10,8 @@ import { MAX_VOICE_TEXT } from "./credits";
 
 const MediaRef = z.object({ mediaId: z.string().min(1) });
 const Ms = z.number().int().nonnegative();
-const WordTiming = z.object({ text: z.string(), startMs: Ms, endMs: Ms, conf: z.number().min(0).max(1) });
+/** `rms`: the word's RMS level relative to the take's median word (optional; older workers don't send it) */
+const WordTiming = z.object({ text: z.string(), startMs: Ms, endMs: Ms, conf: z.number().min(0).max(1), rms: z.number().nonnegative().optional() });
 
 /** A stretch of a file, in ms. */
 const Span = z.object({ startMs: Ms, endMs: Ms });
@@ -101,6 +102,22 @@ export const JOB_SPECS = {
       watermark: z.boolean(),
       maxDurationMs: Ms.optional(),
       loudnessLufs: z.number().default(-14),
+      /**
+       * the sound track as toTimeline plans it (J/L cuts, fades at every cut), so the worker mixes it sample-accurately
+       * with ffmpeg instead of taking the renderer's frame-stepped audio. Optional: older apps don't send it.
+       */
+      sound: z
+        .array(
+          z.object({
+            mediaId: z.string().min(1),
+            fromMs: z.number().nonnegative(),
+            toMs: z.number().nonnegative(),
+            atMs: z.number().nonnegative(),
+            fadeInMs: z.number().nonnegative(),
+            fadeOutMs: z.number().nonnegative(),
+          }),
+        )
+        .optional(),
     }),
     /**
      * `measure`: what ffmpeg saw in the file (blackdetect, freezedetect, astats), and in the takes when the file showed
