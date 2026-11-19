@@ -47,6 +47,9 @@ def test_filler_spelling_variants_and_pause_splits_without_punctuation():
     out = autocut.run({"words": words, "minSilenceMs": 450, "fillers": []}, Ctx())
     assert ("filler", "trimmed filler · 'umm'") in [(s["kind"], s["reason"]) for s in out["strikes"]]
     assert [(b["inMs"], b["outMs"]) for b in out["beads"]] == [(0, 1600), (2600, 3500)]
+    # Whisper base.en writes some "um"s as "Uhm," (owner QA, 19 Nov)
+    uhm = autocut.run({"words": [w("Uhm,", 0, 300), *words[1:]], "minSilenceMs": 450, "fillers": []}, Ctx())
+    assert ("filler", "trimmed filler · 'uhm'") in [(s["kind"], s["reason"]) for s in uhm["strikes"]]
 
 
 def test_repeat_never_crosses_a_sentence():
