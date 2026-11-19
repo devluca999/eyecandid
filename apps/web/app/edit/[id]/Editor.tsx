@@ -8,6 +8,8 @@ import type { Id } from "@convex/_generated/dataModel";
 import { brollAt, brollOverlays, brollPath, coverBox, faceAt, firstWords, kenBurnsAt, outputAt, punchAt, toTimeline, type Aspect, type Bead, EditDoc, type EditOp, type VersionId } from "@eyelore/core";
 import { ContextMenu, ExportPill, Icon, Lens, Lockup, StatusDot, RATIOS, type MenuItem } from "@eyelore/ui";
 import { getAnonId } from "@/lib/anon";
+import { markProOfferSeen, proOfferSeen, shouldOfferPro } from "@/lib/pro-offer";
+import { rawSourceMs, syncRaw, wipeFromPointer, wipeKey, clampWipe } from "@/lib/wipe";
 import { probeVideo, uploadFile } from "@/lib/upload";
 import { session } from "@/lib/session";
 import { useShareFile } from "@/lib/share-file";
@@ -111,6 +113,46 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
   // before/after: "raw" plays the untouched take straight through (ums, pauses and all), "edit" plays the cut
   const [raw, setRaw] = useState(false);
   const player = usePlayer(raw ? null : tl?.segments ?? null, clip?.id ?? null);
+  // the wipe: left of the handle is the raw take, right is the edit; a second muted video follows the edit's moment
+  const [wipe, setWipe] = useState(0);
+  const wipeTracked = useRef(false);
+  const rawVideo = useRef<HTMLVideoElement | null>(null);
+  const moveWipe = useCallback(
+    (x: number) => {
+      setWipe(clampWipe(x));
+      if (!wipeTracked.current) {
+        wipeTracked.current = true;
+        track("edit_interaction", { kind: "wipe" });
+      }
+    },
+    [track],
+  );
+  const wipeOn = wipe > 0.005 && !raw;
+  const wipeSegs = tl?.segments;
+  const wipeClip = clip?.id;
+  useEffect(() => {
+    if (!wipeOn || !wipeSegs || !wipeClip) return;
+    let raf = 0;
+    let max = 0;
+    const step = () => {
+      const r = rawVideo.current;
+      const m = player.video.current;
+      if (r && m) {
+        const target = rawSourceMs(wipeSegs, wipeClip, m.currentTime * 1000);
+        const a = syncRaw({ rawMs: r.currentTime * 1000, targetMs: target, mainPlaying: !m.paused, rawPlaying: !r.paused });
+        const drift = Math.abs(r.currentTime * 1000 - target);
+        if (r.readyState >= 2 && !r.seeking) max = Math.max(max, drift);
+        r.dataset.driftMs = String(Math.round(drift));
+        r.dataset.driftMaxMs = String(Math.round(max));
+        if (a.seekToMs !== null) r.currentTime = a.seekToMs / 1000;
+        if (a.play && r.paused) void r.play().catch(() => {});
+        if (!a.play && !r.paused) r.pause();
+      }
+      raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [wipeOn, wipeSegs, wipeClip, player.video]);
   const thumbs = useThumbs(src, useMemo(() => serverDoc?.beads.map((b) => b.inMs) ?? [], [serverDoc?.beads]));
   const playEdit = player.play;
   // generated b-roll (Pro, ADR 0013): who may ask is decided on the server; stills are this edit's generated media
@@ -404,6 +446,14 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
   const downloadUrl = isDevice ? devExport.url : latestExport?.url ?? undefined;
   const filename = `${(data?.project.title ?? "").replace(/[^\w\- ]+/g, "").trim().slice(0, 60) || "edit"} - eyecandid.mp4`;
   const exportedFree = isDevice ? devExport.phase === "done" && devExport.watermark !== false : latestExport?.status === "succeeded" && latestExport.watermark;
+  // the Pro ask: once, after the first free export, never on paid plans (lib/pro-offer.ts says why it is local)
+  const [proOffer, setProOffer] = useState<"idle" | "open" | "closed">("idle");
+  const proPlan = limits === undefined ? undefined : !!limits.pro;
+  useEffect(() => {
+    if (!anonId || !shouldOfferPro({ exportedFree: !!exportedFree, pro: proPlan, seen: proOfferSeen(anonId), latched: proOffer !== "idle" })) return;
+    markProOfferSeen(anonId);
+    setProOffer("open");
+  }, [anonId, exportedFree, proPlan, proOffer]);
   // the worker's file lives on the storage origin, where browsers ignore `download` and open the video in place of
   // the editor; fetched on click it saves as a named file. If that fails, the video opens in a new tab instead.
   const saveServerExport = isDevice
@@ -696,7 +746,73 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
                     style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: kb.opacity, transform: `scale(${kb.scale})`, pointerEvents: "none" }}
                   />
                 )}
-                {doc?.captions.enabled && mode !== "board" && !raw && <Captions chunk={chunk} outMs={outMs ?? 0} look={doc.captions.look} onRetype={retype} readOnly={mode === "theater"} />}
+                {doc?.captions.enabled && mode !== "board" && !raw && (
+                  <div style={{ position: "absolute", inset: 0, clipPath: mode === "edit" && wipe > 0 ? `inset(0 0 0 ${wipe * 100}%)` : undefined }}>
+                    <Captions chunk={chunk} outMs={outMs ?? 0} look={doc.captions.look} onRetype={retype} readOnly={mode === "theater"} />
+                  </div>
+                )}
+                {src && clip && mode === "edit" && stage === "ready" && !raw && (
+                  <>
+                    <div data-testid="wipe-raw" aria-hidden="true" style={{ position: "absolute", inset: 0, zIndex: 3, overflow: "hidden", pointerEvents: "none", clipPath: `inset(0 ${(1 - wipe) * 100}% 0 0)`, visibility: wipeOn ? "visible" : "hidden" }}>
+                      {(
+                        <video
+                          ref={rawVideo}
+                          src={src}
+                          muted
+                          playsInline
+                          preload="auto"
+                          data-testid="wipe-raw-video"
+                          style={frameSize.w ? (() => { const b = coverBox(clip.w, clip.h, frameSize.w, frameSize.h, { cx: 0.5, cy: 0.5, scale: 1 }); return { position: "absolute" as const, left: b.left, top: b.top, width: b.width, height: b.height, maxWidth: "none" as const }; })() : { width: "100%", height: "100%", objectFit: "cover" as const }}
+                        />
+                      )}
+                    </div>
+                    {wipe > 0.2 && <span className="el-glass eyl-wipetag" style={{ left: 10 }}>raw</span>}
+                    {wipe < 0.8 && <span className="el-glass eyl-wipetag" style={{ right: 10 }}>edit</span>}
+                    <div
+                      className="eyl-wipe"
+                      role="slider"
+                      tabIndex={0}
+                      aria-label="before and after"
+                      aria-orientation="horizontal"
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-valuenow={Math.round(wipe * 100)}
+                      aria-valuetext={wipe < 0.02 ? "all edit" : wipe > 0.98 ? "all raw take" : `raw take ${Math.round(wipe * 100)} percent, edit the rest`}
+                      data-testid="wipe-handle"
+                      data-wipe={wipe.toFixed(2)}
+                      style={{ left: `clamp(22px, ${wipe * 100}%, calc(100% - 22px))` }}
+                      onClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => {
+                        const next = wipeKey(wipe, e.key, e.shiftKey);
+                        if (next !== null) {
+                          e.preventDefault();
+                          moveWipe(next);
+                        }
+                      }}
+                      onPointerDown={(e) => {
+                        e.stopPropagation();
+                        e.currentTarget.setPointerCapture(e.pointerId);
+                        e.currentTarget.dataset.drag = "1";
+                      }}
+                      onPointerMove={(e) => {
+                        if (e.currentTarget.dataset.drag !== "1" || !frame.current) return;
+                        const r = frame.current.getBoundingClientRect();
+                        moveWipe(wipeFromPointer(e.clientX, r.left, r.width));
+                      }}
+                      onPointerUp={(e) => {
+                        delete e.currentTarget.dataset.drag;
+                      }}
+                      onPointerCancel={(e) => {
+                        delete e.currentTarget.dataset.drag;
+                      }}
+                    >
+                      <span className="eyl-wipe__grip el-glass el-glass--float" aria-hidden="true">
+                        <Icon name="chevron-left" size={12} />
+                        <Icon name="chevron-right" size={12} />
+                      </span>
+                    </div>
+                  </>
+                )}
                 {!player.playing && src && (stage === "ready" || preparing) && mode === "edit" && (
                   <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", pointerEvents: "none" }}>
                     <span className="el-glass" style={{ width: 52, height: 52, borderRadius: 999, display: "grid", placeItems: "center" }}>
@@ -761,7 +877,7 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
 
         {data && !isDevice && <ReadyEmail projectId={projectId} anonId={anonId} working={stage !== "ready" && stage !== "failed" && !pending?.error} />}
         {mode === "edit" && stage === "ready" && (
-          <div className="el-seg" role="radiogroup" aria-label="before and after" data-testid="before-after">
+          <div className="el-seg" role="radiogroup" aria-label="play the raw take" data-testid="before-after">
             <button className={"el-seg__opt" + (!raw ? " is-on" : "")} role="radio" aria-checked={!raw} onClick={() => setRaw(false)}>edit</button>
             <button className={"el-seg__opt" + (raw ? " is-on" : "")} role="radio" aria-checked={raw} onClick={() => { setRaw(true); track("edit_interaction", { kind: "raw" }); }}>raw take</button>
           </div>
@@ -837,12 +953,16 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
         )}
         {stage === "ready" && mode === "edit" && qc.fixedLine}
         {/* the Pro ask comes after value is felt: a free (watermarked) export just finished; never pushed */}
-        {stage === "ready" && mode === "edit" && exportedFree && !limits?.pro && (
+        {stage === "ready" && mode === "edit" && proOffer === "open" && (
           <p className="text-meta text-ink-secondary" style={{ textAlign: "center" }} data-testid="pro-offer">
             no watermark, clips up to 5 min?{" "}
             <Link href="/#pricing" style={{ color: "var(--ink)", textDecoration: "underline", textUnderlineOffset: 3 }} onClick={() => track("edit_interaction", { kind: "pro_offer" })}>
               request pro access
             </Link>
+            {" "}
+            <button className="el-pill el-pill--quiet el-pill--sm" onClick={() => setProOffer("closed")} data-testid="pro-offer-dismiss">
+              not now
+            </button>
           </p>
         )}
         {isDevice && devExport.phase === "failed" && mode === "edit" && <StatusDot status="attention" label={`export failed · ${devExport.error ?? ""}`.slice(0, 160)} style={{ whiteSpace: "normal" }} />}
