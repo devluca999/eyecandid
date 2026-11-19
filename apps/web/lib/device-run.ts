@@ -21,6 +21,7 @@ export async function runDeviceEdit(convex: ConvexReactClient, a: { anonId: stri
   const { anonId, projectId, clipId, file, durationMs } = a;
   if (running.has(projectId)) return;
   running.add(projectId);
+  session.update(projectId, { deviceError: undefined });
   let lastSent = 0;
   const onStage = (detail: string) => {
     session.update(projectId, { deviceStage: detail });
@@ -53,7 +54,11 @@ export async function runDeviceEdit(convex: ConvexReactClient, a: { anonId: stri
       .catch((e) => console.warn("[reframe] skipped, keeping the clip centred", e));
   } catch (e) {
     console.warn("[device] the edit couldn't finish on this device", e);
-    await convex.mutation(api.projects.deviceFailed, { anonId, projectId, reason: failureLine(e) }).catch(() => {});
+    const reason = failureLine(e);
+    // this tab says so at once (offline, the server can't be told yet); the server hears it when the connection is back
+    session.update(projectId, { deviceError: reason, deviceStage: undefined });
+    running.delete(projectId);
+    await convex.mutation(api.projects.deviceFailed, { anonId, projectId, reason }).catch(() => {});
   } finally {
     session.update(projectId, { deviceStage: undefined });
     running.delete(projectId);

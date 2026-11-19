@@ -319,7 +319,9 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
   // before the project loads, the tab that dropped the clip already knows its engine (no false "no engine" flash)
   const isDevice = data ? data.project.engine === "device" : pending?.engine === "device";
   // while an on-device edit gets ready (the model downloads once, ~206 MB), the raw take plays muted and loops
-  const gettingReady = isDevice && !!pending && stage !== "ready" && stage !== "failed";
+  // what went wrong in this tab: a failed upload, or an on-device run that gave up (shown even before the server hears it)
+  const localError = pending?.error ?? (isDevice && stage !== "ready" ? pending?.deviceError : undefined);
+  const gettingReady = isDevice && !!pending && stage !== "ready" && stage !== "failed" && !localError;
   useEffect(() => {
     const v = player.video.current;
     if (!gettingReady || !v || mode !== "edit" || rawWhileReady.current || !v.paused) return;
@@ -534,7 +536,7 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
   const deviceLine = isDevice && stage !== "ready" && stage !== "failed"
     ? pending
       ? pending.deviceStage ?? data?.project.stageDetail ?? "editing on this device · your clip isn't uploaded"
-      : "this edit is made in the browser it was dropped in · if that tab is closed, choose the clip again below to finish it"
+      : "this edit is made in the tab the clip was dropped in · your clip isn't in this one"
     : null;
   const activeJob = data?.jobs.find((j) => j.type !== "still" && (j.status === "running" || j.status === "leased" || j.status === "queued"));
   // a still on its way (any bead), or the selected bead's failed / kept-aside one
@@ -542,8 +544,8 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
   const liveStill = stillJobs.find((j) => j.status === "queued" || j.status === "leased" || j.status === "running");
   const selStill = selected ? stillJobs.find((j) => j.beadId === selected) : undefined;
   const still = stillLine(liveStill ?? (selStill && (selStill.status === "failed" || selStill.placed === false) ? selStill : undefined), presence?.gpu);
-  const stageLine = pending?.error
-    ? pending.error
+  const stageLine = localError
+    ? localError
     : uploading
       ? `uploading · ${Math.round((pending?.uploadProgress ?? 0) * 100)}%`
       : stage === "failed"
@@ -561,7 +563,7 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
   // first visit on the device engine: the model downloads (~206 MB) while the clip is already here, so it plays raw meanwhile
   const preparing = gettingReady;
   // an on-device edit that gave up, with its clip still in this tab: run it again, same edit (lib/device-run.ts)
-  const canRetryDevice = isDevice && stage === "failed" && !!pending && !!clip && !deviceRunning(projectId);
+  const canRetryDevice = isDevice && stage !== "ready" && (stage === "failed" || !!pending?.deviceError) && !!pending && !!clip && !deviceRunning(projectId);
   const retryDevice = () => {
     if (!pending || !clip) return;
     session.update(projectId, { deviceStage: "trying again · on this device" });
@@ -698,7 +700,7 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
               aspect={String(ratio)}
               scene="void"
               glow={mode !== "board"}
-              state={selected && mode === "edit" ? "selected" : stage !== "ready" && !pending?.error ? "generating" : "rest"}
+              state={selected && mode === "edit" ? "selected" : stage !== "ready" && !localError ? "generating" : "rest"}
               progress={mode !== "edit" ? null : isDevice ? (devExport.phase === "rendering" ? devExport.progress : null) : exporting ? latestExport!.progress : null}
               label="your clip"
               style={{ width: "100%" }}
@@ -811,7 +813,7 @@ export function Editor({ projectId: idParam }: { projectId: string }) {
               <span>{notice}</span>
             ) : stageLine ? (
               <>
-                <StatusDot status={stage === "failed" || pending?.error ? "attention" : "working"} label={stageLine} style={{ whiteSpace: "normal", textAlign: "left" }} />
+                <StatusDot status={stage === "failed" || localError ? "attention" : "working"} label={stageLine} style={{ whiteSpace: "normal", textAlign: "left" }} />
                 {canRetryDevice && (
                   <button className="el-pill el-pill--quiet el-pill--sm" data-testid="retry-device" onClick={retryDevice}>
                     try again
@@ -944,7 +946,7 @@ function ChooseAgain({ projectId, durationMs, onNotice, unfinished, onChosen }: 
   const input = useRef<HTMLInputElement>(null);
   return (
     <p className="text-meta text-ink-secondary flex flex-wrap items-center justify-center gap-8" style={{ textAlign: "center" }} data-testid="choose-again">
-      <span>{unfinished ? "the clip stays in the browser it was dropped in · choose it again to finish this edit here" : "the clip stays in the browser it was dropped in, so it isn't here"}</span>
+      <span>{unfinished ? "if that tab is closed, finish the edit here" : "the clip stays in the browser it was dropped in, so it isn't here"}</span>
       <button type="button" className="el-pill el-pill--secondary el-pill--sm" onClick={() => input.current?.click()}>
         choose it again
       </button>
