@@ -19,8 +19,8 @@ type Span = { startMs: number; endMs: number };
 const SENTENCE_END = /[.!?]$/;
 // a word the speaker cut off mid-way: "w-", "we…", "we..."
 const CUT_OFF = /(-|…|\.\.\.)$/;
-// spelling variants ASR produces for the same hesitation: um/umm/ummm, uh/uhh, er/erm, hm/hmm, ah
-const FILLER_SOUND = /^(u+m+|u+h+|e+r+m*|h+m+|a+h+)$/;
+// spelling variants ASR produces for the same hesitation: um/umm/ummm, uhm (Whisper base.en, owner QA 19 Nov), uh/uhh, er/erm, hm/hmm, ah
+const FILLER_SOUND = /^(u+h*m+|u+h+|e+r+m*|h+m+|a+h+)$/;
 // words people double on purpose ("bye bye", "very very", "no no"): never a stutter
 const REDUPLICATED = new Set(["bye", "no", "yes", "yeah", "very", "really", "ha", "oh", "now", "go", "more", "please", "wait", "okay", "ok", "well", "too", "hey"]);
 const SPLIT_PAUSE_MS = 650;

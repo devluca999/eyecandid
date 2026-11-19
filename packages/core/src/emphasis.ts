@@ -18,7 +18,7 @@ export const EMPHASIS_HOLD_MS = 1200;
 /** the punch starts this much before the word so the push lands on its first sound */
 export const EMPHASIS_PRE_MS = 100;
 
-const FILLERS = new Set(["um", "uh", "erm", "er", "ah", "hmm", "like", "so", "basically"]);
+const FILLERS = new Set(["um", "uhm", "umm", "uh", "erm", "er", "ah", "hmm", "like", "so", "basically"]);
 /** function words: loud on them is usually the mic or a breath, not meaning (seen on a real take: "your" at 1.84) */
 const FUNCTION = new Set(
   ("the and but for nor yet you your yours you're our ours their theirs they them they're his her hers its it's this that these those " +

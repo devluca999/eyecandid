@@ -33,6 +33,9 @@ describe("autocut (browser twin of the python handler)", () => {
       w("it", 2600, 2700), w("lasts", 2750, 3000), w("a", 3050, 3100), w("week", 3150, 3500)];
     const out = autocut({ words, minSilenceMs: 450, fillers: [] });
     expect(out.strikes.map((s) => [s.kind, s.reason])).toContainEqual(["filler", "trimmed filler · 'umm'"]);
+    // Whisper base.en writes some "um"s as "Uhm," (owner QA, 19 Nov)
+    const uhm = autocut({ words: [w("Uhm,", 0, 300), ...words.slice(1)], minSilenceMs: 450, fillers: [] });
+    expect(uhm.strikes.map((s) => [s.kind, s.reason])).toContainEqual(["filler", "trimmed filler · 'uhm'"]);
     expect(out.beads.map((b) => [b.inMs, b.outMs])).toEqual([[0, 1600], [2600, 3500]]);
   });
   it("never treats a word across a sentence boundary as a repeat", () => {
