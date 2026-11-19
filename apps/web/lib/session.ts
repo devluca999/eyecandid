@@ -14,6 +14,8 @@ type Pending = {
   engine?: "device" | "server";
   /** honest line from the on-device engine while it works */
   deviceStage?: string;
+  /** the on-device run gave up (plain line). Shown at once, even while the server can't be told (offline) */
+  deviceError?: string;
   /** the clip's probed size, kept so a failed upload can be sent again from the file held here */
   meta?: { w: number; h: number; durationMs: number };
 };

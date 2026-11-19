@@ -429,6 +429,21 @@ export const deviceFailed = mutation({
   },
 });
 
+/**
+ * "try again" / "choose it again" on an on-device edit that never got ready (the model download gave up, the tab was
+ * closed mid-way): the same edit goes back to work instead of a new project. A ready edit is left alone.
+ */
+export const deviceRestart = mutation({
+  args: { anonId: v.string(), projectId: v.id("projects") },
+  handler: async (ctx, a) => {
+    const p = await ownedProject(ctx, a.projectId, a.anonId);
+    if (p.engine !== "device") throw new Error("not an on-device edit");
+    if (p.stage === "ready") return { ok: true as const, ready: true };
+    await ctx.db.patch(a.projectId, { stage: "transcribing", stageDetail: "on this device" });
+    return { ok: true as const, ready: false };
+  },
+});
+
 /** "leave your email and we'll send it when it's ready": one address, for this edit only (server pipeline). */
 export const setReadyEmail = mutation({
   args: { anonId: v.string(), projectId: v.id("projects"), email: v.string() },

@@ -55,6 +55,14 @@ Generated b-roll stills (ADR 0013) are made on our own GPU worker by [Tongyi-MAI
 
 **Not used, and why:** SDXL-Turbo (its licence does not allow commercial use); FLUX.1-schnell (Apache-2.0, but gated behind a Hugging Face click-through; it is the fallback if Z-Image-Turbo disappoints).
 
+## Whisper (on-device transcription, free tier)
+
+Free edits listen on the visitor's own device (ADR 0012, ADR 0016) with OpenAI's Whisper `base.en` (and `tiny.en` for long clips on the CPU path), as ONNX conversions run by Transformers.js. The browser downloads the model once and keeps it in its Cache API; nothing about the clip leaves the device.
+
+- **Weights:** OpenAI Whisper, © 2022 OpenAI. The code and model weights are released under the **MIT License** ([github.com/openai/whisper LICENSE](https://github.com/openai/whisper/blob/main/LICENSE)); the Hugging Face card `openai/whisper-base.en` is tagged Apache-2.0. Both allow commercial use, modification and redistribution; MIT asks us to keep the copyright notice (this section). Checked 19 Nov 2026.
+- **ONNX conversions:** `onnx-community/whisper-base.en_timestamped` and `onnx-community/whisper-tiny.en_timestamped` on Hugging Face (base model `openai/whisper-base.en` / `tiny.en`; the repos add no licence of their own, so the base model's applies). The WebGPU path downloads the same conversion from Remotion's model host (`remotion.media/models/whisper-base.en_timestamped-v1/`, used by `@remotion/whisper-webgpu`); the CPU path downloads from huggingface.co. Neither needs an account or key.
+- **Runtime:** `@huggingface/transformers` (Apache-2.0) with ONNX Runtime Web (MIT), and `@remotion/whisper-webgpu` (part of Remotion, under the same licence as the other Remotion packages here).
+
 ## MediaPipe face detection (on-device reframe)
 
 The browser reframe pass (`apps/web/lib/device-engine.ts`, ADR 0012) uses Google MediaPipe Tasks Vision, self-hosted under `apps/web/public/mediapipe/` so nothing loads from a CDN at runtime.
