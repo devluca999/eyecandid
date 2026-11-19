@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { Aspect, EditDoc, ReframeKeyframe } from "./editModel";
 import { MAX_VOICE_TEXT } from "./credits";
+import { FastPlan } from "./fastRender";
 
 /**
  * Engine job contract — the ONLY interface between the app and the GPU (ADR 0003, 0004).
@@ -118,6 +119,12 @@ export const JOB_SPECS = {
           }),
         )
         .optional(),
+      /**
+       * which renderer: "fast" = plain ffmpeg from `fast` (free exports without generated overlays, ADR 0018); absent or
+       * "remotion" = the Cut composition. Optional: older apps don't send it, and older workers ignore it (Remotion).
+       */
+      engine: z.enum(["remotion", "fast"]).optional(),
+      fast: FastPlan.optional(),
     }),
     /**
      * `measure`: what ffmpeg saw in the file (blackdetect, freezedetect, astats), and in the takes when the file showed

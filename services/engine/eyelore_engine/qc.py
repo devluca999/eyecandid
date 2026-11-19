@@ -10,7 +10,8 @@ def _ff(args: list[str]) -> subprocess.CompletedProcess:
     return subprocess.run(args, capture_output=True, text=True)
 
 
-def qc_file(path: str, sheet: bool = True) -> dict:
+def qc_file(path: str, sheet: bool = True, freezes: int | None = None) -> dict:
+    """`freezes`: already counted (the fast render counts them while encoding), so the picture isn't decoded again."""
     r: dict = {}
     flags: list[str] = []
     pr = json.loads(_ff(["ffprobe", "-v", "error", "-show_entries", "stream=codec_type,width,height:format=duration", "-of", "json", path]).stdout or "{}")
@@ -18,13 +19,18 @@ def qc_file(path: str, sheet: bool = True) -> dict:
     v = next((s for s in streams if s.get("codec_type") == "video"), {})
     dur = float(pr.get("format", {}).get("duration", 0) or 0)
     r.update(width=v.get("width"), height=v.get("height"), duration=round(dur, 2), audio=any(s.get("codec_type") == "audio" for s in streams))
-    freezes = 0
-    if dur > 0 and v:
+    if freezes is not None:
+        if freezes:
+            flags.append("frozen video")
+    elif dur > 0 and v:
+        freezes = 0
         if sheet:
             _ff(["ffmpeg", "-v", "error", "-y", "-i", path, "-vf", f"fps={6 / dur:.4f},scale=320:-2,tile=6x1", "-frames:v", "1", path.rsplit(".", 1)[0] + "_sheet.jpg"])
         freezes = _ff(["ffmpeg", "-i", path, "-vf", "freezedetect=n=0.003:d=1.5", "-map", "0:v:0", "-f", "null", "-"]).stderr.count("freeze_start")
         if freezes:
             flags.append("frozen video")
+    else:
+        freezes = 0
     if not r["audio"]:
         flags.append("no audio track")
     m = re.search(r"mean_volume: (-?[\d.]+) dB", _ff(["ffmpeg", "-i", path, "-af", "volumedetect", "-vn", "-f", "null", "-"]).stderr)
@@ -86,11 +92,15 @@ def parse_detect(stderr: str, duration_s: float) -> dict:
     return out
 
 
-def measure_file(src: str) -> dict:
-    """Measure a file or URL in one decode pass: {durationMs, black, frozen, audio?}."""
+def measure_file(src: str, video_log: str | None = None) -> dict:
+    """Measure a file or URL in one decode pass: {durationMs, black, frozen, audio?}. `video_log`: DETECT_VF's output
+    for the picture already (the fast render measures while encoding), so only the sound is read."""
     pr = json.loads(_ff(["ffprobe", "-v", "error", "-show_entries", "stream=codec_type:format=duration", "-of", "json", src]).stdout or "{}")
     dur = float(pr.get("format", {}).get("duration", 0) or 0)
     has_audio = any(s.get("codec_type") == "audio" for s in pr.get("streams", []))
+    if video_log is not None:
+        err = video_log + "\n" + (_ff(["ffmpeg", "-hide_banner", "-nostats", "-i", src, "-vn", "-af", DETECT_AF, "-f", "null", "-"]).stderr if has_audio else "")
+        return {"durationMs": _ms(str(dur)), **parse_detect(err, dur)}
     args = ["ffmpeg", "-hide_banner", "-nostats", "-i", src, "-vf", DETECT_VF]
     args += ["-af", DETECT_AF] if has_audio else ["-an"]
     err = _ff([*args, "-f", "null", "-"]).stderr

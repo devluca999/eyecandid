@@ -20,11 +20,11 @@ Status words: **done** (on `main`, with a test or a measured run), **PR** (open,
 | 2 | Leave your email → ready email | done, owner | `ReadyEmail.tsx`, `readyEmail.test.ts`; sending needs SendPulse keys; fires on tab hide only; hidden on device edits |
 | 2 | Clerk sign-in at the 2nd export, anonymous project claimed | partial, owner | claim built (`convex/account.ts`, `around.test.ts`); there is no export counter, so sign-in is asked at the 1st export; needs Clerk keys |
 | 2 | Accept: p50 ≤ 30 s to preview, ≤ 90 s to export, on production, cold worker; every funnel step recorded | not built, owner | no p50 spec and no production run. Every event is emitted: the landing now reports drops and the sample as such (was "picker"); web `share` through the system share sheet where the browser can share files |
-| 3 | ffmpeg fast render for Free | replaced, not built | free renders in the browser. The worker fallback (browsers without WebGPU) is still the slow Remotion render |
+| 3 | ffmpeg fast render for Free | done (PR #70) | free renders in the browser. On the worker, a free export without generated stills renders with one ffmpeg graph from core `fastPlan` (ADR 0018); Remotion stays for Pro/b-roll. `services/render/test/fastPlan.test.ts` checks every frame against `Cut`; `test_fast_render.py` |
 | 3 | Free caps; daily budget flag with a pause message | done | `convex/lib/limits.ts`, `caps.test.ts`. The pause line (`FreeStatus`) is not mounted on the landing |
 | 3 | Expiry cron | done | `convex/expiry.ts`, `caps.test.ts` |
 | 3 | `/funnel` cost per free edit | PR #31 | an estimate from worker seconds; device edits cost 0 |
-| 3 | Accept: 60 s clip renders in < 15 s on the CPU worker | replaced | not measured on a worker. On device, landing → export is 14–21 s |
+| 3 | Accept: 60 s clip renders in < 15 s on the CPU worker | partial | the real handler on a 4-vCPU x86 CI runner: 62 s of 1080x1920 in 13.0 s with ffmpeg 8.0, and 15.8 s with ffmpeg 6.1 (the engine image's), QC included (`services/engine/scripts/bench_fast_render.py`, run from a checkout). Not measured on the Modal worker. On device, landing → export is 14–21 s |
 | 3 | Accept: budget flag off shows the pause message | done | `caps.test.ts` "free_paused flag refuses free edits with the pause message" |
 | 4 | Pricing cards; request-access form | done | `_landing/pricing.tsx`, `convex/access.ts`, `e2e/landing.spec.ts` |
 | 4 | Admin page: approve, decline, seats of 100 | done, owner | `admin/access`, `pro.test.ts`, `e2e/admin-access.spec.ts`; needs `EYELORE_ADMIN_TOKEN` in production |
@@ -58,7 +58,7 @@ In order of what they unblock:
 3. Funnel coverage: sample start, leave-email, access request, checkout, web share; a p50 check for preview and export.
 4. Before/after as a drag wipe, autoplaying the first preview.
 5. Job success counts to Sentry, so a failure rate exists to alert on.
-6. ffmpeg fast render on the worker, for free visitors without WebGPU. Only matters once a worker runs.
+6. Measure the fast render on the Modal CPU worker once it runs (`scripts/bench_fast_render.py`).
 
 ## Needs Luca
 
