@@ -3,6 +3,7 @@ import { verifyClientHint } from "@eyelore/core";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { anonHashOf } from "./entitle";
 import { flagOn } from "./flags";
+import { spendState } from "./spend";
 
 /**
  * Cost controls (mvp-spec "Low-cost architecture", Phase 3). Everything here runs on the server; the client only
@@ -40,7 +41,7 @@ export function freeDailyCap(): number {
   return Number.isFinite(n) && n >= 0 ? Math.floor(n) : DEFAULT_FREE_DAILY_JOBS;
 }
 
-export type FreeState = { paused: boolean; reason: "flag" | "cap" | null; used: number; cap: number; day: string };
+export type FreeState = { paused: boolean; reason: "flag" | "spend" | "cap" | null; used: number; cap: number; day: string };
 
 /** Is free work open right now? Reads the `free_paused` flag and today's counter. */
 export async function freeState(ctx: QueryCtx | MutationCtx, now = Date.now()): Promise<FreeState> {
@@ -49,7 +50,9 @@ export async function freeState(ctx: QueryCtx | MutationCtx, now = Date.now()): 
   const used = row?.freeJobs ?? 0;
   const cap = freeDailyCap();
   const flagged = await flagOn(ctx, "free_paused", "global");
-  const reason = flagged ? "flag" : used >= cap ? "cap" : null;
+  // today's estimated CPU worker spend against EYELORE_WORKER_DAILY_USD_CAP (convex/lib/spend.ts)
+  const spent = (await spendState(ctx, "cpu", now)).capped;
+  const reason = flagged ? "flag" : spent ? "spend" : used >= cap ? "cap" : null;
   return { paused: reason !== null, reason, used, cap, day };
 }
 

@@ -10,7 +10,11 @@ After a deploy: set the printed `wake` URL on the Convex deployment as EYELORE_W
 Scale to zero (ADR 0010). Nothing runs while the queue is empty:
   - Convex calls `wake` when a job is waiting and no worker is polling; `wake` starts `cpu_worker` unless one is up.
   - `cpu_worker` drains the queue and exits after EYELORE_IDLE_EXIT_S (default 180s) with nothing to do.
-  - Once an hour a run starts anyway and leaves after the idle window: a safety net for a missed wake.
+  - On a schedule (EYELORE_SAFETY_NET_HOURS, default every 6 hours; 0 = off) a run starts anyway and leaves after the
+    idle window: a safety net for a missed wake. `modal.Period` is read at DEPLOY time, so changing the interval
+    needs a redeploy (EYELORE_SAFETY_NET_HOURS=2 modal deploy ...). EYELORE_IDLE_EXIT_S is read inside the container
+    from the Modal secret / deploy environment at start.
+  - max_containers=1: Modal never runs two CPU workers at once, whatever calls it.
 The cost follows use (minutes per edit) instead of a container kept warm around the clock. The price is a cold start
 on the first clip after a quiet spell. GPU jobs (Phase 3) get their own function with gpu="L4" on the same image.
 """
@@ -45,15 +49,32 @@ state = modal.Dict.from_name(f"eyelore-worker-state{SUFFIX}", create_if_missing=
 
 MAX_RUN_SECONDS = 50 * 60
 IDLE_EXIT_SECONDS = int(os.environ.get("EYELORE_IDLE_EXIT_S", "180"))
+# Safety-net interval in hours, fixed when the app is deployed (0 disables the schedule).
+SAFETY_NET_HOURS = int(os.environ.get("EYELORE_SAFETY_NET_HOURS", "6"))
+SAFETY_NET = modal.Period(hours=SAFETY_NET_HOURS) if SAFETY_NET_HOURS > 0 else None
+
+# Modal list prices (modal.com/pricing, Nov 2026), USD per second: cpu=4.0 physical cores, memory=8192 MiB.
+# Keep in step with the container size below; the Convex-side guard prices the same worker per hour (about $0.253).
+CPU_CORES = 4.0
+MEMORY_GIB = 8.0
+CPU_USD_PER_CORE_SECOND = 0.0000131
+MEMORY_USD_PER_GIB_SECOND = 0.00000222
+CPU_WORKER_USD_PER_SECOND = CPU_CORES * CPU_USD_PER_CORE_SECOND + MEMORY_GIB * MEMORY_USD_PER_GIB_SECOND  # ~0.0000702
+
+
+def estimated_cost_usd(seconds: float) -> float:
+    """What a run of this many seconds costs at list price (an estimate; Modal's bill is the real number)."""
+    return seconds * CPU_WORKER_USD_PER_SECOND
 ALIVE_WINDOW_SECONDS = 30
 
 
 @app.function(
     image=image,
-    cpu=4.0,
-    memory=8192,
+    cpu=CPU_CORES,
+    memory=int(MEMORY_GIB * 1024),
+    max_containers=1,  # hard concurrency cap: one CPU worker at a time
     timeout=MAX_RUN_SECONDS + 600,
-    schedule=modal.Period(hours=1),
+    schedule=SAFETY_NET,
     secrets=[modal.Secret.from_name(f"eyelore-worker{SUFFIX}")],
     volumes={"/home/ubuntu/.cache/huggingface": whisper_cache},
 )
@@ -98,7 +119,8 @@ def cpu_worker() -> None:
     still_busy = time.time() - last_busy < 5
     state["alive_at"] = 0
     whisper_cache.commit()
-    print(f"[eyelore] {name} leaving after {int(time.time() - started)}s · {jobs} job(s)", flush=True)
+    ran_s = time.time() - started
+    print(f"[eyelore] {name} leaving after {int(ran_s)}s · {jobs} job(s) · est. ${estimated_cost_usd(ran_s):.4f}", flush=True)
     if still_busy:
         cpu_worker.spawn()  # ran out its time mid-queue: hand over to a fresh run
 

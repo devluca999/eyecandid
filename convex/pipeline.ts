@@ -160,7 +160,7 @@ async function planExport(ctx: MutationCtx, a: ExportArgs, replay: boolean) {
   let doc: EditDoc = { ...head.doc, aspect: a.aspect as Aspect };
   const usage = await usageFor(ctx, who);
   // the manual budget pause also stops free renders, on the worker and on device (the daily cap only gates new edits)
-  if (usage.plan === "free" && (await freeState(ctx)).reason === "flag") refuse(MSG.paused);
+  if (usage.plan === "free" && ["flag", "spend"].includes((await freeState(ctx)).reason ?? "")) refuse(MSG.paused);
   // the free export count (mvp-spec "Access model"), on both engines: 1 without an account (then sign-in, when it is
   // switched on), 3 a month with a free one, unlimited on a paid plan. A replayed request was counted already.
   const countKey = replay ? undefined : await checkExportCount(ctx, who, usage, a);

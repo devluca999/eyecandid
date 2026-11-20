@@ -257,6 +257,20 @@ function Report({ data }: { data: Configured }) {
         </p>
       </section>
 
+      <section aria-labelledby="funnel-spend" className="flex flex-col gap-12">
+        <h2 id="funnel-spend" className="text-ink" style={{ font: "var(--font-ui)" }}>worker spend today (UTC)</h2>
+        <dl className="grid grid-cols-[auto_1fr] items-baseline gap-x-24 gap-y-4 sm:grid-cols-[repeat(2,auto)] sm:justify-start">
+          <Pair label="cpu" value={`${usd(data.spend.cpu.usd)} of ${usd(data.spend.cpu.cap)}`} />
+          <Pair label="gpu" value={`${usd(data.spend.gpu.usd)} of ${usd(data.spend.gpu.cap)}`} />
+        </dl>
+        <p className="text-meta text-ink-secondary">
+          {data.spend.cpu.capped || data.spend.gpu.capped
+            ? `${[data.spend.cpu.capped ? "cpu" : "", data.spend.gpu.capped ? "gpu" : ""].filter(Boolean).join(" and ")} at the daily cap · not waking until tomorrow · `
+            : ""}
+          estimate from job seconds plus each run's idle tail · refreshed every minute · caps: EYELORE_WORKER_DAILY_USD_CAP, EYELORE_GPU_DAILY_USD_CAP
+        </p>
+      </section>
+
       <Split title="platform" rows={data.byPlatform} />
       <Split title="hero line variant" rows={data.byVariant} />
     </div>

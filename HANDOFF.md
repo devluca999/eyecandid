@@ -103,6 +103,43 @@ One codebase, pull-based and outbound-only. It claims jobs from Convex over HTTP
 - **RunPod or any GPU host:** run `ghcr.io/devluca999/eyelore-engine:main` with the two variables and `EYELORE_PROVIDER=runpod`.
 - **GPU pool for generation (Phase 4, ADR 0013):** a separate Modal app, `services/engine/deploy/modal_gpu_app.py` (`EYELORE_PROVIDER=modal-gpu`, L4, scale to zero, one container at most, 15-minute cap), woken through `EYELORE_GPU_WAKE_URL`. Its only handler so far is `still` (Z-Image-Turbo). A `-gpu` worker claims only GPU job types and every other worker only CPU types; `jobs.claim` enforces this on the server. **Not deployed:** see "Needs you".
 
+## 3b. Modal: spend settings
+
+Modal can no longer spend more than one worker at a time or more than a daily cap. Nothing below has been deployed; every command is yours to run.
+
+**Settings.**
+
+| Setting | Where | Default | Notes |
+|---|---|---|---|
+| `max_containers=1` on `cpu_worker` and `gpu_worker` | code | 1 | hard concurrency cap in Modal, not configurable by env |
+| `EYELORE_IDLE_EXIT_S` | Modal secret / deploy env | 180 | seconds a CPU worker waits with nothing to do before exiting |
+| `EYELORE_GPU_IDLE_EXIT_S` | Modal secret / deploy env | 60 | same, GPU |
+| `EYELORE_SAFETY_NET_HOURS` | deploy env | 6 | a CPU run starts this often as a safety net; 0 disables it. `modal.Period` is read at deploy time: **changing it needs a redeploy** |
+| `EYELORE_WORKER_DAILY_USD_CAP` | Convex env | 1.00 | CPU pool estimated spend per UTC day |
+| `EYELORE_GPU_DAILY_USD_CAP` | Convex env | 2.00 | GPU pool estimated spend per UTC day |
+| `EYELORE_CPU_USD_PER_HOUR` / `EYELORE_GPU_USD_PER_HOUR` | Convex env | 0.253 / 1.15 | rates the estimate uses |
+| `EYELORE_IDLE_EXIT_S` / `EYELORE_GPU_IDLE_EXIT_S` / `EYELORE_SAFETY_NET_HOURS` | Convex env too | same as Modal | keep in step with Modal so the estimate adds the right idle tails |
+
+**Rates** (modal.com/pricing, Nov 2026): CPU $0.0000131 per physical core-second, memory $0.00000222 per GiB-second, L4 $0.000222 per second. The CPU worker (4 cores, 8 GiB) is about $0.0000702/s ($0.253/h) while up; the GPU worker (L4, 2 cores, 32 GiB) about $0.000319/s ($1.15/h). The CPU worker logs its estimated cost when it exits.
+
+**What the cap does.** `wake.check` (every minute) re-estimates today's spend. At the cap the pool is not woken (the reason is recorded: `/funnel` and the engine state show "capped"), free server edits get the paused line ("free edits are paused for today · back tomorrow"), and paid GPU requests are refused with "the gpu is resting for today · back tomorrow" before any credit is taken. It resets at 00:00 UTC. `/funnel` shows today's estimate against each cap.
+
+**It is an estimate.** Convex sees jobs, not containers. Spend = seconds the pool's jobs ran today, plus one idle tail per worker run (jobs closer together than the idle window count as one run), plus one idle tail per safety-net interval elapsed. It misses cold-start seconds and runs that saw no job, so the cap can be exceeded slightly and Modal's bill is the real number. That is why the owner steps below matter.
+
+**Idle window vs cost.** Cost of one quiet spell is the idle tail alone, at $0.253/h. The worst-case month assumes one job an hour round the clock (720 spells); the CPU daily cap ($1.00/day, about $30/month) bounds it in practice.
+
+| Idle window | Cost per quiet spell | Worst case per month (720 spells) |
+|---|---|---|
+| 3 min | $0.0127 | $9.11 |
+| 10 min | $0.0422 | $30.36 |
+| 30 min | $0.1265 | $91.08 |
+| 60 min | $0.2530 | $182.16 (always up) |
+
+**Owner steps.**
+1. In the Modal dashboard (Settings, Usage and billing) set the workspace spend limit and a budget alert below it. This is the only limit Modal itself enforces.
+2. Set the Convex env vars above if the defaults are not what you want (`npx convex env set NAME value`, add `--prod` for production).
+3. Deploy, only when you decide: `uvx --from modal modal deploy services/engine/deploy/modal_app.py` (dev), `EYELORE_ENV=prod uvx --from modal modal deploy services/engine/deploy/modal_app.py` (prod); the GPU app is `modal_gpu_app.py` the same way. Set `EYELORE_SAFETY_NET_HOURS` in the same shell to change the safety net.
+
 ## 4. Real and stubbed
 
 **Real, and proven**

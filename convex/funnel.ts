@@ -2,6 +2,7 @@ import { ConvexError, v } from "convex/values";
 import { query } from "./_generated/server";
 import { COUNTED_EVENTS, FUNNEL, aggregateFunnel, costSummary, parseRate, type FunnelEventRow } from "@eyelore/core";
 import { tokensMatch } from "./lib/workerAuth";
+import { spendState } from "./lib/spend";
 
 /**
  * Rows read per event name. Convex caps a query at 16,384 documents, and 11 steps are read, so the bound is
@@ -50,6 +51,7 @@ export const summary = query({
         jobs.push(...(await ctx.db.query("jobs").withIndex("by_status_type_created", (q) => q.eq("status", status).eq("type", type).gte("createdAt", since)).take(COST_ROW_LIMIT)));
     const exports = (await ctx.db.query("exports").order("desc").take(COST_ROW_LIMIT)).filter((e) => e.createdAt >= since);
     const cost = costSummary({ jobs, exports: exports.map((e) => ({ device: !!e.device })), usdPerHour: parseRate(process.env.EYELORE_CPU_USD_PER_HOUR) });
-    return { configured: true as const, days, since, until: now, rowLimit: FUNNEL_ROW_LIMIT, ...aggregateFunnel({ rows, truncated }), counted, cost };
+    const spend = { cpu: await spendState(ctx, "cpu", now), gpu: await spendState(ctx, "gpu", now) };
+    return { configured: true as const, spend, days, since, until: now, rowLimit: FUNNEL_ROW_LIMIT, ...aggregateFunnel({ rows, truncated }), counted, cost };
   },
 });
