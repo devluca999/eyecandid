@@ -307,7 +307,14 @@ export default defineSchema({
   /** fixed-window rate limit counters; key = "<action>:anon|hint:<hash>", swept by the expiry cron */
   rateLimits: defineTable({ key: v.string(), windowStart: v.number(), count: v.number() }).index("by_key", ["key"]).index("by_window", ["windowStart"]),
   /** free server jobs started per UTC day ("2026-11-17") against EYELORE_FREE_DAILY_JOBS */
-  dailyUsage: defineTable({ day: v.string(), freeJobs: v.number() }).index("by_day", ["day"]),
+  dailyUsage: defineTable({
+    day: v.string(),
+    freeJobs: v.number(),
+    /** today's estimated worker spend per pool in USD, refreshed every minute by wake.check (convex/lib/spend.ts) */
+    cpuSpendUsd: v.optional(v.number()),
+    gpuSpendUsd: v.optional(v.number()),
+    spendAt: v.optional(v.number()),
+  }).index("by_day", ["day"]),
 
   // ── flywheel labels (convex/lib/labels.ts) ──
   /**

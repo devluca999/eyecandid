@@ -1,4 +1,5 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
+import { GPU_RESTING, spendState } from "./lib/spend";
 import { internalMutation, mutation, query } from "./_generated/server";
 import { internal } from "./_generated/api";
 import type { MutationCtx } from "./_generated/server";
@@ -33,6 +34,8 @@ export async function enqueueJob(
   const input = spec.input.parse(args.input);
   // GPU work is Pro only and paid with credits, reserved from the job's generated seconds (ADR 0014); throws before
   // anything is woken or written (convex/lib/entitle.ts)
+  // the gpu's daily spend cap: a one-line refusal before any charge or wake (convex/lib/spend.ts)
+  if (isGpuJobType(args.type) && (await spendState(ctx, "gpu")).capped) throw new ConvexError(GPU_RESTING);
   const charge = await chargeGpuJob(ctx, args.type, input, args.ownerUserId);
   await requestWake(ctx); // scale-to-zero hosts: start a worker if none is polling (convex/wake.ts)
   const jobId = await ctx.db.insert("jobs", {

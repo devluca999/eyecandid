@@ -4,6 +4,7 @@ import { internalAction, internalMutation, internalQuery, type MutationCtx, type
 import type { Doc } from "./_generated/dataModel";
 import { FREE_CPU_JOB_TYPES, isGpuJobType, isGpuWorkerProvider, JOB_TYPES } from "@eyelore/core";
 import { sha256Hex } from "./lib/workerAuth";
+import { refreshSpend, spendState } from "./lib/spend";
 
 /**
  * Scale-to-zero workers (ADR 0010, GPU pool ADR 0013). Nothing runs while the queue is empty. When a job is waiting and
@@ -62,6 +63,16 @@ async function checkPool(ctx: MutationCtx, pool: Pool, now: number): Promise<Ver
   if (!(await queuedIn(ctx, pool))) return { wake: false, why: "nothing queued" };
   if ((await liveWorkers(ctx, pool, now)).length) return { wake: false, why: "a worker is polling" };
   const state = await ctx.db.query("engineState").first();
+  // daily spend guard: over today's cap, this pool is not woken (and says why); it resets with the next UTC day
+  const spend = await spendState(ctx, pool, now);
+  if (spend.capped) {
+    const result = `capped · about $${spend.usd.toFixed(2)} of $${spend.cap.toFixed(2)} today · not waking until tomorrow (UTC)`;
+    const field = pool === "gpu" ? "gpuLastWakeResult" : "lastWakeResult";
+    if (state) {
+      if (state[field] !== result) await ctx.db.patch(state._id, { [field]: result });
+    } else await ctx.db.insert("engineState", { lastWakeAt: 0, [field]: result });
+    return { wake: false, why: "daily cap reached" };
+  }
   const last = pool === "gpu" ? state?.gpuLastWakeAt : state?.lastWakeAt;
   if (last !== undefined && now - last < WAKE_DEBOUNCE_MS) return { wake: false, why: "just asked" };
   const patch = pool === "gpu" ? { gpuLastWakeAt: now, gpuLastWakeResult: "asking" } : { lastWakeAt: now, lastWakeResult: "asking" };
@@ -76,6 +87,7 @@ export const check = internalMutation({
   args: {},
   handler: async (ctx) => {
     const now = Date.now();
+    await refreshSpend(ctx, now); // the daily spend figures every guard reads (convex/lib/spend.ts)
     const cpu = await checkPool(ctx, "cpu", now);
     const gpu = await checkPool(ctx, "gpu", now);
     if (cpu.why !== "nothing queued" || gpu.why === "nothing queued") return cpu;
@@ -127,5 +139,5 @@ export const call = internalAction({
 export function wakeWord(result: string | undefined, asked: boolean): "asked" | "none" | "failing" | null {
   if (!asked) return null;
   const r = result ?? "";
-  return r.startsWith("ok") || r === "asking" ? "asked" : r.startsWith("not configured") || r.startsWith("no wake-able") ? "none" : "failing";
+  return r.startsWith("ok") || r === "asking" ? "asked" : r.startsWith("not configured") || r.startsWith("no wake-able") || r.startsWith("capped") ? "none" : "failing";
 }
